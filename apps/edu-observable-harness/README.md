@@ -31,10 +31,12 @@ python3 -m http.server 8080
 
 ## Deploy su GitHub Pages
 
-L'app è una cartella statica; due opzioni:
+Deploy automatico via GitHub Actions, pubblica su **https://harness.monaripietro.it**.
 
-1. **Pages su cartella**: in *Settings → Pages* selezionare deploy da branch e cartella, oppure creare un workflow che copi `apps/edu-observable-harness/` su Pages.
-2. **Dominio custom `https://harness.monaripietro.it`**: aggiungere un file `CNAME` (contenuto `harness.monaripietro.it`) nella cartella pubblicata e configurare il DNS del dominio verso GitHub Pages.
+1. *Settings → Pages → Source: **GitHub Actions*** (già configurato nel repo; dominio custom `harness.monaripietro.it` con certificato approvato).
+2. Il workflow [`.github/workflows/edu-pages.yml`](../../.github/workflows/edu-pages.yml) parte a ogni push su `master` che tocca l'app, o manualmente (*Actions → Deploy EDU Observable Harness → Run workflow*).
+3. Il workflow non ha alcun build step: l'app è statica pura, quindi copia `apps/edu-observable-harness/` in `_site/`, aggiunge il `CNAME`, verifica la presenza di `index.html`/`styles.css`/`app.js`, carica l'artifact Pages e deploya con `actions/deploy-pages@v4`.
+4. Nessun segreto server-side: il workflow usa solo i permessi standard `contents: read`, `pages: write`, `id-token: write`.
 
 ## Architettura
 
