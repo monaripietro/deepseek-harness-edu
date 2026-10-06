@@ -1,6 +1,8 @@
-# Deploy the EDU Observable Harness static mini-app to GitHub Pages.
-# The app is fully static (no build step), so the workflow only copies the
-# app folder to the Pages artifact and deploys it.
+# Deploy the EDU Observable Harness mini-app to GitHub Pages.
+# The app is a fully static site (plain HTML/CSS/ES modules, no framework,
+# no dependencies, no build step): the "build output" is the app folder itself.
+# The workflow follows the standard Pages pipeline: checkout -> configure
+# pages -> (no-op build) -> verify artifact -> upload artifact -> deploy.
 name: Deploy EDU Observable Harness
 
 on:
@@ -21,20 +23,34 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Assemble static site
+      - uses: actions/configure-pages@v5
+      - name: Assemble static site (no build step required)
         run: |
           mkdir -p _site
           cp -r apps/edu-observable-harness/* _site/
           echo 'harness.monaripietro.it' > _site/CNAME
+      - name: Verify artifact contents
+        run: |
+          test -f _site/index.html
+          test -f _site/styles.css
+          test -f _site/app.js
+          test -f _site/CNAME
+          echo "Artifact verified:"
+          find _site -type f | sort
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
