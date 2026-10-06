@@ -20,7 +20,7 @@ export async function runTask(session, onEvent) {
     session.steps.push(step);
 
     const assembled = assembleSystemPrompt(session.sections);
-    if (assembled.text) {
+    if (assembled.text && stepIndex === 1) {
       session.log.append('system_prompt_assembled', { text: assembled.text, sections: assembled.sections });
     }
     const tools = activeToolSchemas(session.tools);

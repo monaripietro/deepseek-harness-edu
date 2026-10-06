@@ -1,23 +1,25 @@
 /**
  * Session projector, inspired by deriveMessages() in packages/core/session:
  * model-facing messages are derived from the append-only event log.
+ * System prompt is a single surface message pinned first (like surface node 0).
  */
 
 export function deriveMessages(log) {
-  const messages = [];
+  const systemTexts = [];
+  const rest = [];
   for (const ev of log.events) {
     switch (ev.type) {
       case 'system_prompt_assembled':
-        if (ev.payload.text) messages.push({ role: 'system', content: ev.payload.text, origin: 'harness' });
+        if (ev.payload.text) systemTexts.push(ev.payload.text);
         break;
       case 'user_message':
-        messages.push({ role: 'user', content: ev.payload.text, origin: 'user' });
+        rest.push({ role: 'user', content: ev.payload.text, origin: 'user' });
         break;
       case 'model_response_received':
-        if (ev.payload.text) messages.push({ role: 'assistant', content: ev.payload.text, origin: 'model' });
+        if (ev.payload.text) rest.push({ role: 'assistant', content: ev.payload.text, origin: 'model' });
         break;
       case 'tool_call_suggested':
-        messages.push({
+        rest.push({
           role: 'assistant',
           content: null,
           tool_calls: [
@@ -31,7 +33,7 @@ export function deriveMessages(log) {
         });
         break;
       case 'tool_result_added':
-        messages.push({
+        rest.push({
           role: 'tool',
           tool_call_id: ev.payload.callId,
           name: ev.payload.name,
@@ -41,5 +43,8 @@ export function deriveMessages(log) {
         break;
     }
   }
+  const messages = [];
+  if (systemTexts.length > 0) messages.push({ role: 'system', content: systemTexts.join('\n\n'), origin: 'harness' });
+  messages.push(...rest);
   return messages;
 }
