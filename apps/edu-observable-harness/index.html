@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DeepSeek Harness EDU — Observable Mini-Harness</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>🎓 DeepSeek Harness EDU</h1>
+    <p class="tagline">Un LLM da solo riceve testo e produce testo. Un <strong>harness</strong> prepara il contesto, offre strumenti, registra eventi e orchestra i passaggi. Questa app te lo fa vedere.</p>
+    <p class="muted micro">Derivazione didattica semplificata di <a href="https://github.com/deepseek-ai/deepseek-harness" rel="noopener">DeepSeek Harness</a> — app statica, solo front-end.</p>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <h2>1. Chiave API e provider</h2>
+      <div id="api-key-panel"></div>
+    </section>
+
+    <section class="panel">
+      <h2>2. Il tuo prompt</h2>
+      <div id="prompt-editor"></div>
+    </section>
+
+    <section class="panel">
+      <h2>3. Sezioni del system prompt (aggiunte dall'harness)</h2>
+      <div id="harness-sections"></div>
+    </section>
+
+    <section class="panel">
+      <h2>4. Tool disponibili (mock)</h2>
+      <div id="tool-panel"></div>
+    </section>
+
+    <section class="panel">
+      <h2>5. Payload finale — cosa riceve davvero il modello</h2>
+      <div id="assembly-view"></div>
+    </section>
+
+    <section class="panel">
+      <h2>6. Esegui e osserva</h2>
+      <div class="row gap">
+        <button id="run-btn" class="btn btn-primary">▶ Invia al modello</button>
+        <button id="reset-btn" class="btn">Reset sessione</button>
+      </div>
+      <p id="status" class="micro muted"></p>
+      <div id="response-panel"></div>
+    </section>
+
+    <section class="panel">
+      <h2>7. Timeline del mini-harness</h2>
+      <div id="trace-timeline"></div>
+    </section>
+
+    <section class="panel">
+      <h2>8. Modalità confronto</h2>
+      <div id="compare-view"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p class="micro muted">Progetto educativo. La chiave API resta nel tuo browser e non viene mai inviata ad alcun server diverso dal provider scelto. Non usare chiavi di produzione.</p>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
