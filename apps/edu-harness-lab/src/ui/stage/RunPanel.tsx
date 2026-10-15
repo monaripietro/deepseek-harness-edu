@@ -1,3 +1,4 @@
+import { ReasoningNote } from '../model/ReasoningNote'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Cpu, FileText, Play, Square } from 'lucide-react'
 import type { ChatEntry, RunStatus } from '../../state/store'
@@ -192,7 +193,7 @@ function ConversationEntry({ message, streamingText, status }: { message: ChatEn
       </div>
       {message.streaming && !text ? (
         <p className={styles.pending}>
-          {status === 'awaitingApproval' ? 'In attesa della tua approvazione…' : 'Il sistema sta preparando la risposta…'}
+          {status === 'awaitingApproval' ? 'In attesa della tua approvazione…' : <ReasoningNote fallback="Il sistema sta preparando la risposta…" />}
         </p>
       ) : (
         <div className={styles.answerText}>

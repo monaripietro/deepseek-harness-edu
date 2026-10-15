@@ -634,7 +634,7 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
     try {
       const aborted = new Promise<never>((_, reject) => ctl.signal.addEventListener('abort', () => reject(new Error('aborted'))))
       aborted.catch(() => {})
-      return await Promise.race([deps.runtime.generate(req, deps.onToken ?? noop, ctl.signal), aborted])
+      return await Promise.race([deps.runtime.generate(req, deps.onToken ?? noop, ctl.signal, deps.onThinking), aborted])
     } catch (err) {
       if (signal.aborted) throw new Halt('user_stop', STOP_MESSAGES.user_stop)
       if (timedOut) throw modelFail(`tempo massimo del passo (${Math.round(timeoutMs / 1000)} s) superato.`)
@@ -642,6 +642,7 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
     } finally {
       clearTimeout(timer)
       signal.removeEventListener('abort', onAbort)
+      deps.onThinking?.(null)
     }
   }
 }

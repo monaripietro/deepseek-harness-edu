@@ -143,7 +143,7 @@ export function createTransformersRuntime(profileId: RealProfileId, options: Tra
       return loadPromise
     },
 
-    generate(req: ModelRequest, onToken, signal) {
+    generate(req: ModelRequest, onToken, signal, onThinking) {
       return new Promise<ModelResponse>((resolve, reject) => {
         if (!ready || !worker) {
           reject(new Error('Il modello reale non è caricato.'))
@@ -160,6 +160,7 @@ export function createTransformersRuntime(profileId: RealProfileId, options: Tra
         }
         const onEvent = (e: WorkerEvent) => {
           if (e.type === 'token' && e.id === id) onToken(e.text)
+          else if (e.type === 'thinking' && e.id === id) onThinking?.(e.tokens)
           else if (e.type === 'done' && e.id === id) {
             finish()
             resolve({

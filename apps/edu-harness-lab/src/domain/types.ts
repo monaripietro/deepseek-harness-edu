@@ -247,7 +247,13 @@ export interface ModelRuntime {
   isReady(): boolean
   /** `cacheOnly`: use only files already in the browser cache, never the network. */
   load(onProgress: (p: LoadProgress) => void, signal?: AbortSignal, opts?: { cacheOnly?: boolean }): Promise<void>
-  generate(req: ModelRequest, onToken: (t: string) => void, signal: AbortSignal): Promise<ModelResponse>
+  /** `onThinking`: hidden reasoning in progress (token count when known, null when over). Never its text. */
+  generate(
+    req: ModelRequest,
+    onToken: (t: string) => void,
+    signal: AbortSignal,
+    onThinking?: (tokens: number | null) => void,
+  ): Promise<ModelResponse>
   unload(): Promise<void>
 }
 
@@ -633,6 +639,7 @@ export interface TurnDeps {
   configKey: string
   configLabel: string
   onToken?: (t: string) => void
+  onThinking?: (tokens: number | null) => void
 }
 
 // ───────────────────────── Trace events ─────────────────────────

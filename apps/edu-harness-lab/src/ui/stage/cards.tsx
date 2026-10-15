@@ -1,3 +1,4 @@
+import { ReasoningNote } from '../model/ReasoningNote'
 import { useCallback, useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, ClipboardList, Database, Hand, Library, MessageSquare, Play, Plug, ScrollText, Search, ShieldCheck, Sparkles, Square, UserCheck, Wrench, X } from 'lucide-react'
@@ -130,7 +131,7 @@ export function AnswerCard({ stage, lit }: { stage: StageState; lit: boolean }) 
         plain ? (
           <p className={styles.clamp3}>{plain}</p>
         ) : running ? (
-          <p className={`${styles.clamp3} ${styles.waiting}`}>{prose ? prose.slice(-160) : 'Il sistema sta lavorando…'}</p>
+          <p className={`${styles.clamp3} ${styles.waiting}`}>{prose ? prose.slice(-160) : <ReasoningNote fallback="Il sistema sta lavorando…" />}</p>
         ) : (
           <p className={styles.placeholder}>La risposta comparirà qui.</p>
         )

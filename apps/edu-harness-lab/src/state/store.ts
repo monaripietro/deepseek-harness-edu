@@ -147,6 +147,8 @@ export interface LabState {
   runs: RunRecord[]
   pendingApproval: (ApprovalRequest & { resolve: (o: ApprovalOutcome) => void }) | null
   streamingText: string
+  /** Hidden reasoning in progress: since when and how many tokens (0 = unknown). Never its text. */
+  reasoning: { tokens: number; since: number } | null
 
   // playback / teacher
   speed: number
@@ -304,6 +306,7 @@ export const useLab = create<LabState>()((set, get) => ({
   runs: [],
   pendingApproval: null,
   streamingText: '',
+  reasoning: null,
 
   speed: 1,
   paused: false,
@@ -531,7 +534,9 @@ export const useLab = create<LabState>()((set, get) => ({
           history: s.config.components.memory ? s.history : [],
           configKey: configKeyOf(s.config),
           configLabel: describeConfig(s.config),
-          onToken: t => set({ streamingText: get().streamingText + t }),
+          onToken: t => set({ streamingText: get().streamingText + t, reasoning: null }),
+          onThinking: tokens =>
+            set({ reasoning: tokens === null ? null : { tokens, since: get().reasoning?.since ?? Date.now() } }),
         },
         abortCtl.signal,
       )
@@ -580,7 +585,7 @@ export const useLab = create<LabState>()((set, get) => ({
     get().stop()
     bus.clear()
     memory.clear('session')
-    set({ chat: [], history: [], events: [], status: 'idle', currentRunId: null, streamingText: '' })
+    set({ chat: [], history: [], events: [], status: 'idle', currentRunId: null, streamingText: '', reasoning: null })
   },
 
   setSpeed(speed) {

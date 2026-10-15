@@ -231,7 +231,18 @@ async function generate(req: Extract<WorkerRequest, { type: 'generate' }>): Prom
 
     let raw = ''
     let emitted = ''
+    let generatedTokens = 0
+    let lastThinkingPost = 0
     const streamer = new TextStreamer(tokenizer, {
+      // Before the first visible text a thinking model is reasoning: report how much (throttled), never what.
+      token_callback_function: () => {
+        generatedTokens += 1
+        if (!req.thinking || emitted) return
+        const now = performance.now()
+        if (now - lastThinkingPost < 250) return
+        lastThinkingPost = now
+        post({ type: 'thinking', id, tokens: generatedTokens })
+      },
       skip_prompt: true,
       skip_special_tokens: false,
       callback_function: (chunk: string) => {

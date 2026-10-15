@@ -148,7 +148,7 @@ export function createOpenRouterRuntime({ model, apiKey, thinking }: OpenRouterR
       onProgress({ phase: 'ready', loadedBytes: 1, totalBytes: 1, source: 'network' })
     },
 
-    async generate(req: ModelRequest, onToken, signal): Promise<ModelResponse> {
+    async generate(req: ModelRequest, onToken, signal, onThinking): Promise<ModelResponse> {
       const key = await apiKey()
       if (!key) throw new Error('Manca la chiave OpenRouter.')
       const started = performance.now()
@@ -170,6 +170,8 @@ export function createOpenRouterRuntime({ model, apiKey, thinking }: OpenRouterR
       if (forced) body.tool_choice = { type: 'function', function: { name: forceName } }
       // Reasoning stays private: requested with exclude, never shown. Off for guided calls (some providers reject both).
       if (model.reasoning) body.reasoning = effort === 'off' || forced ? { enabled: false } : { effort, exclude: true }
+      // The reasoning stays hidden: only signal that it is happening (until the first visible text).
+      if (model.reasoning && effort !== 'off' && !forced) onThinking?.(0)
 
       let res = await post(key, body, signal)
       if (res.status === 400 && (forced || body.reasoning)) {
