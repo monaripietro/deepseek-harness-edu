@@ -20,8 +20,8 @@ function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 1)
     req.onupgradeneeded = () => req.result.createObjectStore(STORE)
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
+    req.onsuccess = () =>{  resolve(req.result) }
+    req.onerror = () => { reject(req.error ?? new Error('Impossibile aprire l’archivio delle credenziali.')) }
   })
 }
 
@@ -31,8 +31,8 @@ async function idb<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRe
     return await new Promise<T>((resolve, reject) => {
       const tx = db.transaction(STORE, mode)
       const req = fn(tx.objectStore(STORE))
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error)
+      req.onsuccess = () =>{  resolve(req.result) }
+      req.onerror = () => { reject(req.error ?? new Error('Operazione sull’archivio delle credenziali non riuscita.')) }
     })
   } finally {
     db.close()

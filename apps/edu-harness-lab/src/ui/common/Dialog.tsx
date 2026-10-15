@@ -33,7 +33,7 @@ export function Dialog({
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const previous = document.activeElement as HTMLElement | null
+    const previous: (Element & Partial<Pick<HTMLElement, 'focus'>>) | null = document.activeElement
     const items = () =>
       Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(n => n.offsetParent !== null || n === document.activeElement)
     const raf = requestAnimationFrame(() => {

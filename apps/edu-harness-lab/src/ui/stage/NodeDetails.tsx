@@ -1,4 +1,4 @@
-import { ModelActivityNote, ReasoningDisclosure, proseOf, useLiveReasoning } from '../model/ModelActivity'
+import { ModelActivityNote, ReasoningDisclosure, useLiveReasoning, useStreamedProse } from '../model/ModelActivity'
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
@@ -6,12 +6,13 @@ import { Check, ChevronDown, ExternalLink, X } from 'lucide-react'
 import type { ComponentFamily, ComponentId, ExclusionReason, LoopLimits, ToolRisk } from '../../domain/types'
 import { COMPONENTS, LEVELS } from '../../harness/levels'
 import { INSTRUCTION_SECTIONS } from '../../harness/orchestrator/instructions'
-import { SCENARIO_DATA, SCENARIOS } from '../../scenarios'
+import { SCENARIO_DATA, SCENARIOS, getScenario, requestFor } from '../../scenarios'
 import { guideScenario } from '../../scenarios/guide'
 import { mcpHub, memory, registry, retriever, useLab } from '../../state/store'
 import { CONTEXT_KIND_LABEL, EXCLUSION_LABEL, FAMILY_LABEL, STOP_LABEL, formatBytes } from '../common/labels'
 import { Markdown } from '../common/Markdown'
 import { ProvenanceBadge } from '../common/ProvenanceBadge'
+import { ReflectionTrace } from '../chat/ReflectionTrace'
 import { useDockTab } from './cards'
 import type { StageState } from './deriveStage'
 import { PHASE_LABEL } from './deriveStage'
@@ -185,7 +186,7 @@ export function NodeDetails({ node, stage, onApprovalDetails }: { node: StageNod
               {title}
             </h2>
           </div>
-          <button type="button" className={styles.close} onClick={() => select(null)} aria-label="Chiudi i dettagli" aria-keyshortcuts="Escape">
+          <button type="button" className={styles.close} onClick={() =>{  select(null) }} aria-label="Chiudi i dettagli" aria-keyshortcuts="Escape">
             <X size={16} aria-hidden />
             <span>Chiudi</span>
             <kbd aria-hidden>Esc</kbd>
@@ -220,6 +221,7 @@ export function NodeDetails({ node, stage, onApprovalDetails }: { node: StageNod
 
 function QuestionDetails() {
   const scenarioId = useLab(s => s.scenarioId)
+  const promptLanguage = useLab(s => s.promptLanguage)
   const scenario = SCENARIOS.find(s => s.id === scenarioId) ?? guideScenario
   return (
     <>
@@ -228,7 +230,7 @@ function QuestionDetails() {
         <p>{scenario.lesson}</p>
       </Section>
       <Section title="Domanda dello scenario">
-        <blockquote className={styles.quote}>{scenario.request}</blockquote>
+        <blockquote className={styles.quote}>{requestFor(scenario.id, promptLanguage) || scenario.request}</blockquote>
       </Section>
       <Section title="Chi chiede">
         <p>
@@ -241,11 +243,12 @@ function QuestionDetails() {
 
 /** The answer while the run is in progress: the text as it is written, or what the model is doing. */
 function RunningAnswer() {
-  const prose = useLab(s => proseOf(s.streamingText))
+  const prose = useStreamedProse()
   const reasoning = useLiveReasoning()
   return (
     <>
       <ReasoningDisclosure parts={reasoning} live />
+      <ReflectionTrace live />
       {prose ? (
         <Markdown>{prose}</Markdown>
       ) : (
@@ -270,8 +273,9 @@ function AnswerDetails({ stage }: { stage: StageState }) {
   return (
     <>
       {stage.answer && (
-        <Section title="Testo completo">
+        <Section title={stage.stopReason === 'final_answer' ? 'Risposta finale' : 'Esito dell’esecuzione'}>
           <LastReasoning />
+          <ReflectionTrace runId={stage.runId ?? undefined} />
           <div className={styles.answer}>
             <Markdown>{stage.answer}</Markdown>
           </div>
@@ -344,7 +348,7 @@ function WindowDetails({ stage }: { stage: StageState }) {
           </ul>
         </Section>
       )}
-      <button type="button" className={styles.action} onClick={() => openDock('context')}>
+      <button type="button" className={styles.action} onClick={() =>{  openDock('context') }}>
         <ExternalLink size={15} aria-hidden /> Apri il prompt esatto
       </button>
     </>
@@ -467,6 +471,7 @@ function LoopDetails({ stage }: { stage: StageState }) {
 }
 
 function InstructionsDetails() {
+  const instructions = useLab(s => getScenario(s.scenarioId).context.instructions)
   return (
     <Section title="Testo inviato al modello" collapsible>
       <dl className={styles.rows}>
@@ -475,15 +480,17 @@ function InstructionsDetails() {
             {s.text}
           </Row>
         ))}
+        <Row k="Scenario">{instructions}</Row>
       </dl>
     </Section>
   )
 }
 
 function ContextDetails() {
+  const taskData = useLab(s => getScenario(s.scenarioId).context.taskData)
   return (
-    <Section title="Dati del compito" collapsible={SCENARIO_DATA.taskData.length > 4}>
-      {SCENARIO_DATA.taskData.map(t => (
+    <Section title="Dati del compito" collapsible={taskData.length > 4}>
+      {taskData.map(t => (
         <div key={t.id} className={styles.subsection}>
           <h4>{t.title}</h4>
           <p>{t.text}</p>

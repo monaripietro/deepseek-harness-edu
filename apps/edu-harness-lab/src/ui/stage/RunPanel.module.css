@@ -132,6 +132,14 @@
   color: var(--c-danger);
 }
 
+.scenarioLesson {
+  margin: 0 0 var(--sp-2);
+}
+
+.scenarioLesson:last-child {
+  margin-bottom: 0;
+}
+
 /* Conversation: takes all the free height and scrolls. */
 .conversation {
   flex: 1 1 auto;
@@ -235,6 +243,12 @@
   font-size: var(--fs-sm);
   line-height: 1.65;
   overflow-wrap: anywhere;
+}
+.resultTitle {
+  margin: 0 0 var(--sp-2);
+  color: var(--c-model);
+  font-size: var(--fs-sm);
+  font-weight: 500;
 }
 
 .pending {

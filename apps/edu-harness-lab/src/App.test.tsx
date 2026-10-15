@@ -8,6 +8,7 @@ import { useStageUi } from './ui/stage/stageUi'
 
 const originalLab = useLab.getState()
 const originalStage = useStageUi.getState()
+const originalUrl = window.location.href
 const originalAttributes = ['data-theme', 'data-presentation'].map(name => [name, document.documentElement.getAttribute(name)] as const)
 
 beforeEach(() => {
@@ -31,6 +32,7 @@ afterEach(() => {
   bus.clear()
   useLab.setState(originalLab, true)
   useStageUi.setState(originalStage, true)
+  window.history.replaceState(null, '', originalUrl)
   for (const [name, value] of originalAttributes) {
     if (value === null) document.documentElement.removeAttribute(name)
     else document.documentElement.setAttribute(name, value)
@@ -38,6 +40,17 @@ afterEach(() => {
 })
 
 describe('laboratory workspace', () => {
+  it('selects the tool-free reflection scenario from a lesson link', () => {
+    window.history.replaceState(null, '', '?scenario=ragionamento-iterativo&livello=7')
+    render(<App />)
+    expect(useLab.getState().scenarioId).toBe('ragionamento-iterativo')
+    expect(useLab.getState().level).toBe(7)
+    expect(useLab.getState().config.enabledTools).toEqual([])
+    expect(useLab.getState().config.components.tools).toBe(false)
+    expect(useLab.getState().config.components.agentLoop).toBe(true)
+    expect(useLab.getState().config.components.controls).toBe(true)
+  })
+
   it('starts with the map on the whole width and opens the run panel on request', () => {
     render(<App />)
     expect(screen.getByRole('tab', { name: 'Mappa' }).getAttribute('aria-selected')).toBe('true')
@@ -74,7 +87,7 @@ describe('laboratory workspace', () => {
     render(<App />)
     fireEvent.keyDown(window, { key: 'ArrowRight' })
     expect(useLab.getState().level).toBe(1)
-    act(() => useLab.setState({ status: 'running' }))
+    act(() =>{  useLab.setState({ status: 'running' }) })
     fireEvent.keyDown(window, { key: 'ArrowRight' })
     expect(useLab.getState().level).toBe(1)
   })

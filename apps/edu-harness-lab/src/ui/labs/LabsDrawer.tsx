@@ -63,7 +63,7 @@ export function LabsDrawer() {
     document.addEventListener('keydown', onKey, true)
     return () => {
       document.removeEventListener('keydown', onKey, true)
-      previous?.focus?.()
+      if (previous instanceof HTMLElement) previous.focus()
     }
   }, [isOpen, openLab])
 
@@ -90,7 +90,7 @@ export function LabsDrawer() {
     <AnimatePresence>
       {lab && (
         <div className={styles.root}>
-          <motion.div className={styles.scrim} aria-hidden="true" onClick={() => openLab(null)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+          <motion.div className={styles.scrim} aria-hidden="true" onClick={() =>{  openLab(null) }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
           <motion.div
             ref={panelRef}
             className={styles.drawer}
@@ -108,7 +108,7 @@ export function LabsDrawer() {
                   <h2 id="labs-title" className={styles.title}>Harness Lab</h2>
                   <p className={styles.subtitle}>Esplora e configura i componenti dell’agente.</p>
                 </div>
-                <button ref={closeRef} type="button" className={styles.close} onClick={() => openLab(null)} aria-label="Chiudi Harness Lab">
+                <button ref={closeRef} type="button" className={styles.close} onClick={() =>{  openLab(null) }} aria-label="Chiudi Harness Lab">
                   <X size={22} aria-hidden />
                 </button>
               </div>
@@ -125,8 +125,8 @@ export function LabsDrawer() {
                       aria-controls="labpanel"
                       tabIndex={active ? 0 : -1}
                       className={`${styles.tab} ${active ? styles.tabActive : ''}`}
-                      onClick={() => openLab(t.id)}
-                      onKeyDown={e => onTabKey(e, i)}
+                      onClick={() =>{  openLab(t.id) }}
+                      onKeyDown={(e) =>{  onTabKey(e, i) }}
                     >
                       <Icon size={18} aria-hidden />
                       {t.label}

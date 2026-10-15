@@ -7,6 +7,8 @@ import { STOP_LABEL } from '../common/labels'
 import { ProvenanceBadge } from '../common/ProvenanceBadge'
 import { Chip } from '../common/Chip'
 import { Markdown } from '../common/Markdown'
+import { ModelActivityNote, ReasoningDisclosure, useLiveReasoning, useStreamedProse } from '../model/ModelActivity'
+import { ReflectionTrace } from './ReflectionTrace'
 import styles from './ChatPanel.module.css'
 
 const fmtDur = (ms: number) => (ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1).replace('.', ',')} s`)
@@ -15,6 +17,7 @@ export function ChatPanel() {
   const chat = useLab(s => s.chat)
   const runs = useLab(s => s.runs)
   const streamingText = useLab(s => s.streamingText)
+  const streamedProse = useStreamedProse()
   const reduce = useReducedMotion()
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -38,7 +41,7 @@ export function ChatPanel() {
             <Entry
               key={m.id}
               m={m}
-              streamingText={streamingText}
+              streamedProse={streamedProse}
               duration={m.runId ? durations.get(m.runId) : undefined}
               reduce={!!reduce}
             />
@@ -50,7 +53,8 @@ export function ChatPanel() {
   )
 }
 
-function Entry({ m, streamingText, duration, reduce }: { m: ChatEntry; streamingText: string; duration?: number; reduce: boolean }) {
+function Entry({ m, streamedProse, duration, reduce }: { m: ChatEntry; streamedProse: string; duration?: number; reduce: boolean }) {
+  const liveReasoning = useLiveReasoning()
   const anim = {
     initial: reduce ? false : { opacity: 0, y: 12 },
     animate: { opacity: 1, y: 0 },
@@ -72,15 +76,15 @@ function Entry({ m, streamingText, duration, reduce }: { m: ChatEntry; streaming
       </motion.div>
     )
   }
-  const text = m.streaming ? streamingText : m.text
+  const text = m.streaming ? streamedProse : m.text
   return (
     <motion.article className={styles.answer} {...anim} aria-busy={m.streaming}>
       <header className={styles.meta}>
-        <span className={styles.kicker}>RISPOSTA</span>
+        <span className={styles.kicker}>{m.streaming ? 'ESECUZIONE DEL MODELLO' : 'ESITO DELLA PROVA'}</span>
         {m.configLabel && <Chip color="var(--c-orchestration)">{m.configLabel}</Chip>}
         {m.provenance && <ProvenanceBadge tag={m.provenance} />}
-        {m.stopReason && (
-          <Chip color={m.stopReason === 'final_answer' ? 'var(--c-success)' : 'var(--c-governance)'}>{STOP_LABEL[m.stopReason]}</Chip>
+        {m.stopReason && m.stopReason !== 'final_answer' && (
+          <Chip color="var(--c-governance)">{STOP_LABEL[m.stopReason]}</Chip>
         )}
         {duration !== undefined && (
           <span className={styles.dur}>
@@ -88,6 +92,8 @@ function Entry({ m, streamingText, duration, reduce }: { m: ChatEntry; streaming
           </span>
         )}
       </header>
+      <ReasoningDisclosure parts={m.streaming ? liveReasoning : (m.reasoning ?? [])} live={m.streaming} />
+      <ReflectionTrace runId={m.runId} live={m.streaming} />
       {m.streaming && !text ? (
         <p className={styles.thinking}>
           <span className={styles.dots} aria-hidden>
@@ -95,10 +101,11 @@ function Entry({ m, streamingText, duration, reduce }: { m: ChatEntry; streaming
             <i />
             <i />
           </span>
-          L&apos;agente sta lavorando…
+          <ModelActivityNote fallback="L’agente sta lavorando…" />
         </p>
       ) : (
         <div className={styles.text}>
+          {!m.streaming && <h4 className={styles.resultTitle}>{m.stopReason === 'final_answer' ? 'Risposta finale' : 'Esito dell’esecuzione'}</h4>}
           <Markdown>{text}</Markdown>
           {m.streaming && <span className={styles.caret} aria-hidden />}
         </div>

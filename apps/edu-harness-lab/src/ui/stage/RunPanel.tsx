@@ -1,10 +1,11 @@
-import { ModelActivityNote, ReasoningDisclosure, proseOf, useLiveReasoning } from '../model/ModelActivity'
+import { ModelActivityNote, ReasoningDisclosure, useLiveReasoning, useStreamedProse } from '../model/ModelActivity'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Cpu, FileText, Play, Square } from 'lucide-react'
 import type { ChatEntry, RunStatus } from '../../state/store'
 import { useLab } from '../../state/store'
-import { SCENARIOS } from '../../scenarios'
+import { SCENARIOS, requestFor } from '../../scenarios'
 import { guideScenario } from '../../scenarios/guide'
+import { ReflectionTrace } from '../chat/ReflectionTrace'
 import { STOP_LABEL } from '../common/labels'
 import { Button } from '../common/Button'
 import { Markdown } from '../common/Markdown'
@@ -18,23 +19,29 @@ export function RunPanel() {
   const conversationId = useId()
   const scenarioId = useLab(s => s.scenarioId)
   const scenario = SCENARIOS.find(item => item.id === scenarioId) ?? guideScenario
+  const promptLanguage = useLab(s => s.promptLanguage)
+  const request = requestFor(scenario.id, promptLanguage) || scenario.request
+  const config = useLab(s => s.config)
+  const setLevel = useLab(s => s.setLevel)
   const chat = useLab(s => s.chat)
   const streamingText = useLab(s => s.streamingText)
+  const streamedProse = useStreamedProse()
   const status = useLab(s => s.status)
   const send = useLab(s => s.send)
   const stop = useLab(s => s.stop)
   const modelInfo = useLab(s => s.modelInfo)
   const loadProgress = useLab(s => s.loadProgress)
-  const [draft, setDraft] = useState(scenario.request)
+  const [draft, setDraft] = useState(request)
   const conversationRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => setDraft(scenario.request), [scenario.request])
+  useEffect(() =>{  setDraft(request) }, [request])
   useEffect(() => {
     const conversation = conversationRef.current
     if (conversation) conversation.scrollTop = conversation.scrollHeight
   }, [chat.length, streamingText.length])
 
   const running = status === 'running' || status === 'awaitingApproval'
+  const reflectionReady = config.components.orchestrator && config.components.agentLoop && config.components.controls
   const modelReady = modelInfo.provenance.provenance === 'real'
   const modelLoading = ['checking', 'downloading', 'initializing'].includes(loadProgress.phase)
   const modelError = loadProgress.phase === 'error' ? loadProgress.message || 'Non è stato possibile caricare il modello.' : null
@@ -86,6 +93,21 @@ export function RunPanel() {
         </span>
       </header>
 
+      {scenario.reflectionPrompt && (
+        <div className={styles.modelNote} aria-label="Come provare il ragionamento iterativo">
+          <p className={styles.scenarioLesson}>{scenario.lesson}</p>
+          {reflectionReady ? (
+            <p className={styles.scenarioLesson}>
+              Bozza → riesame → correzione → risposta, senza strumenti. Limite configurato: {config.limits.maxSteps} passi.
+            </p>
+          ) : (
+            <Button size="sm" variant="secondary" disabled={running} onClick={() =>{  setLevel(scenario.showcaseLevel) }}>
+              Attiva ciclo di riflessione e controlli
+            </Button>
+          )}
+        </div>
+      )}
+
       {modelError ? (
         <p className={`${styles.modelNote} ${styles.modelError}`} role="alert">
           Il modello non si è caricato: {modelError}
@@ -108,7 +130,7 @@ export function RunPanel() {
         ) : (
           <ol className={styles.messages} aria-live="polite" aria-relevant="additions text">
             {chat.map(message => (
-              <ConversationEntry key={message.id} message={message} streamingText={streamingText} status={status} />
+              <ConversationEntry key={message.id} message={message} streamedProse={streamedProse} status={status} />
             ))}
           </ol>
         )}
@@ -131,7 +153,7 @@ export function RunPanel() {
           disabled={running}
           aria-describedby={hintId}
           placeholder="Scrivi una richiesta…"
-          onChange={event => setDraft(event.target.value)}
+          onChange={(event) =>{  setDraft(event.target.value) }}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
               event.preventDefault()
@@ -144,8 +166,8 @@ export function RunPanel() {
             Invio avvia la richiesta · Maiusc+Invio aggiunge una riga.
           </p>
           <div className={styles.actions}>
-            {draft !== scenario.request && !running && (
-              <Button variant="ghost" size="sm" onClick={() => setDraft(scenario.request)}>
+            {draft !== request && !running && (
+              <Button variant="ghost" size="sm" onClick={() =>{  setDraft(request) }}>
                 Domanda dello scenario
               </Button>
             )}
@@ -165,7 +187,7 @@ export function RunPanel() {
   )
 }
 
-function ConversationEntry({ message, streamingText, status }: { message: ChatEntry; streamingText: string; status: RunStatus }) {
+function ConversationEntry({ message, streamedProse, status }: { message: ChatEntry; streamedProse: string; status: RunStatus }) {
   const live = useLiveReasoning()
   if (message.role === 'user') {
     return (
@@ -182,23 +204,27 @@ function ConversationEntry({ message, streamingText, status }: { message: ChatEn
     )
   }
 
-  const text = message.streaming ? proseOf(streamingText) : message.text
+  const text = message.streaming ? streamedProse : message.text
 
   return (
     <li className={styles.answer} aria-busy={message.streaming}>
       <div className={styles.answerMeta}>
-        <span className={styles.kicker}>Risposta</span>
+        <span className={styles.kicker}>{message.streaming ? 'Esecuzione del modello' : 'Esito della prova'}</span>
         {message.configLabel && <span className={styles.configLabel}>{message.configLabel}</span>}
         {message.provenance && <ProvenanceBadge tag={message.provenance} />}
-        {message.stopReason && <span className={styles.stopReason}>{STOP_LABEL[message.stopReason]}</span>}
+        {message.stopReason && message.stopReason !== 'final_answer' && <span className={styles.stopReason}>{STOP_LABEL[message.stopReason]}</span>}
       </div>
       <ReasoningDisclosure parts={message.streaming ? live : (message.reasoning ?? [])} live={message.streaming} />
+      <ReflectionTrace runId={message.runId} live={message.streaming} />
       {message.streaming && !text ? (
         <p className={styles.pending}>
           {status === 'awaitingApproval' ? 'In attesa della tua approvazione…' : <ModelActivityNote fallback="Il sistema sta preparando la risposta…" />}
         </p>
       ) : (
         <div className={styles.answerText}>
+          {!message.streaming && <h4 className={styles.resultTitle}>
+            {message.stopReason === 'final_answer' ? 'Risposta finale' : message.stopReason === 'needs_user_input' ? 'Chiarimento richiesto' : 'Esito senza risposta finale'}
+          </h4>}
           <Markdown>{text}</Markdown>
           {message.streaming && <span className={styles.caret} aria-hidden />}
         </div>

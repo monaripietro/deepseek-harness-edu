@@ -19,7 +19,7 @@ const REAL_MODEL: ModelInfo = {
   provenance: { ...NOT_LOADED_INFO.provenance, provenance: 'real', locality: 'local' },
 }
 
-const runExperiment = vi.fn(async () => undefined)
+const runExperiment = vi.fn(() => Promise.resolve())
 
 const at = <T,>(items: readonly T[], index: number): T => {
   const item = items[index]

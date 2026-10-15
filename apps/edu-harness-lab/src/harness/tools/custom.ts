@@ -1,10 +1,10 @@
 import type { CustomToolSpec, JSONSchema, ToolDefinition, ToolOutcome } from '../../domain/types'
 import { SIMULATED_LOCAL } from '../../domain/types'
+import { argumentText, t } from './lang'
 
 function fillTemplate(tpl: string, args: Record<string, unknown>): string {
   return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, name: string) => {
-    const v = args[name]
-    return v === undefined || v === null ? '' : String(v)
+    return argumentText(args[name])
   })
 }
 
@@ -32,12 +32,17 @@ export function toolFromSpec(spec: CustomToolSpec): ToolDefinition {
     errors: [{ code: 'TOOL_ERROR', message: spec.errorMessage || 'Errore simulato' }],
     latencyMs: spec.latencyMs,
     source: 'custom',
-    async execute(args): Promise<ToolOutcome> {
+    async execute(args, ctx): Promise<ToolOutcome> {
       if (Math.random() < spec.errorRate) {
-        return { ok: false, code: 'TOOL_ERROR', message: spec.errorMessage || 'Errore simulato' }
+        // The error message and the output template are written by the person in the Tool Lab: only the default is translated.
+        return Promise.resolve({
+          ok: false,
+          code: 'TOOL_ERROR',
+          message: spec.errorMessage || t(ctx.lang, 'Errore simulato', 'Simulated error'),
+        })
       }
       const text = fillTemplate(spec.outputTemplate, args)
-      return { ok: true, data: { text }, summary: text }
+      return Promise.resolve({ ok: true, data: { text }, summary: text })
     },
   }
 }

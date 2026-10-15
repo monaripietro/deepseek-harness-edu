@@ -88,7 +88,7 @@ export function StageCard({
       className={`${styles.cardToggle} ${active ? styles.on : ''}`}
       aria-pressed={active}
       aria-label={active ? `Rimuovi ${title}` : `Aggiungi ${title}`}
-      onClick={() => toggleComponent(component)}
+      onClick={() =>{  toggleComponent(component) }}
     >
       <span className={styles.cardToggleKnob} />
     </button>
@@ -117,7 +117,7 @@ export function StageCard({
         tabIndex={0}
         aria-haspopup="dialog"
         aria-expanded={selected}
-        onClick={e => open(e.target)}
+        onClick={(e) =>{  open(e.target) }}
         onKeyDown={(e) => {
           if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
             e.preventDefault()
@@ -140,7 +140,7 @@ export function StageCard({
       </section>
 
       {/* Larger preview on hover / focus: counter-scaled so it stays readable when the map is zoomed out. */}
-      <div className={styles.preview} onClick={e => open(e.target)}>
+      <div className={styles.preview} onClick={(e) =>{  open(e.target) }}>
         <header className={styles.previewHead}>
           <span className={styles.cardIcon} aria-hidden>
             {icon}
@@ -157,7 +157,7 @@ export function StageCard({
               {component && <p className={styles.previewLead}>{COMPONENTS[component].short}</p>}
               <p className={styles.hint}>{isNext ? 'È il prossimo strato da aggiungere.' : `Si aggiunge al livello ${lvl + 1}.`}</p>
               {component && view === 'lab' && (
-                <button type="button" className={styles.addBtn} onClick={() => toggleComponent(component)}>
+                <button type="button" className={styles.addBtn} onClick={() =>{  toggleComponent(component) }}>
                   <Plus size={15} aria-hidden /> Aggiungi
                 </button>
               )}

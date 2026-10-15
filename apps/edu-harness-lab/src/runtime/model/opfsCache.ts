@@ -35,7 +35,8 @@ export function keyForFileName(name: string): string | null {
 }
 
 export function opfsAvailable(): boolean {
-  return typeof navigator !== 'undefined' && !!navigator.storage?.getDirectory
+  const nav: { storage?: Partial<StorageManager> } = typeof navigator !== 'undefined' ? navigator : {}
+  return typeof nav.storage?.getDirectory === 'function'
 }
 
 async function dir(create = true): Promise<FileSystemDirectoryHandle | null> {

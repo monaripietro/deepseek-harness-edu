@@ -52,7 +52,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, ariaLabel, idBas
             aria-controls={`${idBase}-panel`}
             tabIndex={sel ? 0 : -1}
             className={`${styles.tab} ${sel ? styles.sel : ''}`}
-            onClick={() => onChange(t.id)}
+            onClick={() =>{  onChange(t.id) }}
           >
             {sel && <motion.span layoutId={`tabpill-${uid}`} className={styles.pill} transition={{ type: 'spring', stiffness: 500, damping: 38 }} />}
             <span className={styles.inner}>

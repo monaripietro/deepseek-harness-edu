@@ -1,4 +1,4 @@
-import type { ComponentFamily, ComponentId, HarnessConfig, LevelId, LoopLimits, RagSettings } from '../domain/types'
+import type { ComponentFamily, ComponentId, HarnessConfig, LevelId, LoopLimits, RagSettings, Scenario } from '../domain/types'
 
 export interface ComponentMeta {
   id: ComponentId
@@ -209,6 +209,25 @@ export function configForLevel(level: LevelId, prev?: HarnessConfig): HarnessCon
   cfg.enabledTools = level >= 6 ? [...LEVEL6_TOOLS] : level === 5 ? [...LEVEL5_TOOLS] : []
   cfg.mcpServers = level >= 9 ? [SIMULATED_MCP_SERVER] : []
   return cfg
+}
+
+const LAST_LEVEL: LevelId = 9
+
+/** Last guided level a scenario needs (the whole path when it does not say, or when there is no scenario). */
+export function lastLevelOf(scenario?: Pick<Scenario, 'maxLevel'>): LevelId {
+  return scenario?.maxLevel ?? LAST_LEVEL
+}
+
+/** The guided levels shown for a scenario: from the isolated model up to the last one that changes its outcome. */
+export function levelsFor(scenario?: Pick<Scenario, 'maxLevel'>): LevelDef[] {
+  const last = lastLevelOf(scenario)
+  return LEVELS.filter(l => l.id <= last)
+}
+
+/** A guided level kept within the scenario's path. */
+export function clampLevel(level: LevelId, scenario?: Pick<Scenario, 'maxLevel'>): LevelId {
+  const last = lastLevelOf(scenario)
+  return level > last ? last : level
 }
 
 export interface ExperimentConfig {

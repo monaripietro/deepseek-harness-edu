@@ -37,7 +37,7 @@ export function Segmented<T extends string | number>({
             aria-label={o.label}
             title={o.label}
             className={`${styles.opt} ${on ? styles.on : ''}`}
-            onClick={() => onChange(o.value)}
+            onClick={() =>{  onChange(o.value) }}
           >
             {on && <motion.span layoutId={`pill-${id}`} className={styles.pill} transition={{ type: 'spring', stiffness: 500, damping: 38 }} />}
             <span className={styles.inner}>

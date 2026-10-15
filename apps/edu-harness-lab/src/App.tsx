@@ -16,6 +16,7 @@ import { DataSettings } from './ui/settings/DataSettings'
 import { ApprovalDialog } from './ui/approval/ApprovalDialog'
 import { Maximize, MessageSquare, Minimize, PanelRightClose, PanelRightOpen, Play, Radio, Square, X } from 'lucide-react'
 import { SCENARIOS } from './scenarios'
+import { lastLevelOf } from './harness/levels'
 import { Tabs, tabId } from './ui/common/Tabs'
 import { RunPanel } from './ui/stage/RunPanel'
 import { useStageUi } from './ui/stage/stageUi'
@@ -66,13 +67,12 @@ export function App() {
   }
   const [focus, setFocus] = useState(false)
   const status = useLab(s => s.status)
-  const scenarioId = useLab(s => s.scenarioId)
   const draft = useStageUi(s => s.draft)
   const running = status === 'running' || status === 'awaitingApproval'
   const runRequest = () => {
     const s = useLab.getState()
     if (running) s.stop()
-    else void s.send(draft ?? (SCENARIOS.find(x => x.id === scenarioId) ?? SCENARIOS[0])?.request)
+    else void s.send(draft ?? undefined)
   }
 
   // Full-screen map: hides the header and asks the browser for full screen when it can.
@@ -131,6 +131,10 @@ export function App() {
     if (![...q.keys()].length) return
     const s = useLab.getState()
     s.finishWelcome()
+    const lingua = q.get('lingua')
+    if (lingua === 'it' || lingua === 'en') s.setPromptLanguage(lingua)
+    const scenario = q.get('scenario')
+    if (scenario && SCENARIOS.some(item => item.id === scenario)) s.setScenario(scenario)
     const lvl = Number(q.get('livello'))
     if (Number.isInteger(lvl) && lvl >= 0 && lvl <= 9) s.setLevel(lvl as LevelId)
     const vista = q.get('vista')
@@ -166,7 +170,9 @@ export function App() {
       if (e.defaultPrevented || isShortcutControl(e.target) || e.metaKey || e.ctrlKey || e.altKey) return
       const s = useLab.getState()
       const busy = s.status === 'running' || s.status === 'awaitingApproval'
-      if (e.key === 'ArrowRight' && s.view === 'guided' && !busy && s.level < 9) s.setLevel((s.level + 1) as LevelId)
+      // The guided path of each scenario ends at its last useful level.
+      const last = lastLevelOf(SCENARIOS.find(x => x.id === s.scenarioId))
+      if (e.key === 'ArrowRight' && s.view === 'guided' && !busy && s.level < last) s.setLevel((s.level + 1) as LevelId)
       else if (e.key === 'ArrowLeft' && s.view === 'guided' && !busy && s.level > 0) s.setLevel((s.level - 1) as LevelId)
       else if (e.key === ' ' && busy) s.togglePause()
       else if ((e.key === 's' || e.key === 'S') && s.stepMode) s.step()
@@ -174,7 +180,7 @@ export function App() {
       e.preventDefault()
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () =>{  window.removeEventListener('keydown', onKey) }
   }, [])
 
   const showApprovalDialog = !!pendingApproval && (approvalDetails || view === 'compare')
@@ -193,7 +199,7 @@ export function App() {
         <div className={styles.app}>
           {view === 'compare' ? (
             <>
-              <TopBar onOpenModel={() => setModelOpen(true)} onOpenSettings={() => setSettingsOpen(true)} />
+              <TopBar onOpenModel={() =>{  setModelOpen(true) }} onOpenSettings={() =>{  setSettingsOpen(true) }} />
               <main className={styles.compare}>
                 <ComparisonView />
               </main>
@@ -201,14 +207,14 @@ export function App() {
           ) : (
             <>
               <div className={`${styles.screen} ${presentation ? styles.presentationScreen : ''}`}>
-                {!focus && <TopBar onOpenModel={() => setModelOpen(true)} onOpenSettings={() => setSettingsOpen(true)} />}
+                {!focus && <TopBar onOpenModel={() =>{  setModelOpen(true) }} onOpenSettings={() =>{  setSettingsOpen(true) }} />}
                 {!focus && <LevelRail />}
                 <main
                   className={[styles.engine, drawerOpen && styles.engineWithDrawer, resizing && styles.resizing, presentation && styles.presenting].filter(Boolean).join(' ')}
                   style={{ '--drawer-w': `${drawerW}px` } as React.CSSProperties}
                 >
                   <div className={styles.stageWrap}>
-                    <EngineStage onApprovalDetails={() => setApprovalDetails(true)} />
+                    <EngineStage onApprovalDetails={() =>{  setApprovalDetails(true) }} />
                     <div className={styles.stageActions}>
                       <button type="button" className={`${styles.stageAction} ${running ? styles.stopAction : styles.runAction}`} onClick={runRequest}>
                         {running ? <Square size={14} fill="currentColor" aria-hidden /> : <Play size={15} fill="currentColor" aria-hidden />}
@@ -229,7 +235,7 @@ export function App() {
                         className={`${styles.stageAction} ${drawerOpen ? styles.stageActionOn : ''}`}
                         aria-expanded={drawerOpen}
                         aria-controls="workspace-drawer"
-                        onClick={() => setDrawerOpen(open => !open)}
+                        onClick={() =>{  setDrawerOpen(open => !open) }}
                       >
                         {drawerOpen ? <PanelRightClose size={16} aria-hidden /> : <PanelRightOpen size={16} aria-hidden />}
                         <span>{drawerOpen ? 'Chiudi pannello' : 'Prova e racconto'}</span>
@@ -269,7 +275,7 @@ export function App() {
                         resizeFrom.current = null
                         setResizing(false)
                       }}
-                      onDoubleClick={() => commitDrawer(DRAWER_DEFAULT)}
+                      onDoubleClick={() =>{  commitDrawer(DRAWER_DEFAULT) }}
                       onKeyDown={(e) => {
                         const step = e.shiftKey ? 120 : 40
                         if (e.key === 'ArrowLeft') commitDrawer(drawerW + step)
@@ -294,7 +300,7 @@ export function App() {
                         ariaLabel="Pannello del laboratorio"
                         idBase="workspace"
                       />
-                      <button type="button" className={styles.drawerClose} onClick={() => setDrawerOpen(false)} aria-label="Chiudi il pannello" title="Chiudi il pannello">
+                      <button type="button" className={styles.drawerClose} onClick={() =>{  setDrawerOpen(false) }} aria-label="Chiudi il pannello" title="Chiudi il pannello">
                         <X size={18} aria-hidden />
                       </button>
                     </div>
@@ -312,8 +318,8 @@ export function App() {
           <TeacherPanel />
         </div>
       )}
-      {modelOpen && <ModelSetup onClose={() => setModelOpen(false)} />}
-      {settingsOpen && <DataSettings onClose={() => setSettingsOpen(false)} />}
+      {modelOpen && <ModelSetup onClose={() =>{  setModelOpen(false) }} />}
+      {settingsOpen && <DataSettings onClose={() =>{  setSettingsOpen(false) }} />}
       {showApprovalDialog && <ApprovalDialog />}
     </MotionConfig>
   )

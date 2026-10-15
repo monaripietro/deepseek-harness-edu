@@ -1,7 +1,8 @@
-import { useEffect, useId, useMemo, useRef } from 'react'
-import { PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { ChevronDown, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import type { ComponentId, TraceEvent } from '../../domain/types'
 import { COMPONENTS, LEVELS } from '../../harness/levels'
+import { SCENARIOS } from '../../scenarios'
 import { useLab } from '../../state/store'
 import type { NarrationLine } from './narrate'
 import { narrate } from './narrate'
@@ -65,11 +66,21 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
   const events = useLab(s => s.events)
   const components = useLab(s => s.config.components)
   const level = useLab(s => s.level)
+  const reflection = useLab(s => !!SCENARIOS.find(scenario => scenario.id === s.scenarioId)?.reflectionPrompt)
   const status = useLab(s => s.status)
-  const levelDefinition = LEVELS[level]
+  const focus = reflection
+    ? {
+      title: 'Riflessione iterativa',
+      phenomenon: 'Ogni bozza accettata torna in input alla chiamata successiva, che può verificarla o correggerla.',
+      term: 'ciclo di riflessione',
+      message: 'Le bozze sono testo generato osservabile, non thinking nativo. Ripetere una proposta non dimostra che sia corretta.',
+    }
+    : LEVELS[level]
   const titleId = useId()
   const currentId = `${titleId}-current`
-  const historyRef = useRef<HTMLDetailsElement>(null)
+  const historyId = `${titleId}-history`
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const followHistory = useRef(true)
   const listRef = useRef<HTMLOListElement>(null)
 
   const lines = useMemo(() => narrationLines(events, components), [events, components])
@@ -77,10 +88,9 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
   const history = lines.slice(0, -1)
 
   useEffect(() => {
-    const details = historyRef.current
     const list = listRef.current
-    if (details?.open && list) list.scrollTop = list.scrollHeight
-  }, [lines.length])
+    if (historyOpen && followHistory.current && list) list.scrollTop = list.scrollHeight
+  }, [historyOpen, history.length])
 
   const running = status === 'running' || status === 'awaitingApproval'
 
@@ -106,6 +116,9 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
           </button>
         )}
       </h2>
+      <p className={styles.orientation}>
+        Eventi dell’harness, non pensieri del modello. Il testo delle bozze è in «Riflessioni del ciclo».
+      </p>
       {current ? (
         <section
           className={[styles.current, styles[`tone_${current.tone}`]].join(' ')}
@@ -127,37 +140,53 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
         </div>
       )}
       <details className={styles.levelFocus}>
-        <summary className={styles.levelSummary}>Focus del livello · {levelDefinition?.title}</summary>
+        <summary className={styles.levelSummary}>{reflection ? 'Focus dello scenario' : 'Focus del livello'} · {focus?.title}</summary>
         <div className={styles.levelBody}>
           <p>
             <span className={styles.levelLabel}>Da osservare</span>{' '}
-            {levelDefinition?.phenomenon}
+            {focus?.phenomenon}
           </p>
           <p>
             <span className={styles.levelLabel}>Termine</span>{' '}
-            <span className={styles.levelTerm}>{levelDefinition?.term}</span>
+            <span className={styles.levelTerm}>{focus?.term}</span>
           </p>
           <p>
             <span className={styles.levelLabel}>Idea chiave</span>{' '}
-            {levelDefinition?.message}
+            {focus?.message}
           </p>
         </div>
       </details>
       {current && history.length > 0 && (
-        <details
-          ref={historyRef}
-          className={styles.history}
-          onToggle={(event) => {
-            if (event.currentTarget.open && listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight
-          }}
-        >
-          <summary className={styles.historySummary}>
-            Storico{' '}
-            <span className={styles.historyCount}>
-              {history.length} {history.length === 1 ? 'evento precedente' : 'eventi precedenti'}
-            </span>
-          </summary>
-          <ol className={styles.list} ref={listRef} aria-label="Eventi precedenti">
+        <section className={styles.history} data-open={historyOpen}>
+          <h3 className={styles.historyHeading}>
+            <button
+              type="button"
+              className={styles.historySummary}
+              aria-expanded={historyOpen}
+              aria-controls={historyId}
+              onClick={() => {
+                followHistory.current = true
+                setHistoryOpen(open => !open)
+              }}
+            >
+              <ChevronDown size={14} aria-hidden />
+              Storico{' '}
+              <span className={styles.historyCount}>
+                {history.length} {history.length === 1 ? 'evento precedente' : 'eventi precedenti'}
+              </span>
+            </button>
+          </h3>
+          {historyOpen && <ol
+            id={historyId}
+            className={styles.list}
+            ref={listRef}
+            aria-label="Eventi precedenti"
+            tabIndex={0}
+            onScroll={(event) => {
+              const list = event.currentTarget
+              followHistory.current = list.scrollHeight - list.clientHeight - list.scrollTop <= 4
+            }}
+          >
             {history.map((line, index) => (
               <li
                 key={line.id}
@@ -173,8 +202,8 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
                 </span>
               </li>
             ))}
-          </ol>
-        </details>
+          </ol>}
+        </section>
       )}
     </aside>
   )

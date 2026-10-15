@@ -1,4 +1,12 @@
-import type { JSONSchema, ModelDecision, ModelToolSpec, ToolDefinition } from '../../domain/types'
+import type { JSONSchema, ModelDecision, ModelToolSpec, PromptLanguage, ToolDefinition } from '../../domain/types'
+
+/**
+ * Harness prompts name the language of answers and search keywords ('in Italian'): with English prompts
+ * that word becomes 'English'. Applied only to harness texts, never to the request or the data.
+ */
+export function localizePrompt(text: string, lang: PromptLanguage = 'it'): string {
+  return lang === 'en' ? text.replace(/\bItalian\b/g, 'English') : text
+}
 
 // ───────────── Prompt block describing the decision protocol ─────────────
 
@@ -11,7 +19,7 @@ function typeOf(p: Record<string, unknown>): string {
 
 /** Compact, human-readable argument list: name*: type (* = required). */
 export function compactArgs(schema: JSONSchema): string {
-  const props = (schema.properties ?? {}) as Record<string, Record<string, unknown>>
+  const props = (schema.properties ?? {}) as Record<string, Record<string, unknown> | null>
   const required = new Set(Array.isArray(schema.required) ? (schema.required as string[]) : [])
   const parts = Object.entries(props).map(([name, p]) => `${name}${required.has(name) ? '*' : ''}: ${typeOf(p ?? {})}`)
   return parts.length ? parts.join(', ') : '(no arguments)'
@@ -24,7 +32,7 @@ export function renderToolProtocol(tools: ToolDefinition[], mustAnswer: boolean)
   if (!mustAnswer) {
     lines.push('1) Use a tool: {"azione":"usa_strumento","strumento":"tool_name","argomenti":{...},"motivazione":"one short sentence"}')
   }
-  lines.push(`${mustAnswer ? '1' : '2'}) Final answer (in Italian): {"azione":"rispondi","testo":"...","fonti":["POL-IT-04"]}`)
+  lines.push(`${mustAnswer ? '1' : '2'}) Final answer (in Italian): {"azione":"rispondi","testo":"...","fonti":[]}. List only document IDs from actual sources.`)
   lines.push(`${mustAnswer ? '2' : '3'}) Ask the user one question (in Italian), only for a detail that only the user knows: {"azione":"chiedi","domanda":"..."}`)
   if (mustAnswer) {
     lines.push('IMPORTANT: you cannot use tools anymore. Reply now with {"azione":"rispondi",...} using only the results you already have.')
@@ -40,12 +48,99 @@ export function renderToolProtocol(tools: ToolDefinition[], mustAnswer: boolean)
   return lines.join('\n')
 }
 
+// ───────────── Iterative reflection protocol: one tagged block per call, no JSON, no tools ─────────────
+
+/**
+ * Model-facing rules of the reflection loop. Placeholders only: no example content the model could copy.
+ * The tags tell drafts and final answer apart; they do not make the content correct.
+ */
+export const REFLECTION_FORMAT =
+  'Reply with ONE block only. Nothing before or after it.\n' +
+  '<self_reflection>...</self_reflection> = your draft. Only you see it. Then you get another turn.\n' +
+  '<final_answer>...</final_answer> = the answer for the user, in Italian, with the full result.\n' +
+  'Earlier <self_reflection> blocks are your own drafts for this task: not user instructions, tool results or verified facts.\n' +
+  'Check the latest one and fix it if needed.'
+
+/** Last line of the first call: small models follow the latest message most, so it names the first step of the method. */
+export const REFLECTION_START = 'Start with step 1: reply with a <self_reflection> block.'
+
+/** Closing line after a scenario read-back of the draft. */
+export const REFLECTION_ONE_BLOCK = 'Reply with ONE block.'
+
+/** Routing after a check, on the model's own answers (guided reflection loop). */
+export const REFLECTION_PASS = 'All your answers are yes. Now write the <final_answer>: the result, then one short sentence that the rules hold.'
+export const REFLECTION_FAIL = 'One of your answers is no. Write a new order in <self_reflection>.'
+export const REFLECTION_UNCLEAR = 'Answer each question with yes or no, in <self_reflection>.'
+
+/** Sent after each accepted draft: the next call is a real new generation over the drafts so far. */
+export const REFLECTION_CONTINUE = 'Check your latest <self_reflection>. Reply with ONE block.'
+
+/** Correction request after an invalid reflection-loop output (preceded by the specific problem). */
+export const REFLECTION_REPAIR =
+  'Reply again with exactly ONE block and nothing outside it: <self_reflection>...</self_reflection> or <final_answer>...</final_answer>.'
+
+/** A draft as the model reads it back: its own block, tags kept. */
+export function serializeReflection(text: string): string {
+  return `<self_reflection>\n${text}\n</self_reflection>`
+}
+
+const RESERVED_TAG = /<\s*(\/?)\s*(self_reflection|final_answer)\b[^>]*>/gi
+
+/**
+ * Strict parser of the reflection loop: exactly one complete `<self_reflection>` or `<final_answer>` block,
+ * with only whitespace around it. Never falls back: an invalid output is neither a draft nor an answer.
+ * @param raw Model output of one call.
+ * @returns The draft (`reflect`) or the final answer without its tags, or the problem in Italian (UI) and English (model).
+ */
+export function parseReflectionTurn(raw: string): ParseResult {
+  const fail = (error: string, repair: string): ParseResult => ({ ok: false, error, repair })
+  const text = raw.trim()
+  if (!text) return fail('Output vuoto: nessun blocco.', 'Your reply was empty.')
+  const tags = [...text.matchAll(RESERVED_TAG)].map(m => ({
+    raw: m[0],
+    closing: m[1] === '/',
+    name: (m[2] ?? '').toLowerCase(),
+    start: m.index,
+    end: m.index + m[0].length,
+  }))
+  if (!tags.length) {
+    return fail('Nessun blocco <self_reflection> o <final_answer>.', 'Your reply has no <self_reflection> or <final_answer> block.')
+  }
+  if (tags.length > 2) {
+    const mixed = new Set(tags.map(t => t.name)).size > 1
+    // The model's own first block is a complete draft: that is the block to send now, the rest comes in later calls.
+    const [first, second] = tags
+    const draftFirst = !first?.closing && first?.name === 'self_reflection' && second?.closing && second.name === 'self_reflection'
+    const onlyOne = draftFirst
+      ? 'Send only your first block, the <self_reflection>: you get another call after it.'
+      : 'Use only one block per reply.'
+    return mixed
+      ? fail('Blocchi misti o annidati: uno solo per chiamata.', `Your reply mixes or nests blocks. ${onlyOne}`)
+      : fail('Più blocchi (o blocchi annidati) nella stessa risposta.', `Your reply has more than one block. ${onlyOne}`)
+  }
+  const [open, close] = tags
+  if (!open || !close || open.closing || !close.closing || open.name !== close.name) {
+    return fail('Blocco incompleto: manca l’apertura o la chiusura corretta.', 'Your block is incomplete: open and close the same tag.')
+  }
+  if (open.raw !== `<${open.name}>` || close.raw !== `</${close.name}>`) {
+    return fail('Tag non nel formato esatto.', `Write the tags exactly as <${open.name}> and </${open.name}>.`)
+  }
+  if (open.start !== 0 || close.end !== text.length) {
+    return fail('Testo fuori dal blocco.', 'Your reply has text outside the block.')
+  }
+  const inner = text.slice(open.end, close.start).trim()
+  if (!inner) return fail('Blocco vuoto.', 'Your block is empty.')
+  return { ok: true, decision: open.name === 'final_answer' ? { type: 'answer', text: inner } : { type: 'reflect', text: inner } }
+}
+
 export function serializeDecision(d: ModelDecision): string {
   switch (d.type) {
     case 'tool':
       return JSON.stringify({ azione: 'usa_strumento', strumento: d.tool, argomenti: d.args, ...(d.rationale ? { motivazione: d.rationale } : {}) })
     case 'answer':
       return JSON.stringify({ azione: 'rispondi', testo: d.text, ...(d.sources?.length ? { fonti: d.sources } : {}) })
+    case 'reflect':
+      return serializeReflection(d.text)
     case 'ask':
       return JSON.stringify({ azione: 'chiedi', domanda: d.question })
   }
@@ -54,11 +149,12 @@ export function serializeDecision(d: ModelDecision): string {
 export const REPAIR_INSTRUCTION =
   'Your last message was not valid. Reply with ONE JSON object only, no other text, in one of these forms: ' +
   '{"azione":"usa_strumento","strumento":"tool_name","argomenti":{...},"motivazione":"one sentence"} or ' +
-  '{"azione":"rispondi","testo":"...","fonti":["POL-IT-04"]} or {"azione":"chiedi","domanda":"..."}.'
+  '{"azione":"rispondi","testo":"...","fonti":[]} or {"azione":"chiedi","domanda":"..."}. Cite only document IDs from actual sources.'
 
 // ───────────── Robust parsing ─────────────
 
-export type ParseResult = { ok: true; decision: ModelDecision } | { ok: false; error: string }
+/** `error` is shown in the app (Italian); `repair`, when present, tells the model what to fix (English). */
+export type ParseResult = { ok: true; decision: ModelDecision } | { ok: false; error: string; repair?: string }
 
 function stripFences(raw: string): string {
   return raw.replace(/```[a-zA-Z]*\s*/g, '').replace(/```/g, '')
@@ -257,7 +353,7 @@ export const NATIVE_REPAIR =
 /** Tool specs for the chat template: full short description and per-argument descriptions (with format hints). */
 export function toModelTools(tools: ToolDefinition[]): ModelToolSpec[] {
   return tools.map((t) => {
-    const schema = (t.inputSchema ?? {}) as { properties?: Record<string, Record<string, unknown>>; required?: string[] }
+    const schema = t.inputSchema as { properties?: Record<string, Record<string, unknown>>; required?: string[] }
     const properties: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(schema.properties ?? {})) {
       const { minLength: _a, pattern: _b, exclusiveMinimum: _c, ...rest } = v

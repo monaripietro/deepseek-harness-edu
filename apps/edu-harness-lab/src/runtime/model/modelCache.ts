@@ -44,9 +44,10 @@ export async function deleteCachedRepo(repo: string): Promise<void> {
  */
 export async function requestPersistentStorage(): Promise<boolean> {
   try {
-    if (!navigator.storage?.persist) return false
-    if (await navigator.storage.persisted?.()) return true
-    return await navigator.storage.persist()
+    const nav: { storage?: Partial<StorageManager> } = navigator
+    if (!nav.storage?.persist) return false
+    if (await nav.storage.persisted?.()) return true
+    return await nav.storage.persist()
   } catch {
     return false
   }
@@ -54,7 +55,8 @@ export async function requestPersistentStorage(): Promise<boolean> {
 
 export async function isStoragePersistent(): Promise<boolean> {
   try {
-    return (await navigator.storage?.persisted?.()) ?? false
+    const nav: { storage?: Partial<StorageManager> } = navigator
+    return (await nav.storage?.persisted?.()) ?? false
   } catch {
     return false
   }

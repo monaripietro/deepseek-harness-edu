@@ -34,6 +34,13 @@
   white-space: nowrap;
   color: var(--text);
 }
+.orientation {
+  flex: none;
+  margin: 0 0 var(--sp-3);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-normal);
+}
 .live {
   display: inline-flex;
   align-items: center;
@@ -131,23 +138,41 @@
 }
 .history {
   display: flex;
-  flex: 1;
+  flex: none;
   flex-direction: column;
   min-height: 0;
   margin-top: var(--sp-3);
   overflow: hidden;
   border-top: 1px solid var(--border);
 }
-.historySummary {
+.history[data-open='true'] {
+  flex: 1 1 0;
+}
+.historyHeading {
   flex: none;
+  margin: 0;
+}
+.historySummary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  width: 100%;
   padding: var(--sp-2) 0;
+  border: 0;
+  background: none;
   color: var(--text);
   cursor: pointer;
+  text-align: left;
   font-size: var(--fs-xs);
   font-weight: 500;
 }
-.historySummary::marker {
+.historySummary svg {
+  flex: none;
   color: var(--c-orchestration);
+  transform: rotate(-90deg);
+}
+.historySummary[aria-expanded='true'] svg {
+  transform: none;
 }
 .historyCount {
   margin-left: var(--sp-1);
@@ -159,7 +184,7 @@
   list-style: none;
   margin: 0;
   padding: 0 var(--sp-2) 0 0;
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -168,6 +193,7 @@
   gap: 0;
 }
 .item {
+  flex: none;
   animation: slideIn var(--dur-slow) var(--ease-out);
   display: flex;
   flex-direction: column;
@@ -201,6 +227,7 @@
 }
 .term {
   display: inline-block;
+  margin-inline-start: var(--sp-1);
   font-size: var(--fs-xs);
   font-weight: 500;
   letter-spacing: 0.06em;

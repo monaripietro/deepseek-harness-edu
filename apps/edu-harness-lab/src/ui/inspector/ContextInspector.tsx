@@ -72,7 +72,7 @@ export function ContextInspector() {
         {snaps.length > 1 && (
           <div className={styles.steps} role="group" aria-label="Passo">
             {snaps.map((s, i) => (
-              <Chip key={s.id} selected={i === idx} color="var(--c-model)" onClick={() => setPicked(i)}>
+              <Chip key={s.id} selected={i === idx} color="var(--c-model)" onClick={() =>{  setPicked(i) }}>
                 Passo {i + 1}
               </Chip>
             ))}
@@ -134,7 +134,7 @@ export function ContextInspector() {
         ))}
       </div>
 
-      <button type="button" className={styles.toggle} aria-expanded={showPrompt} onClick={() => setShowPrompt(v => !v)}>
+      <button type="button" className={styles.toggle} aria-expanded={showPrompt} onClick={() =>{  setShowPrompt(v => !v) }}>
         <ScrollText size={20} aria-hidden />
         <span>Il prompt esatto inviato al modello</span>
         <ChevronDown size={20} className={showPrompt ? styles.rot : ''} aria-hidden />
@@ -169,7 +169,7 @@ function ItemCard({ item, color }: { item: ContextItem; color: string }) {
   const out = item.status === 'excluded'
   return (
     <article className={`${styles.card} ${out ? styles.out : ''}`} style={{ borderLeftColor: color }}>
-      <button type="button" className={styles.cardHead} aria-expanded={open} onClick={() => setOpen(v => !v)}>
+      <button type="button" className={styles.cardHead} aria-expanded={open} onClick={() =>{  setOpen(v => !v) }}>
         <span className={styles.cardMain}>
           <span className={styles.cardTitle}>{item.title}</span>
           <span className={styles.cardMeta}>

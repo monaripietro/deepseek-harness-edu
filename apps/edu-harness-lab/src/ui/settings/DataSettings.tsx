@@ -24,11 +24,14 @@ export function DataSettings({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
 
   const refresh = () => {
-    void navigator.storage?.estimate?.().then(e => setUsage({ usage: e.usage ?? 0, quota: e.quota ?? 0 })).catch(() => setUsage(null))
+    const browser: { storage?: Partial<StorageManager> } = navigator
+    void browser.storage?.estimate?.()
+      .then((e) => { setUsage({ usage: e.usage ?? 0, quota: e.quota ?? 0 }) })
+      .catch(() => { setUsage(null) })
   }
   useEffect(() => {
     refresh()
-    const prev = document.activeElement as HTMLElement | null
+    const prev: (Element & Partial<Pick<HTMLElement, 'focus'>>) | null = document.activeElement
     ref.current?.querySelector<HTMLElement>('button')?.focus()
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.stopPropagation(); onClose() }
@@ -41,7 +44,10 @@ export function DataSettings({ onClose }: { onClose: () => void }) {
       }
     }
     document.addEventListener('keydown', onKey, true)
-    return () => { document.removeEventListener('keydown', onKey, true); prev?.focus?.() }
+    return () => {
+      document.removeEventListener('keydown', onKey, true)
+      prev?.focus?.()
+    }
   }, [])
 
   const confirm = async () => {
@@ -59,7 +65,7 @@ export function DataSettings({ onClose }: { onClose: () => void }) {
 
   return (
     <div className={styles.scrim} onClick={onClose}>
-      <motion.div ref={ref} className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="ds-title" onClick={e => e.stopPropagation()}
+      <motion.div ref={ref} className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="ds-title" onClick={(e) =>{  e.stopPropagation() }}
         initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.25 }}>
         <header className={styles.head}>
           <h2 id="ds-title" className={styles.title}>Dati su questo dispositivo</h2>
@@ -90,14 +96,14 @@ export function DataSettings({ onClose }: { onClose: () => void }) {
           <div className={styles.confirm} role="alertdialog" aria-label="Conferma">
             <p><strong>{pending === 'wipe' ? 'Cancellare tutti i dati locali?' : 'Eliminare il modello scaricato?'}</strong> {pending === 'wipe' ? 'Memoria, registrazioni, esecuzioni e impostazioni verranno rimosse. Non si può annullare.' : 'Dovrai scaricarlo di nuovo per usarlo.'}</p>
             <div className={styles.actions}>
-              <button className={styles.btn} onClick={() => setPending(null)} disabled={busy}>Annulla</button>
+              <button className={styles.btn} onClick={() =>{  setPending(null) }} disabled={busy}>Annulla</button>
               <button className={`${styles.btn} ${styles.danger}`} onClick={() => void confirm()} disabled={busy}>{busy ? 'Attendi…' : 'Sì, conferma'}</button>
             </div>
           </div>
         ) : (
           <div className={styles.actions}>
-            <button className={`${styles.btn} ${styles.danger}`} onClick={() => setPending('wipe')}><Trash2 size={16} aria-hidden /> Cancella tutti i dati locali</button>
-            <button className={styles.btn} onClick={() => setPending('model')}><Trash2 size={16} aria-hidden /> Elimina il modello scaricato</button>
+            <button className={`${styles.btn} ${styles.danger}`} onClick={() =>{  setPending('wipe') }}><Trash2 size={16} aria-hidden /> Cancella tutti i dati locali</button>
+            <button className={styles.btn} onClick={() =>{  setPending('model') }}><Trash2 size={16} aria-hidden /> Elimina il modello scaricato</button>
           </div>
         )}
 

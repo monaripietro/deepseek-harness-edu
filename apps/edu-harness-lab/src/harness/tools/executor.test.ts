@@ -28,27 +28,27 @@ const okOutcome: ToolOutcome = { ok: true, data: 1, summary: 'ok' }
 
 describe('executeTool', () => {
   it('returns the tool outcome', async () => {
-    const r = await executeTool(mkTool(async () => okOutcome), {}, mkCtx(), 500)
+    const r = await executeTool(mkTool(() => Promise.resolve(okOutcome)), {}, mkCtx(), 500)
     expect(r).toEqual(okOutcome)
   })
   it('timeout fault yields TIMEOUT without calling execute', async () => {
-    const exec = vi.fn(async () => okOutcome)
+    const exec = vi.fn(() => Promise.resolve(okOutcome))
     const r = await executeTool(mkTool(exec), {}, mkCtx({ timeout: ['t1'] }), 20)
     expect(r).toMatchObject({ ok: false, code: 'TIMEOUT' })
     expect(exec).not.toHaveBeenCalled()
   })
   it('error fault yields TOOL_ERROR', async () => {
-    const exec = vi.fn(async () => okOutcome)
+    const exec = vi.fn(() => Promise.resolve(okOutcome))
     const r = await executeTool(mkTool(exec), {}, mkCtx({ error: ['t1'] }), 200)
     expect(r).toMatchObject({ ok: false, code: 'TOOL_ERROR' })
     expect(exec).not.toHaveBeenCalled()
   })
   it('empty fault yields EMPTY', async () => {
-    const r = await executeTool(mkTool(async () => okOutcome), {}, mkCtx({ empty: ['t1'] }), 200)
+    const r = await executeTool(mkTool(() => Promise.resolve(okOutcome)), {}, mkCtx({ empty: ['t1'] }), 200)
     expect(r).toMatchObject({ ok: false, code: 'EMPTY' })
   })
   it('a slow tool is raced against the timeout', async () => {
-    const slow = mkTool(() => new Promise<ToolOutcome>(res => setTimeout(() => res(okOutcome), 300)))
+    const slow = mkTool(() => new Promise<ToolOutcome>(res => setTimeout(() =>{  res(okOutcome) }, 300)))
     const r = await executeTool(slow, {}, mkCtx(), 30)
     expect(r).toMatchObject({ ok: false, code: 'TIMEOUT' })
   })
@@ -64,44 +64,44 @@ describe('executeTool', () => {
   it('an already aborted signal returns TOOL_ERROR', async () => {
     const ac = new AbortController()
     ac.abort()
-    const exec = vi.fn(async () => okOutcome)
+    const exec = vi.fn(() => Promise.resolve(okOutcome))
     const r = await executeTool(mkTool(exec), {}, mkCtx({}, ac.signal), 100)
     expect(r).toMatchObject({ ok: false, code: 'TOOL_ERROR' })
     expect(exec).not.toHaveBeenCalled()
   })
   it('aborting during latency stops the call', async () => {
     const ac = new AbortController()
-    const p = executeTool(mkTool(async () => okOutcome, [500, 500]), {}, mkCtx({}, ac.signal), 2000)
-    setTimeout(() => ac.abort(), 10)
+    const p = executeTool(mkTool(() => Promise.resolve(okOutcome), [500, 500]), {}, mkCtx({}, ac.signal), 2000)
+    setTimeout(() =>{  ac.abort() }, 10)
     const r = await p
     expect(r).toMatchObject({ ok: false, code: 'TOOL_ERROR' })
   })
   it('aborting during a timeout fault stops the wait', async () => {
     const ac = new AbortController()
-    const p = executeTool(mkTool(async () => okOutcome), {}, mkCtx({ timeout: ['t1'] }, ac.signal), 5000)
-    setTimeout(() => ac.abort(), 10)
+    const p = executeTool(mkTool(() => Promise.resolve(okOutcome)), {}, mkCtx({ timeout: ['t1'] }, ac.signal), 5000)
+    setTimeout(() =>{  ac.abort() }, 10)
     const r = await p
     expect(r).toMatchObject({ ok: false, code: 'TOOL_ERROR' })
   })
   it('thrown errors become TOOL_ERROR and never throw', async () => {
     const r = await executeTool(
-      mkTool(async () => {
-        throw new Error('boom')
-      }),
+      mkTool(() => Promise.reject(new Error('boom'))),
       {},
       mkCtx(),
       200,
     )
     expect(r).toMatchObject({ ok: false, code: 'TOOL_ERROR' })
     expect((r as { message: string }).message).toContain('boom')
-    const r2 = await executeTool(
+  })
+  it.each(['sync', 42])('synchronous non-Error throws become TOOL_ERROR (%s)', async (error: unknown) => {
+    const result = await executeTool(
       mkTool(() => {
-        throw 'sync'
+        throw error
       }),
       {},
       mkCtx(),
       200,
     )
-    expect(r2).toMatchObject({ ok: false, code: 'TOOL_ERROR' })
+    expect(result).toMatchObject({ ok: false, code: 'TOOL_ERROR' })
   })
 })

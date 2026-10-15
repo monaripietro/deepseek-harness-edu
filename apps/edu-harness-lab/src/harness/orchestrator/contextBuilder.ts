@@ -12,22 +12,43 @@ import type {
   RetrievalHit,
   ScenarioData,
   ToolDefinition,
+  PromptLanguage,
   ToolObservation,
 } from '../../domain/types'
 import { REAL_LOCAL } from '../../domain/types'
 import { newId } from '../events'
 import { renderInstructions } from './instructions'
-import { NATIVE_MUST_ANSWER, nativeGuidance, renderToolProtocol, serializeDecision, toModelTools } from './protocol'
+import {
+  NATIVE_MUST_ANSWER,
+  REFLECTION_CONTINUE,
+  REFLECTION_FORMAT,
+  REFLECTION_START,
+  localizePrompt,
+  nativeGuidance,
+  renderToolProtocol,
+  serializeDecision,
+  serializeReflection,
+  toModelTools,
+} from './protocol'
 
 export const CONTEXT_BUDGET_TOKENS = 6000
 
 export type ObservationInput = ToolObservation & { rationale?: string }
+
+/** A draft/check pass positioned among tool observations to preserve model-message order. */
+export interface ReflectionInput {
+  text: string
+  observationsBefore: number
+  /** Harness message that follows this draft (guided loop: read-back or routing); default: continue. */
+  next?: string
+}
 
 export interface ContextParts {
   stepIndex: number
   scenarioId: string
   config: HarnessConfig
   data: ScenarioData
+  scenarioInstructions?: string
   userInput: string
   /** Previous turns; ignored unless memory is on. */
   history: ChatMessage[]
@@ -41,11 +62,17 @@ export interface ContextParts {
   repairAttempt: number
   guardNotice?: string
   observations: ObservationInput[]
+  reflectionPrompt?: string
+  reflections?: ReflectionInput[]
   /** Raw invalid assistant outputs and correction requests of this step. */
   repairMessages: ChatMessage[]
   maxTokens?: number
   /** The model supports native tool calling: tools go to its chat template, results use the 'tool' role. */
   nativeTools?: boolean
+  /** The scenario instructions replace the general assistant instructions. */
+  replacesGeneralInstructions?: boolean
+  /** Prompt language (default 'it'): language of the answer and of the data the model reads. */
+  language?: PromptLanguage
 }
 
 export interface BuiltContext {
@@ -78,19 +105,19 @@ function successHint(o: ToolObservation, ids: Set<string>): string {
   const data = o.outcome.ok ? (o.outcome.data as Record<string, unknown> | undefined) : undefined
   switch (name) {
     case 'pianifica':
-      return 'Now follow your plan: do step 1 by calling its tool. Do not answer before the steps that use tools are done.'
+      return 'Follow the plan. Use tools only for steps they can perform; ask the user for missing task details. Answer when the required steps are complete.'
     case 'calcolatrice':
       return 'Use this exact number in your answer.'
     case 'converti_valuta':
       return 'Use this converted amount (fixed teaching rate, not a market rate).'
     case 'cerca_policy':
-      return 'Apply these rules and cite the document ID in brackets, e.g. (POL-IT-04).'
+      return 'Apply these rules and cite their actual document IDs in brackets.'
     case 'cerca_catalogo':
-      return `Prices are per unit, VAT excluded. Use only these codes and prices.${hasTool(ids, 'verifica_disponibilita') ? ' Next: check stock of the allowed product with verifica_disponibilita.' : ''}`
+      return `These are catalog codes and per-unit prices, VAT excluded.${hasTool(ids, 'verifica_disponibilita') ? ' If stock is needed for this request, check it with verifica_disponibilita.' : ''}`
     case 'verifica_disponibilita':
       return data?.sufficiente === false
-        ? 'NOT enough stock: do not choose this product. Check the next allowed product from the catalog.'
-        : 'Enough stock: you can choose this product.'
+        ? 'Stock does not meet the requested quantity. If selecting an available product, check another allowed option.'
+        : 'Stock meets the requested quantity. Use the reported availability.'
     case 'leggi_budget':
       return 'Check that the total VAT excluded fits this budget.'
     case 'leggi_ordine_cliente':
@@ -141,15 +168,22 @@ export function buildContext(parts: ContextParts): BuiltContext {
     return full
   }
 
+  const L = (text: string) => localizePrompt(text, parts.language)
+
   // ── System-side material ──
   if (c.instructions) {
-    add({ kind: 'instruction', role: 'system', source: 'instructions', title: 'Istruzioni di sistema', text: renderInstructions(), priority: 90, pinned: true })
+    if (!parts.replacesGeneralInstructions || !parts.scenarioInstructions) {
+      add({ kind: 'instruction', role: 'system', source: 'instructions', title: 'Istruzioni di sistema', text: L(renderInstructions()), priority: 90, pinned: true })
+    }
+    if (parts.scenarioInstructions) {
+      add({ kind: 'instruction', role: 'system', source: 'instructions', title: 'Istruzioni dello scenario', text: parts.scenarioInstructions, priority: 90, pinned: true })
+    }
   }
-  const native = !!parts.nativeTools && parts.protocol === 'json'
+  const native = !!parts.nativeTools && parts.protocol === 'json' && !parts.reflectionPrompt
   // Always the same tools and guidance: the prompt prefix stays identical across steps, so the KV cache is reused.
   const modelTools = native ? toModelTools(parts.tools) : undefined
   const toolIds = parts.tools.map(t => t.id)
-  const guidance = nativeGuidance(toolIds)
+  const guidance = L(nativeGuidance(toolIds))
   if (native) {
     const listing = modelTools ? modelTools.map(t => `- ${t.function.name}: ${t.function.description}`).join('\n') : ''
     add({
@@ -163,17 +197,23 @@ export function buildContext(parts: ContextParts): BuiltContext {
       pinned: true,
       refs: parts.tools.map(t => t.id),
     })
+  } else if (parts.reflectionPrompt) {
+    // Reflection loop: tagged blocks only (no JSON, no tools).
+    add({ kind: 'instruction', role: 'system', source: 'agentLoop', title: 'Protocollo del ciclo di riflessione', text: L(REFLECTION_FORMAT), priority: 85, pinned: true })
   } else if (parts.protocol === 'json') {
     add({
       kind: 'toolSchema',
       role: 'system',
       source: 'tools',
       title: parts.mustAnswer ? 'Protocollo di risposta (strumenti non più ammessi)' : 'Protocollo di decisione e strumenti',
-      text: renderToolProtocol(parts.tools, parts.mustAnswer),
+      text: L(renderToolProtocol(parts.tools, parts.mustAnswer)),
       priority: 85,
       pinned: true,
       refs: parts.tools.map(t => t.id),
     })
+  }
+  if (parts.reflectionPrompt) {
+    add({ kind: 'instruction', role: 'system', source: 'agentLoop', title: 'Istruzioni dello scenario di riflessione', text: parts.reflectionPrompt, priority: 95, pinned: true })
   }
   if (c.context) {
     for (const td of parts.data.taskData) {
@@ -211,7 +251,23 @@ export function buildContext(parts: ContextParts): BuiltContext {
 
   // ── Tool loop: decision + observation pairs ──
   const toolCallsOf = new Map<string, NonNullable<ChatMessage['tool_calls']>>()
-  for (const o of parts.observations) {
+  // Own drafts go back as assistant messages, tags kept; a short harness turn asks for the next block.
+  const addReflections = (observationsBefore: number) => {
+    for (const reflection of parts.reflections ?? []) {
+      if (reflection.observationsBefore !== observationsBefore) continue
+      add({ kind: 'message', role: 'assistant', source: 'agentLoop', title: 'Bozza del modello (self_reflection)', text: serializeReflection(reflection.text), priority: 76 })
+      add({
+        kind: 'state',
+        role: 'user',
+        source: 'agentLoop',
+        title: reflection.next ? 'Passo successivo indicato dall’harness' : 'Richiesta del passo successivo',
+        text: L(reflection.next ?? REFLECTION_CONTINUE),
+        priority: 75,
+      })
+    }
+  }
+  for (const [index, o] of parts.observations.entries()) {
+    addReflections(index)
     if (native) {
       const it = add({ kind: 'message', role: 'assistant', source: 'orchestrator', title: `Richiesta strumento: ${o.tool}`, text: o.rationale ?? '', tokenText: `${o.rationale ?? ''} ${o.tool} ${JSON.stringify(o.args)}`, priority: 76, refs: [o.callId] })
       toolCallsOf.set(it.id, [{ name: o.tool, arguments: o.args }])
@@ -222,14 +278,19 @@ export function buildContext(parts: ContextParts): BuiltContext {
     add({ kind: 'message', role: 'assistant', source: 'orchestrator', title: `Richiesta strumento: ${o.tool}`, text: dec, priority: 76, refs: [o.callId] })
     add({ kind: 'toolResult', role: 'user', source: 'orchestrator', title: `Osservazione: ${o.tool}`, text: observationText(o, toolIds), priority: 75, refs: [o.callId], provenance: LOCAL })
   }
+  addReflections(parts.observations.length)
+  // First call of the reflection loop (no draft yet): the last line names step 1 of the method.
+  if (parts.reflectionPrompt && !parts.reflections?.length) {
+    add({ kind: 'state', role: 'user', source: 'agentLoop', title: 'Primo passo del metodo', text: REFLECTION_START, priority: 75 })
+  }
   if (native && parts.mustAnswer) {
-    add({ kind: 'state', role: 'user', source: 'orchestrator', title: 'Richiesta di risposta finale', text: NATIVE_MUST_ANSWER, priority: 79 })
+    add({ kind: 'state', role: 'user', source: 'orchestrator', title: 'Richiesta di risposta finale', text: L(NATIVE_MUST_ANSWER), priority: 79 })
   }
   for (const m of parts.repairMessages) {
-    add({ kind: 'message', role: m.role, source: 'orchestrator', title: m.role === 'assistant' ? 'Output non valido del modello' : 'Richiesta di correzione', text: m.content, priority: 77 })
+    add({ kind: 'message', role: m.role, source: 'orchestrator', title: m.role === 'assistant' ? 'Output non valido del modello' : 'Richiesta di correzione', text: m.role === 'assistant' ? m.content : L(m.content), priority: 77 })
   }
   if (parts.guardNotice) {
-    add({ kind: 'state', role: 'user', source: 'controls', title: 'Promemoria dei controlli', text: `[REMINDER] ${parts.guardNotice}`, priority: 78 })
+    add({ kind: 'state', role: 'user', source: 'controls', title: 'Promemoria dei controlli', text: L(`[REMINDER] ${parts.guardNotice}`), priority: 78 })
   }
 
   // ── Budget ──
@@ -256,7 +317,7 @@ export function buildContext(parts: ContextParts): BuiltContext {
   for (const i of included.filter(x => x.kind === 'toolSchema')) sys.push(native ? guidance : i.text)
   section('## TASK DATA (facts about this request)', 'taskData', i => `- ${i.title}: ${i.text}`)
   section('## MEMORY (saved facts about the user)', 'memory', i => `- ${i.title}: ${i.text}`)
-  section('## COMPANY DOCUMENTS (retrieved excerpts, in Italian: cite their ID)', 'document', i => `${documentHeader(i)} ${i.text}`)
+  section(`## COMPANY DOCUMENTS (retrieved excerpts, in ${parts.language === 'en' ? 'English' : 'Italian'}: cite their ID)`, 'document', i => `${documentHeader(i)} ${i.text}`)
   if (sys.length) messages.push({ role: 'system', content: sys.join('\n\n') })
   for (const i of included) {
     if (i.kind !== 'message' && i.kind !== 'toolResult' && i.kind !== 'state') continue
@@ -274,6 +335,7 @@ export function buildContext(parts: ContextParts): BuiltContext {
     presentKinds: kinds,
     availableTools: parts.tools.map(t => t.id),
     toolResults: parts.observations.map(({ callId, tool, args, outcome }) => ({ callId, tool, args, outcome })),
+    ...(parts.reflectionPrompt ? { reflections: (parts.reflections ?? []).map(reflection => reflection.text) } : {}),
     docIds,
     memoryKeys,
     protocol: parts.protocol,

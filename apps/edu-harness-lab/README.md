@@ -1,8 +1,23 @@
-# Harness Lab — Dal modello all'agente
+# Harness Lab — From model to agent
 
-Webapp educativa frontend-only: parti da un piccolo modello linguistico isolato e costruisci, uno strato alla volta, l'harness che lo trasforma in un agente (istruzioni, contesto, memoria, RAG, strumenti, orchestratore, ciclo agentico, controlli, supervisione umana, MCP).
+English | [中文](README.zh.md)
 
-## Avvio
+## Summary
+
+Build an agent around a small language model, one component at a time. This frontend-only educational app lets you compare instructions, task context, memory, retrieval, tools, the agent loop, controls, human approval, and MCP. The product interface is in Italian.
+
+## Table of Contents
+
+- [Startup](#startup)
+- [Using the lab](#using-the-lab)
+- [Models](#models)
+- [Scenario context](#scenario-context)
+- [Iterative reflection without tools](#iterative-reflection-without-tools)
+- [Lesson links](#lesson-links)
+- [Real and simulated components](#real-and-simulated-components)
+
+<a id="startup"></a>
+## Startup
 
 ```sh
 # dalla radice del repository
@@ -16,46 +31,71 @@ pnpm test
 pnpm build
 ```
 
-Attenzione: `pnpm dsh web` avvia l'interfaccia di DeepSeek Harness (il prodotto del repository di riferimento), non Harness Lab.
+`pnpm dsh web` opens the DeepSeek Harness product interface, not Harness Lab.
 
-## Orientarsi nel laboratorio
+<a id="using-the-lab"></a>
+## Using the lab
 
-La vista iniziale **Flusso** mostra quattro passaggi leggibili: richiesta, contesto, modello e risposta. Le frecce indicano la direzione; gli strati attivi compaiono sotto il passaggio che utilizzano. Seleziona un elemento per aprire i dettagli. **Mappa completa** conserva il diagramma con zoom, trascinamento e animazioni.
+The **Flusso** view shows the request, context, model, and answer. Arrows show their direction; active components appear below the step that uses them. Select an element for details. **Mappa completa** provides the zoomable, draggable diagram.
 
-- **Percorso**: segui i livelli numerati con Precedente e Successivo; apri Tutti i livelli per leggere l'elenco completo.
-- **Prova**: modifica la richiesta, avvia il modello quando serve e leggi la conversazione senza ingrandire il diagramma. La bozza resta disponibile quando cambi scheda.
-- **Cosa succede**: leggi la spiegazione dell'evento corrente e apri lo storico quando vuoi approfondire.
-- **Approfondimenti in basso**: apri una scheda alla volta per esaminare il contesto ricevuto dal modello, il registro degli eventi o la conversazione con le verifiche.
-- **Controlli**: raccoglie riproduzione, velocità, laboratori, regia docente, tema, presentazione e impostazioni.
+- **Percorso**: use Precedente and Successivo to move through levels, or open Tutti i livelli for the complete list.
+- **Prova**: edit the request, load a model when needed, and read the conversation. Your request draft survives tab changes.
+- **Cosa succede**: read harness events, not model thoughts. History scrolls independently and does not jump to new events while you read older entries.
+- **Approfondimenti in basso**: inspect the model context, event log, or conversation and its checks.
+- **Controlli**: adjust playback, speed, labs, teacher controls, theme, presentation, and settings.
 
-In **Laboratorio**, la sezione Personalizza gli strati dell'harness permette di aggiungere o rimuovere componenti anche nella vista Flusso. I controlli e i collegamenti MCP sono disponibili su richiesta; una richiesta di approvazione apre invece il dialogo con azione, effetti e scelta Approva/Rifiuta.
+In **Laboratorio**, Personalizza gli strati dell'harness adds or removes components. Controls and MCP connections open on request. An approval request opens a dialog with the proposed action, effects, and Approva/Rifiuta choices.
 
-## Il modello
+<a id="models"></a>
+## Models
 
-Harness Lab usa sempre un modello linguistico **vero**, scaricato una volta da Hugging Face e poi eseguito nel browser con Transformers.js:
+Harness Lab runs a **real** language model in the browser through Transformers.js. Hugging Face weights are downloaded once and cached:
 
-| Modello | Download | Dove gira |
+| Model | Download | Runtime |
 |---|---|---|
-| LFM2.5 350M (consigliato) | ~0,3 GB | CPU (WASM, multi-core), GPU se disponibile |
-| Qwen3 0.6B | ~0,6 GB | CPU, GPU se disponibile |
-| LFM2.5 1.2B | ~0,8 GB | solo WebGPU |
+| LFM2.5 350M | ~0.3 GB | WebGPU only |
+| Qwen3 0.6B | ~0.6 GB | CPU; GPU when available |
+| LFM2.5 1.2B | ~0.8 GB | WebGPU only |
 
-Con i modelli che ragionano (Qwen3, Gemma 4 e i modelli OpenRouter che lo supportano) il livello di ragionamento si sceglie nella finestra del modello. Il testo del ragionamento non è in primo piano: si legge solo espandendo «Ragionamento del modello» nella risposta, con l’avvertenza che è testo generato, non una spiegazione affidabile di come il modello decide (con OpenRouter compare solo se il fornitore lo restituisce).
+For supported thinking models, including Qwen3, Gemma 4, and some OpenRouter models, choose reasoning effort in model settings. Expand **Thinking nativo** to read the returned reasoning channel; it is not a reliable explanation of how the model decides. OpenRouter shows it only when the provider returns it. **Riflessioni del ciclo** instead contains drafts generated by successive calls, including calls to non-thinking models.
 
-Il server di sviluppo invia gli header COOP/COEP: la pagina è isolata e ONNX Runtime può usare più core della CPU. Gli strumenti vengono passati al modello con il suo template di chat nativo (tool calling), e le sue chiamate vengono validate ed eseguite dall'orchestratore.
+The development server sends COOP/COEP headers so ONNX Runtime can use multiple CPU cores. Tools normally use the model's native chat template; the orchestrator validates and executes its calls.
 
-## Link utili per la lezione
+<a id="scenario-context"></a>
+## Scenario context
 
-| Link | Effetto |
+Each scenario has a [dedicated profile](src/scenarios/context/) with task facts, instructions, relevant seeded memory, and document IDs. **Dati del compito** shows the facts supplied when task context is enabled: new-hire names and start dates belong to the purchasing scenario, not the room request with a missing date. Catalog prices, stock, and calculated results are not supplied before the relevant lookup or calculation.
+
+Document selection happens before ranking, for both automatic RAG and **Cerca nelle policy aziendali**. User-added documents and explicitly pinned passages remain available. Changing scenarios excludes the preceding task's conversation from subsequent model requests; saved task state is selected separately per scenario.
+
+**Magazzino che non risponde** selects a simulated timeout for the stock tool. Leaving that scenario removes its fault setting; simulated faults can be edited in controls.
+
+<a id="iterative-reflection-without-tools"></a>
+## Iterative reflection without tools
+
+Select **Ragionamento iterativo**, open **Prova e racconto**, and press **Attiva ciclo di riflessione e controlli**. An LFM model isolates the loop from native thinking. The scenario asks for an order satisfying three constraints and does not enable tools.
+
+The [scenario system prompt](src/scenarios/reflection.ts) asks for a candidate order and then checks of that same candidate. Each model call must reply with exactly one tagged block: `<self_reflection>...</self_reflection>` for a draft or check, `<final_answer>...</final_answer>` for the answer. An accepted `<self_reflection>` starts a new, real model call: the orchestrator puts the draft back as an assistant message, tags kept, and the instructions say that earlier blocks are the model's own drafts, not user instructions, tool results or verified facts. This is not the model's native thinking. Only a complete `<final_answer>` is published, without its tags. Empty, incomplete, multiple, mixed or nested blocks, and text outside the block, are rejected and repaired within the usual limits; no fallback turns an invalid output or a draft into an answer. The tags only tell messages apart: they do not make the content correct, which the scenario checkers verify.
+
+**Riflessioni del ciclo** separates drafts and checks from **Risposta finale**, including in comparisons. Counters distinguish model calls, validly formatted drafts, and invalid outputs: starting a call does not prove that a check occurred. Interrupted or invalid runs are labeled as outcomes without a final answer. Drafts do not carry into a new turn. Disabling the loop restores a single response. Controls stop identical repetitions and exhausted step budgets; **Ferma** stops a run manually.
+
+The model and calls are real: “simulated” describes the prompt-guided strategy, not a fake model or native thinking. Small models can ignore instructions or check constraints incorrectly. LFM2.5 350M can also fail JSON formatting without producing a valid draft; history records errors and retries. Indicators observe passes, tool calls, and the final order, not reasoning quality.
+
+<a id="lesson-links"></a>
+## Lesson links
+
+| Link | Effect |
 |---|---|
-| `?livello=5` | apre il sesto passaggio; il parametro usa gli indici 0–9 |
-| `?modello=lfm-350m&livello=9&avvia=1&approva=auto` | carica il modello reale ed esegue lo scenario guida con il sistema completo |
-| `?vista=compare&esperimento=1` | lancia l'esperimento delle 10 configurazioni |
-| `?vista=lab&lab=mcp` | laboratorio libero con il pannello MCP aperto |
-| `?tema=aula&regia=1` | tema ad alto contrasto per proiettore + regia docente |
+| `?livello=5` | Opens the sixth level; indices run from 0 to 9 |
+| `?scenario=ragionamento-iterativo&livello=7` | Opens reflection with the loop and controls, without tools |
+| `?modello=lfm-350m&livello=9&avvia=1&approva=auto` | Loads the real model and runs the guide scenario with the complete harness |
+| `?vista=compare&esperimento=1` | Runs the ten-configuration comparison |
+| `?vista=lab&lab=mcp` | Opens the free lab and MCP panel |
+| `?tema=aula&regia=1` | Enables projector contrast and teacher controls |
 
-## Cosa è reale e cosa è simulato
+<a id="real-and-simulated-components"></a>
+## Real and simulated components
 
-- **Reale nel browser**: il modello linguistico (sempre reale, nessuna simulazione), orchestratore e ciclo agentico, controlli, validazione degli argomenti, calcolatrice, ricerca nei documenti (BM25), memoria su IndexedDB.
-- **Reale ed esterno (opt-in)**: server MCP pubblici in allowlist (Microsoft Learn, DeepWiki), con consenso e approvazione per ogni chiamata.
-- **Simulato**: solo i sistemi aziendali (dati, catalogo, magazzino, budget, azioni di scrittura con ID `SIM`) e il server MCP TechSupply. Il modello non è mai simulato.
+- **Real in the browser**: language model, orchestrator, agent loop, controls, argument validation, calculator, document search (BM25), and IndexedDB memory.
+- **Real and external, opt-in**: allowlisted public MCP servers (Microsoft Learn, DeepWiki), with consent and approval for each call.
+- **Simulated**: company data, catalog, stock, budgets, write actions with `SIM` IDs, and the TechSupply MCP server. The model is never simulated.

@@ -18,6 +18,7 @@ import {
   Sun,
 } from 'lucide-react'
 import type { Theme, View } from '../../state/store'
+import type { PromptLanguage } from '../../domain/types'
 import { useLab } from '../../state/store'
 import { SCENARIOS } from '../../scenarios'
 import { ModelStatusChip } from '../model/ModelStatusChip'
@@ -45,6 +46,8 @@ export function TopBar({ onOpenModel, onOpenSettings }: { onOpenModel: () => voi
   const stepMode = useLab(s => s.stepMode)
   const setStepMode = useLab(s => s.setStepMode)
   const step = useLab(s => s.step)
+  const promptLanguage = useLab(s => s.promptLanguage)
+  const setPromptLanguage = useLab(s => s.setPromptLanguage)
   const speed = useLab(s => s.speed)
   const setSpeed = useLab(s => s.setSpeed)
   const openLab = useLab(s => s.openLab)
@@ -112,7 +115,7 @@ export function TopBar({ onOpenModel, onOpenSettings }: { onOpenModel: () => voi
 
       <label className={styles.select}>
         <span className={styles.selectLabel}>Scenario</span>
-        <select value={scenarioId} onChange={e => setScenario(e.target.value)} aria-label="Scenario" disabled={running}>
+        <select value={scenarioId} onChange={(e) =>{  setScenario(e.target.value) }} aria-label="Scenario" disabled={running}>
           {SCENARIOS.map(s => (
             <option key={s.id} value={s.id}>
               {s.shortTitle}
@@ -133,7 +136,7 @@ export function TopBar({ onOpenModel, onOpenSettings }: { onOpenModel: () => voi
         className={styles.deep}
         icon={<Layers size={17} />}
         title="Cosa riceve il modello, registro degli eventi, conversazione e verifiche"
-        onClick={() => openDeepDive('context')}
+        onClick={() =>{  openDeepDive('context') }}
       >
         Approfondisci
       </Button>
@@ -171,7 +174,7 @@ export function TopBar({ onOpenModel, onOpenSettings }: { onOpenModel: () => voi
                 type="button"
                 className={`${styles.stepToggle} ${stepMode ? styles.stepOn : ''}`}
                 aria-pressed={stepMode}
-                onClick={() => setStepMode(!stepMode)}
+                onClick={() =>{  setStepMode(!stepMode) }}
                 title="Un evento alla volta: avanzi tu con il tasto S"
               >
                 Passo-passo
@@ -199,6 +202,27 @@ export function TopBar({ onOpenModel, onOpenSettings }: { onOpenModel: () => voi
                 ]}
               />
             </div>
+          </section>
+
+          <section className={styles.controlSection} aria-labelledby={`${controlsId}-language`}>
+            <h2 id={`${controlsId}-language`} className={styles.sectionTitle}>
+              Lingua dei prompt
+            </h2>
+            <div className={styles.speed}>
+              <Segmented<PromptLanguage>
+                ariaLabel="Lingua di ciò che legge il modello"
+                value={promptLanguage}
+                onChange={setPromptLanguage}
+                options={[
+                  { value: 'it', label: 'Italiano' },
+                  { value: 'en', label: 'English' },
+                ]}
+              />
+            </div>
+            <p className={styles.speedLabel}>
+              Richiesta, dati, documenti e risultati degli strumenti nella lingua scelta; anche la risposta.
+              L’interfaccia resta in italiano.
+            </p>
           </section>
 
           <section className={styles.controlSection} aria-labelledby={`${controlsId}-tools`}>

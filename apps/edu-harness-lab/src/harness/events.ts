@@ -98,6 +98,7 @@ export function createPacer(getSettings: () => PacerSettings): ControllablePacer
   let waiters: (() => void)[] = []
   let stepTokens = 0
   let flushed = false
+  const isFlushed = () => flushed
 
   const release = () => {
     const w = waiters
@@ -107,7 +108,7 @@ export function createPacer(getSettings: () => PacerSettings): ControllablePacer
 
   return {
     async wait(event: TraceEvent) {
-      if (flushed) return
+      if (isFlushed()) return
       const s = getSettings()
       const base = EVENT_PACE_MS[event.type] ?? 250
       if (s.speed > 0 && !s.stepMode) {
@@ -115,7 +116,7 @@ export function createPacer(getSettings: () => PacerSettings): ControllablePacer
       }
       // Pause or step mode: block until released.
       for (;;) {
-        if (flushed) return
+        if (isFlushed()) return
         const cur = getSettings()
         if (cur.stepMode) {
           if (stepTokens > 0) {

@@ -12,7 +12,7 @@ const STATE_LABEL = { disconnected: 'Scollegato', connecting: 'Connessione…', 
 function useServers(): McpServerState[] {
   const [servers, setServers] = useState<McpServerState[]>(() => mcpHub.servers())
   useEffect(() => {
-    const d = mcpHub.subscribe(() => setServers([...mcpHub.servers()]))
+    const d = mcpHub.subscribe(() =>{  setServers([...mcpHub.servers()]) })
     setServers([...mcpHub.servers()])
     return d
   }, [])
@@ -22,7 +22,7 @@ function useServers(): McpServerState[] {
 function Timeline({ s }: { s: McpServerState }) {
   const wire = s.wire
   const hasInit = wire.some(w => w.msg.method === 'initialize')
-  const hasCaps = wire.some(w => w.dir === 'in' && w.msg.result && typeof w.msg.result === 'object' && 'capabilities' in (w.msg.result as object))
+  const hasCaps = wire.some(w => w.dir === 'in' && w.msg.result && typeof w.msg.result === 'object' && 'capabilities' in (w.msg.result))
   const hasTools = s.tools.length > 0 || wire.some(w => w.msg.method === 'tools/list')
   const steps = [
     { label: 'initialize', done: hasInit },
@@ -51,7 +51,12 @@ function Timeline({ s }: { s: McpServerState }) {
 function schemaProps(schema: JSONSchema): { name: string; type: string; description: string; required: boolean }[] {
   const props = (schema.properties ?? {}) as Record<string, Record<string, unknown>>
   const req = Array.isArray(schema.required) ? (schema.required as string[]) : []
-  return Object.entries(props).map(([name, p]) => ({ name, type: String(p.type ?? 'string'), description: String(p.description ?? ''), required: req.includes(name) }))
+  return Object.entries(props).map(([name, p]) => ({
+    name,
+    type: typeof p.type === 'string' ? p.type : Array.isArray(p.type) ? p.type.join(',') : 'string',
+    description: typeof p.description === 'string' ? p.description : '',
+    required: req.includes(name),
+  }))
 }
 
 function TryTool({ serverId, tool, disabled }: { serverId: string; tool: McpToolDescriptor; disabled: boolean }) {
@@ -87,15 +92,15 @@ function TryTool({ serverId, tool, disabled }: { serverId: string; tool: McpTool
       {!json && props.map(p => (
         <label key={p.name} className={lab.label}>
           <span><code className={lab.mono}>{p.name}</code> <span className={lab.hint}>{p.type}{p.required ? ' · obbligatorio' : ''} {p.description}</span></span>
-          <input className={lab.input} value={values[p.name] ?? ''} onChange={e => setValues({ ...values, [p.name]: e.target.value })} />
+          <input className={lab.input} value={values[p.name] ?? ''} onChange={(e) =>{  setValues({ ...values, [p.name]: e.target.value }) }} />
         </label>
       ))}
-      {json && <textarea className={`${lab.textarea} ${lab.mono}`} aria-label="Argomenti in JSON" value={raw} onChange={e => setRaw(e.target.value)} />}
+      {json && <textarea className={`${lab.textarea} ${lab.mono}`} aria-label="Argomenti in JSON" value={raw} onChange={(e) =>{  setRaw(e.target.value) }} />}
       <div className={lab.row}>
-        <button className={`${lab.btn} ${lab.primary} ${lab.sm}`} onClick={run} disabled={disabled || busy}>
+        <button className={`${lab.btn} ${lab.primary} ${lab.sm}`} onClick={() => { void run() }} disabled={disabled || busy}>
           {busy ? <Loader2 size={14} className={styles.spin} aria-hidden /> : <Play size={14} aria-hidden />} Prova uno strumento
         </button>
-        {props.length > 0 && <button className={`${lab.btn} ${lab.ghost} ${lab.sm}`} onClick={() => setJson(!json)}>{json ? 'Usa i campi' : 'Modifica come JSON'}</button>}
+        {props.length > 0 && <button className={`${lab.btn} ${lab.ghost} ${lab.sm}`} onClick={() =>{  setJson(!json) }}>{json ? 'Usa i campi' : 'Modifica come JSON'}</button>}
         {busy && <button className={`${lab.btn} ${lab.sm}`} onClick={() => abort.current?.abort()}>Annulla</button>}
       </div>
       {err && <div className={lab.err} role="alert">{err}</div>}
@@ -106,7 +111,10 @@ function TryTool({ serverId, tool, disabled }: { serverId: string; tool: McpTool
 
 function Wire({ s }: { s: McpServerState }) {
   const endRef = useRef<HTMLDivElement>(null)
-  useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'nearest' }) }, [s.wire.length])
+  useEffect(() => {
+    const target: { scrollIntoView?: Element['scrollIntoView'] } | null = endRef.current
+    target?.scrollIntoView?.({ block: 'nearest' })
+  }, [s.wire.length])
   if (s.wire.length === 0) return <p className={lab.muted}>Nessun messaggio scambiato ancora.</p>
   return (
     <div className={styles.wire} role="log" aria-label="Messaggi JSON-RPC">
@@ -139,8 +147,8 @@ function ServerCard({ s }: { s: McpServerState }) {
   const exposed = config.mcpServers.includes(id)
   const connected = s.state === 'connected'
   const busy = s.state === 'connecting'
-  const setExposed = (on: boolean) =>
-    updateConfig({ mcpServers: on ? [...config.mcpServers.filter(x => x !== id), id] : config.mcpServers.filter(x => x !== id) })
+  const setExposed = (on: boolean) =>{
+    updateConfig({ mcpServers: on ? [...config.mcpServers.filter(x => x !== id), id] : config.mcpServers.filter(x => x !== id) }) }
 
   return (
     <motion.article layout={!reduce} className={`${lab.card} ${real ? styles.realCard : ''}`} aria-label={s.server.label}>
@@ -166,7 +174,7 @@ function ServerCard({ s }: { s: McpServerState }) {
               Se il browser blocca la richiesta (CORS o rete), si torna alla simulazione.
             </span>
             <label className={lab.check}>
-              <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} disabled={connected || busy} />
+              <input type="checkbox" checked={consent} onChange={(e) =>{  setConsent(e.target.checked) }} disabled={connected || busy} />
               Ho capito e acconsento a contattare questo servizio esterno.
             </label>
           </div>
@@ -184,7 +192,7 @@ function ServerCard({ s }: { s: McpServerState }) {
           </button>
         )}
         <label className={lab.switch}>
-          <input type="checkbox" checked={exposed} onChange={e => setExposed(e.target.checked)} />
+          <input type="checkbox" checked={exposed} onChange={(e) =>{  setExposed(e.target.checked) }} />
           Esponi al modello
         </label>
       </div>

@@ -48,7 +48,7 @@ function FlowNode({
       style={{ '--node-color': `var(--c-${tone})`, '--node-tint': `var(--c-${tone}-soft)` } as CSSProperties}
       aria-label={`${title}. Apri i dettagli`}
       aria-pressed={selected}
-      onClick={() => toggle(node)}
+      onClick={() =>{  toggle(node) }}
     >
       <span className={styles.nodeHeading}>
         <span className={styles.nodeIcon} aria-hidden><Icon size={compact ? 17 : 21} /></span>
@@ -174,7 +174,7 @@ export function FlowOverview({ onApprovalDetails }: { onApprovalDetails: () => v
             {COMPONENT_ORDER.filter(id => id !== 'model').map(id => (
               <div className={styles.componentRow} key={id}>
                 <span>{COMPONENTS[id].label}</span>
-                <Switch label={COMPONENTS[id].label} checked={c[id]} disabled={busy} onChange={() => toggleComponent(id)} />
+                <Switch label={COMPONENTS[id].label} checked={c[id]} disabled={busy} onChange={() =>{  toggleComponent(id) }} />
               </div>
             ))}
           </div>

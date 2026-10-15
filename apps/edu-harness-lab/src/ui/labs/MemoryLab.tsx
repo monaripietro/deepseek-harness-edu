@@ -22,12 +22,12 @@ export function MemoryLab() {
   const [text, setText] = useState('')
 
   useEffect(() => {
-    const d = memory.subscribe(() => setRecords([...memory.list()]))
+    const d = memory.subscribe(() =>{  setRecords([...memory.list()]) })
     setRecords([...memory.list()])
     return d
   }, [])
 
-  const add = (e: React.FormEvent) => {
+  const add = (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!key.trim() || !text.trim()) return
     memory.write({ scope, kind, key: key.trim(), text: text.trim(), source: 'user' })
@@ -51,7 +51,7 @@ export function MemoryLab() {
               <h3 className={lab.h3}>{SCOPE_LABEL[sc]}</h3>
               <div className={lab.row}>
                 <ProvenanceBadge tag={REAL_LOCAL} />
-                {sc === 'session' && <button className={`${lab.btn} ${lab.sm}`} onClick={() => memory.clear('session')} disabled={list.length === 0}><Eraser size={14} aria-hidden /> Svuota memoria di sessione</button>}
+                {sc === 'session' && <button className={`${lab.btn} ${lab.sm}`} onClick={() =>{  memory.clear('session') }} disabled={list.length === 0}><Eraser size={14} aria-hidden /> Svuota memoria di sessione</button>}
               </div>
             </div>
             <p className={lab.muted}>{sc === 'session' ? 'Dura finché non azzeri lo scenario o chiudi la pagina.' : 'Resta salvata nel tuo browser anche dopo la chiusura.'}</p>
@@ -78,7 +78,7 @@ export function MemoryLab() {
                             <div>{r.text}</div>
                             <div className={lab.hint}>{SOURCE_LABEL[r.source]} · {new Date(r.createdAt).toLocaleString('it-IT')}</div>
                           </div>
-                          <button className={`${lab.btn} ${lab.ghost}`} onClick={() => memory.delete(r.id)} aria-label={`Elimina il ricordo ${r.key}`}><Trash2 size={16} aria-hidden /></button>
+                          <button className={`${lab.btn} ${lab.ghost}`} onClick={() =>{  memory.delete(r.id) }} aria-label={`Elimina il ricordo ${r.key}`}><Trash2 size={16} aria-hidden /></button>
                         </motion.li>
                       ))}
                     </AnimatePresence>
@@ -94,19 +94,19 @@ export function MemoryLab() {
         <h3 className={lab.h3}><Brain size={20} aria-hidden /> Aggiungi un ricordo</h3>
         <div className={lab.formGrid}>
           <label className={lab.label}>Dove
-            <select className={lab.select} value={scope} onChange={e => setScope(e.target.value as MemoryScope)}>
+            <select className={lab.select} value={scope} onChange={(e) =>{  setScope(e.target.value as MemoryScope) }}>
               <option value="persistent">Persistente</option><option value="session">Sessione</option>
             </select>
           </label>
           <label className={lab.label}>Tipo
-            <select className={lab.select} value={kind} onChange={e => setKind(e.target.value as MemoryKind)}>
+            <select className={lab.select} value={kind} onChange={(e) =>{  setKind(e.target.value as MemoryKind) }}>
               {(Object.keys(KIND_LABEL) as MemoryKind[]).map(k => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
             </select>
           </label>
-          <label className={lab.label}>Chiave<input className={lab.input} value={key} onChange={e => setKey(e.target.value)} placeholder="sede_consegna" /></label>
+          <label className={lab.label}>Chiave<input className={lab.input} value={key} onChange={(e) =>{  setKey(e.target.value) }} placeholder="sede_consegna" /></label>
         </div>
         <label className={lab.label}>Contenuto
-          <textarea className={lab.textarea} value={text} onChange={e => setText(e.target.value)} />
+          <textarea className={lab.textarea} value={text} onChange={(e) =>{  setText(e.target.value) }} />
         </label>
         <div><button className={`${lab.btn} ${lab.primary}`} type="submit" disabled={!key.trim() || !text.trim()}><Plus size={16} aria-hidden /> Salva nella memoria</button></div>
       </form>

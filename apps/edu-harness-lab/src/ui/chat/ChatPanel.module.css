@@ -11,6 +11,7 @@
 .meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
 .dur { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: var(--fs-sm); color: var(--text-muted); font-family: var(--font-mono); }
 .text { font-size: var(--fs-md); line-height: var(--lh-normal); overflow-wrap: anywhere; }
+.resultTitle { margin: 0 0 var(--sp-2); color: var(--c-model); font-size: var(--fs-sm); font-weight: 500; }
 .caret { display: inline-block; width: 8px; height: 1.1em; vertical-align: text-bottom; background: var(--c-model); animation: blink 1s steps(2) infinite; }
 .thinking { display: flex; align-items: center; gap: var(--sp-3); margin: 0; color: var(--text-muted); }
 .dots { display: inline-flex; gap: 5px; }

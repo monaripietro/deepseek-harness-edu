@@ -26,9 +26,10 @@ function paramsOf(schema: Record<string, unknown>): ParamRow[] {
   const req = Array.isArray(schema.required) ? (schema.required as string[]) : []
   return Object.entries(props).map(([name, p]) => ({
     name,
-    type: String(p.type ?? 'any') + (p.enum ? ` (${(p.enum as unknown[]).join(' | ')})` : ''),
+    type: (typeof p.type === 'string' ? p.type : Array.isArray(p.type) ? p.type.join(',') : 'any') +
+      (p.enum ? ` (${(p.enum as unknown[]).join(' | ')})` : ''),
     required: req.includes(name),
-    description: String(p.description ?? ''),
+    description: typeof p.description === 'string' ? p.description : '',
   }))
 }
 
@@ -59,7 +60,7 @@ function ToolCard({ tool, enabled, onToggle, onRemove }: ToolCardProps) {
             ))}
           </ul>
         )}
-        <button className={`${lab.btn} ${lab.ghost} ${lab.sm}`} onClick={() => setSchema(v => !v)} aria-expanded={schema}>
+        <button className={`${lab.btn} ${lab.ghost} ${lab.sm}`} onClick={() =>{  setSchema(v => !v) }} aria-expanded={schema}>
           <Code2 size={14} aria-hidden /> {schema ? 'Nascondi schema JSON' : 'Mostra schema JSON'}
         </button>
         {schema && <pre className={lab.pre}>{JSON.stringify(tool.inputSchema, null, 2)}</pre>}
@@ -80,7 +81,7 @@ function ToolCard({ tool, enabled, onToggle, onRemove }: ToolCardProps) {
       )}
       <div className={lab.spread}>
         <label className={lab.switch}>
-          <input type="checkbox" checked={enabled} onChange={e => onToggle(e.target.checked)} />
+          <input type="checkbox" checked={enabled} onChange={(e) =>{  onToggle(e.target.checked) }} />
           Disponibile per il modello
         </label>
         {onRemove && <button className={`${lab.btn} ${lab.danger} ${lab.sm}`} onClick={onRemove}><Trash2 size={14} aria-hidden /> Rimuovi</button>}
@@ -122,9 +123,9 @@ function CustomToolForm() {
   const valid = idOk && !idTaken && title.trim() !== '' && description.trim() !== '' && paramsOk && lmin <= lmax
   const preview = useMemo(() => renderTemplate(tpl, params), [tpl, params])
 
-  const setParam = (i: number, patch: Partial<CustomToolSpec['params'][number]>) => setParams(params.map((p, j) => (j === i ? { ...p, ...patch } : p)))
+  const setParam = (i: number, patch: Partial<CustomToolSpec['params'][number]>) =>{  setParams(params.map((p, j) => (j === i ? { ...p, ...patch } : p))) }
 
-  const submit = (e: React.FormEvent) => {
+  const submit = (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!valid) return
     addCustomTool({
@@ -146,41 +147,41 @@ function CustomToolForm() {
       </div>
       <div className={lab.formGrid}>
         <label className={lab.label}>Identificativo (snake_case)
-          <input className={lab.input} value={id} onChange={e => setId(e.target.value)} placeholder="stato_spedizione" aria-invalid={id !== '' && (!idOk || idTaken)} />
+          <input className={lab.input} value={id} onChange={(e) =>{  setId(e.target.value) }} placeholder="stato_spedizione" aria-invalid={id !== '' && (!idOk || idTaken)} />
           {id !== '' && !idOk && <span className={lab.err}>Usa minuscole, numeri e _ (3–40 caratteri, inizia con una lettera).</span>}
           {idTaken && <span className={lab.err}>Esiste già uno strumento con questo nome.</span>}
         </label>
         <label className={lab.label}>Titolo
-          <input className={lab.input} value={title} onChange={e => setTitle(e.target.value)} placeholder="Stato della spedizione" />
+          <input className={lab.input} value={title} onChange={(e) =>{  setTitle(e.target.value) }} placeholder="Stato della spedizione" />
         </label>
       </div>
       <label className={lab.label}>
         Descrizione per il modello <span className={lab.hint}>Il modello sceglie lo strumento leggendo solo questa frase.</span>
-        <textarea className={lab.textarea} value={description} onChange={e => setDescription(e.target.value)} />
+        <textarea className={lab.textarea} value={description} onChange={(e) =>{  setDescription(e.target.value) }} />
       </label>
       <label className={lab.label}>Scopo per le persone
-        <input className={lab.input} value={purpose} onChange={e => setPurpose(e.target.value)} />
+        <input className={lab.input} value={purpose} onChange={(e) =>{  setPurpose(e.target.value) }} />
       </label>
 
       <fieldset className={styles.fieldset}>
         <legend>Parametri</legend>
         {params.map((p, i) => (
           <div key={i} className={styles.paramRow}>
-            <input className={lab.input} aria-label="Nome parametro" placeholder="nome" value={p.name} onChange={e => setParam(i, { name: e.target.value })} />
-            <select className={lab.select} aria-label="Tipo" value={p.type} onChange={e => setParam(i, { type: e.target.value as CustomToolSpec['params'][number]['type'] })}>
+            <input className={lab.input} aria-label="Nome parametro" placeholder="nome" value={p.name} onChange={(e) =>{  setParam(i, { name: e.target.value }) }} />
+            <select className={lab.select} aria-label="Tipo" value={p.type} onChange={(e) =>{  setParam(i, { type: e.target.value as CustomToolSpec['params'][number]['type'] }) }}>
               <option value="string">testo</option><option value="number">numero</option><option value="integer">intero</option><option value="boolean">sì/no</option>
             </select>
-            <label className={lab.check}><input type="checkbox" checked={p.required} onChange={e => setParam(i, { required: e.target.checked })} />obbligatorio</label>
-            <input className={lab.input} aria-label="Descrizione parametro" placeholder="descrizione" value={p.description} onChange={e => setParam(i, { description: e.target.value })} />
-            <button type="button" className={`${lab.btn} ${lab.ghost}`} aria-label="Rimuovi parametro" onClick={() => setParams(params.filter((_, j) => j !== i))}><Trash2 size={16} aria-hidden /></button>
+            <label className={lab.check}><input type="checkbox" checked={p.required} onChange={(e) =>{  setParam(i, { required: e.target.checked }) }} />obbligatorio</label>
+            <input className={lab.input} aria-label="Descrizione parametro" placeholder="descrizione" value={p.description} onChange={(e) =>{  setParam(i, { description: e.target.value }) }} />
+            <button type="button" className={`${lab.btn} ${lab.ghost}`} aria-label="Rimuovi parametro" onClick={() =>{  setParams(params.filter((_, j) => j !== i)) }}><Trash2 size={16} aria-hidden /></button>
           </div>
         ))}
         {!paramsOk && <span className={lab.err}>I nomi dei parametri devono essere unici, in minuscolo e con _.</span>}
-        <div><button type="button" className={`${lab.btn} ${lab.sm}`} onClick={() => setParams([...params, { name: '', type: 'string', description: '', required: true }])}><Plus size={14} aria-hidden /> Aggiungi parametro</button></div>
+        <div><button type="button" className={`${lab.btn} ${lab.sm}`} onClick={() =>{  setParams([...params, { name: '', type: 'string', description: '', required: true }]) }}><Plus size={14} aria-hidden /> Aggiungi parametro</button></div>
       </fieldset>
 
       <label className={lab.label}>Risposta (usa {'{{nome_parametro}}'})
-        <textarea className={lab.textarea} value={tpl} onChange={e => setTpl(e.target.value)} />
+        <textarea className={lab.textarea} value={tpl} onChange={(e) =>{  setTpl(e.target.value) }} />
       </label>
       <div>
         <div className={styles.sub}>Anteprima con valori di esempio</div>
@@ -189,24 +190,24 @@ function CustomToolForm() {
 
       <div className={lab.formGrid}>
         <label className={lab.label}>Probabilità di errore: {errorRate}%
-          <input type="range" min={0} max={100} step={5} value={errorRate} onChange={e => setErrorRate(Number(e.target.value))} />
+          <input type="range" min={0} max={100} step={5} value={errorRate} onChange={(e) =>{  setErrorRate(Number(e.target.value)) }} />
         </label>
         <label className={lab.label}>Messaggio di errore
-          <input className={lab.input} value={errorMessage} onChange={e => setErrorMessage(e.target.value)} />
+          <input className={lab.input} value={errorMessage} onChange={(e) =>{  setErrorMessage(e.target.value) }} />
         </label>
         <label className={lab.label}>Latenza minima (ms)
-          <input className={lab.input} type="number" min={0} value={lmin} onChange={e => setLmin(Number(e.target.value))} />
+          <input className={lab.input} type="number" min={0} value={lmin} onChange={(e) =>{  setLmin(Number(e.target.value)) }} />
         </label>
         <label className={lab.label}>Latenza massima (ms)
-          <input className={lab.input} type="number" min={0} value={lmax} onChange={e => setLmax(Number(e.target.value))} />
+          <input className={lab.input} type="number" min={0} value={lmax} onChange={(e) =>{  setLmax(Number(e.target.value)) }} />
         </label>
         <label className={lab.label}>Rischio
-          <select className={lab.select} value={risk} onChange={e => setRisk(e.target.value as ToolRisk)}>
+          <select className={lab.select} value={risk} onChange={(e) =>{  setRisk(e.target.value as ToolRisk) }}>
             <option value="read">Sola lettura</option><option value="write">Scrive dati</option><option value="irreversible">Irreversibile</option>
           </select>
         </label>
         <label className={lab.label}>Approvazione
-          <select className={lab.select} value={approval} onChange={e => setApproval(e.target.value as ApprovalPolicy)}>
+          <select className={lab.select} value={approval} onChange={(e) =>{  setApproval(e.target.value as ApprovalPolicy) }}>
             <option value="never">Non richiesta</option><option value="always">Sempre richiesta</option>
           </select>
         </label>
@@ -216,7 +217,7 @@ function CustomToolForm() {
         <div className={lab.row}>
           {PERMISSIONS.map(p => (
             <label key={p} className={`${lab.chip} ${styles.permChip}`}>
-              <input type="checkbox" checked={perms.includes(p)} onChange={e => setPerms(e.target.checked ? [...perms, p] : perms.filter(x => x !== p))} />
+              <input type="checkbox" checked={perms.includes(p)} onChange={(e) =>{  setPerms(e.target.checked ? [...perms, p] : perms.filter(x => x !== p)) }} />
               <span className={lab.mono}>{p}</span>
             </label>
           ))}
@@ -235,8 +236,8 @@ export function ToolLab() {
   const tools = useMemo(() => registry.list().filter(t => t.source !== 'mcp'), [customTools])
   const toolsOn = config.components.tools
 
-  const toggle = (id: string, on: boolean) =>
-    updateConfig({ enabledTools: on ? [...config.enabledTools.filter(t => t !== id), id] : config.enabledTools.filter(t => t !== id) })
+  const toggle = (id: string, on: boolean) =>{
+    updateConfig({ enabledTools: on ? [...config.enabledTools.filter(t => t !== id), id] : config.enabledTools.filter(t => t !== id) }) }
 
   return (
     <div>
@@ -257,8 +258,8 @@ export function ToolLab() {
       <div className={lab.cards}>
         <AnimatePresence initial={false}>
           {tools.map(t => (
-            <ToolCard key={t.id} tool={t} enabled={config.enabledTools.includes(t.id)} onToggle={on => toggle(t.id, on)}
-              onRemove={t.source === 'custom' ? () => removeCustomTool(t.id) : undefined} />
+            <ToolCard key={t.id} tool={t} enabled={config.enabledTools.includes(t.id)} onToggle={(on) =>{  toggle(t.id, on) }}
+              onRemove={t.source === 'custom' ? () =>{  removeCustomTool(t.id) } : undefined} />
           ))}
         </AnimatePresence>
       </div>

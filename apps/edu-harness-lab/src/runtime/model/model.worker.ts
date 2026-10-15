@@ -7,7 +7,16 @@
  * Tools are given to the model through its own chat template (`tools` option), and tool calls /
  * tool results keep their native roles, so a small model sees exactly the format it was trained on.
  */
-import { AutoModelForCausalLM, AutoTokenizer, DynamicCache, InterruptableStoppingCriteria, TextStreamer, env } from '@huggingface/transformers'
+import {
+  AutoModelForCausalLM,
+  AutoTokenizer,
+  DynamicCache,
+  InterruptableStoppingCriteria,
+  Tensor,
+  TextStreamer,
+  env,
+} from '@huggingface/transformers'
+import type { PreTrainedModel, PreTrainedTokenizer, ProgressInfo } from '@huggingface/transformers'
 import { opfsAvailable, opfsCache } from './opfsCache'
 import type { ChatMessage } from '../../domain/types'
 import { MODEL_SOURCE, PROFILES, toolCallPrefix } from './profiles'
@@ -27,21 +36,16 @@ if (opfsAvailable()) {
   env.useBrowserCache = true
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- Transformers.js tokenizer, model, tensors, KV cache and
-   progress events are loosely typed (union returns, untyped payloads): this worker is the one boundary handling them. */
-type AnyTokenizer = any
-type AnyModel = any
-
-const ctx = self as unknown as DedicatedWorkerGlobalScope
-const post = (e: WorkerEvent) => ctx.postMessage(e)
+const ctx = self
+const post = (e: WorkerEvent) => { ctx.postMessage(e) }
 
 /** CPU threads: ONNX Runtime WASM can use several cores only in a cross-origin isolated page. */
 const THREADS = ctx.crossOriginIsolated ? Math.max(1, Math.min(navigator.hardwareConcurrency || 4, 8)) : 1
-const onnxEnv = (env as any).backends?.onnx
-if (onnxEnv?.wasm) onnxEnv.wasm.numThreads = THREADS
+const onnxEnv = env.backends.onnx
+if (onnxEnv.wasm) onnxEnv.wasm.numThreads = THREADS
 
-let tokenizer: AnyTokenizer = null
-let model: AnyModel = null
+let tokenizer: PreTrainedTokenizer | null = null
+let model: PreTrainedModel | null = null
 let profile: ModelProfile | null = null
 let loading = false
 let current: { id: string; criteria: InterruptableStoppingCriteria } | null = null
@@ -50,22 +54,22 @@ let device: 'wasm' | 'webgpu' = 'wasm'
  * KV cache of the previous call. In the agent loop every step resends the same instructions, documents
  * and history: only the tokens after the longest common prefix need to be read again.
  */
-let kv: { ids: number[]; cache: any } | null = null
+let kv: { ids: number[]; cache: DynamicCache } | null = null
 
 const MIN_REUSE = 16
 
 /** Keep only the first `len` positions of every attention cache tensor ([batch, heads, seq, dim]). */
-function cropCache(cache: any, len: number): any | null {
-  const entries: Record<string, any> = {}
-  for (const key of Object.keys(cache)) {
+function cropCache(cache: DynamicCache, len: number): DynamicCache | null {
+  const entries: Record<string, Tensor> = {}
+  for (const [key, tensor] of Object.entries(cache)) {
     if (!key.startsWith('past_key_values.')) return null
-    entries[key] = cache[key].slice(null, null, [0, len], null)
+    entries[key] = tensor.slice(null, null, [0, len], null)
   }
   return new DynamicCache(entries)
 }
 
 /** Reusable cache for this prompt, or undefined (then the whole prompt is read). */
-function reusableCache(ids: number[]): { cache: any; reused: number } | undefined {
+function reusableCache(ids: number[]): { cache: DynamicCache; reused: number } | undefined {
   if (!kv || !profile?.kvReuse || device !== 'wasm') return undefined
   const max = Math.min(kv.ids.length, ids.length - 1)
   let common = 0
@@ -106,20 +110,19 @@ async function load(req: Extract<WorkerRequest, { type: 'load' }>): Promise<void
     }
     // Text-only loads skip these sessions, but the library still counts them in the expected total.
     const SKIPPED = /vision_encoder|audio_encoder/
-    const progress_callback = (info: any) => {
-      if (info?.status === 'progress_total') {
+    const progress_callback = (info: ProgressInfo) => {
+      if (info.status === 'progress_total') {
         sawTotal = true
-        const allFiles = (info.files ?? {}) as Record<string, { loaded: number; total: number }>
-        const files = Object.entries(allFiles).filter(([name]) => !SKIPPED.test(name))
+        const files = Object.entries(info.files).filter(([name]) => !SKIPPED.test(name))
         const loaded = files.reduce((n, [, f]) => n + f.loaded, 0)
         const total = files.reduce((n, [, f]) => n + f.total, 0)
         const active = files.find(([, f]) => f.total > 0 && f.loaded < f.total)?.[0]
         report(loaded, total || info.total, active)
         return
       }
-      if (sawTotal || !info?.file) return
-      if (info.status === 'progress' && typeof info.loaded === 'number') {
-        perFile.set(info.file, { loaded: info.loaded, total: typeof info.total === 'number' ? info.total : 0 })
+      if (sawTotal || !('file' in info)) return
+      if (info.status === 'progress') {
+        perFile.set(info.file, { loaded: info.loaded, total: info.total })
       } else if (info.status === 'done') {
         const f = perFile.get(info.file)
         if (f) perFile.set(info.file, { loaded: f.total || f.loaded, total: f.total || f.loaded })
@@ -145,7 +148,7 @@ async function load(req: Extract<WorkerRequest, { type: 'load' }>): Promise<void
     )
     tokenizer = await AutoTokenizer.from_pretrained(profile.repo, { local_files_only })
     model = await AutoModelForCausalLM.from_pretrained(profile.repo, {
-      dtype: req.dtype as 'q4' | 'q4f16' | 'q8',
+      dtype: req.dtype,
       device: req.device,
       ...(local_files_only ? {} : { progress_callback }),
       local_files_only,
@@ -164,12 +167,12 @@ async function load(req: Extract<WorkerRequest, { type: 'load' }>): Promise<void
 }
 
 /** Our messages -> the Hugging Face chat format (tool calls with object arguments, tool role kept). */
-function toTemplateMessages(messages: ChatMessage[]): Record<string, unknown>[] {
+function toTemplateMessages(messages: ChatMessage[]) {
   return messages.map((m) => {
     if (m.role === 'assistant' && m.tool_calls?.length) {
       return {
         role: 'assistant',
-        content: m.content ?? '',
+        content: m.content,
         tool_calls: m.tool_calls.map(tc => ({ type: 'function', function: { name: tc.name, arguments: tc.arguments } })),
       }
     }
@@ -179,13 +182,13 @@ function toTemplateMessages(messages: ChatMessage[]): Record<string, unknown>[] 
 }
 
 /** Fallback for templates that reject the system role: fold it into the first user turn. */
-function foldSystem(msgs: Record<string, unknown>[]): Record<string, unknown>[] {
-  const sys = msgs.filter(m => m.role === 'system').map(m => String(m.content))
+function foldSystem(msgs: ReturnType<typeof toTemplateMessages>): ReturnType<typeof toTemplateMessages> {
+  const sys = msgs.filter(m => m.role === 'system').map(m => m.content)
   if (!sys.length) return msgs
   const rest = msgs.filter(m => m.role !== 'system')
   const i = rest.findIndex(m => m.role === 'user')
   if (i < 0) return [{ role: 'user', content: sys.join('\n\n') }, ...rest]
-  return rest.map((m, j) => (j === i ? { ...m, content: `${sys.join('\n\n')}\n\n${String(m.content)}` } : m))
+  return rest.map((m, j) => (j === i ? { ...m, content: `${sys.join('\n\n')}\n\n${m.content}` } : m))
 }
 
 async function generate(req: Extract<WorkerRequest, { type: 'generate' }>): Promise<void> {
@@ -207,12 +210,12 @@ async function generate(req: Extract<WorkerRequest, { type: 'generate' }>): Prom
     const thinkingKw = profile.thinking && req.thinking !== undefined ? { enable_thinking: req.thinking } : {}
     const opts = {
       add_generation_prompt: true,
-      return_dict: true,
+      return_dict: true as const,
       ...(req.tools?.length ? { tools: req.tools } : {}),
       ...(profile.templateKwargs ?? {}),
       ...thinkingKw,
     }
-    let inputs: any
+    let inputs
     let chat = msgs
     try {
       inputs = tokenizer.apply_chat_template(chat, opts)
@@ -221,16 +224,20 @@ async function generate(req: Extract<WorkerRequest, { type: 'generate' }>): Prom
       inputs = tokenizer.apply_chat_template(chat, opts)
     }
     // Guided call: the prompt ends with the opening of the tool call, the model writes only the argument.
-    const prefix = req.forceTool ? toolCallPrefix(profile.toolFormat, req.forceTool) : ''
+    const prefix = req.forceTool ? toolCallPrefix(profile.toolFormat, req.forceTool) : (req.prefill ?? '')
     if (prefix) {
-      const promptText = tokenizer.apply_chat_template(chat, { ...opts, tokenize: false, return_dict: false }) as string
+      const promptText = tokenizer.apply_chat_template(chat, { ...opts, tokenize: false, return_dict: false })
       inputs = tokenizer(promptText + prefix, { add_special_tokens: false })
     }
-    const tokensIn: number = inputs.input_ids.dims.at(-1)
-    const specials: string[] = (tokenizer.all_special_tokens ?? []).filter(KEEP)
+    const tokensIn = inputs.input_ids.dims.at(-1)
+    if (tokensIn === undefined) throw new Error('Il tokenizer ha restituito un tensore senza dimensioni.')
+    const specials = tokenizer.all_special_tokens.filter(KEEP)
 
     let raw = ''
     let emitted = ''
+    // Stop sequences: generation ends as soon as one appears (e.g. the closing tag of a block).
+    const stops = (req.stop ?? []).filter(Boolean)
+    const streaming = { stopHit: false }
     let generatedTokens = 0
     let lastThinkingPost = 0
     let reasoningSoFar = ''
@@ -248,6 +255,10 @@ async function generate(req: Extract<WorkerRequest, { type: 'generate' }>): Prom
       skip_special_tokens: false,
       callback_function: (chunk: string) => {
         raw += chunk
+        if (!streaming.stopHit && stops.some(stop => raw.includes(stop))) {
+          streaming.stopHit = true
+          criteria.interrupt()
+        }
         if (req.thinking) reasoningSoFar = reasoningText(raw)
         const visible = visibleText(raw, specials, true)
         if (visible.length > emitted.length && visible.startsWith(emitted)) {
@@ -257,10 +268,11 @@ async function generate(req: Extract<WorkerRequest, { type: 'generate' }>): Prom
       },
     })
 
-    const ids: number[] = Array.from(inputs.input_ids.data as ArrayLike<number | bigint>, Number)
+    const ids = Array.from<number | bigint, number>(inputs.input_ids.data, Number)
     const reuse = reusableCache(ids)
     // No cap on the answer: at most the rest of the context window (the model normally stops much earlier).
-    const window = Number(model.config?.max_position_embeddings ?? model.config?.text_config?.max_position_embeddings ?? 32768)
+    const config: { max_position_embeddings?: number; text_config?: { max_position_embeddings?: number } } = model.config
+    const window = config.max_position_embeddings ?? config.text_config?.max_position_embeddings ?? 32768
     const maxNew = Math.max(1, Math.min(maxNewTokens, window - ids.length))
     const outputs = await model.generate({
       ...inputs,
@@ -272,22 +284,37 @@ async function generate(req: Extract<WorkerRequest, { type: 'generate' }>): Prom
       stopping_criteria: criteria,
       return_dict_in_generate: true,
     })
+    if (!('sequences' in outputs) || !(outputs.sequences instanceof Tensor)) {
+      throw new Error('Il modello non ha restituito una sequenza di token valida.')
+    }
     const sequences = outputs.sequences
-    if (profile.kvReuse && device === 'wasm' && outputs.past_key_values) {
-      const all: number[] = Array.from(sequences.data as ArrayLike<number | bigint>, Number)
-      const len = outputs.past_key_values.get_seq_length()
-      kv = { ids: all.slice(0, len), cache: outputs.past_key_values }
+    const cache = 'past_key_values' in outputs ? outputs.past_key_values : undefined
+    if (profile.kvReuse && device === 'wasm' && cache != null) {
+      if (!(cache instanceof DynamicCache)) throw new Error('Il modello ha restituito una cache dei token non valida.')
+      const all = Array.from<number | bigint, number>(sequences.data, Number)
+      const len = cache.get_seq_length()
+      kv = { ids: all.slice(0, len), cache }
     }
     if (reuse) console.info(`[model.worker] riuso cache: ${reuse.reused}/${ids.length} token già letti`)
 
-    const generated = sequences.slice(null, [tokensIn, null])
-    const tokensOut: number = generated.dims.at(-1)
-    const decoded: string = tokenizer.batch_decode(generated, { skip_special_tokens: false })[0] ?? ''
-    const text = visibleText(prefix + decoded, specials, false)
+    const totalTokens = sequences.dims.at(-1)
+    if (totalTokens === undefined) throw new Error('Il modello ha restituito un tensore senza dimensioni.')
+    const generated = sequences.slice(null, [tokensIn, totalTokens])
+    const tokensOut = generated.dims.at(-1)
+    if (tokensOut === undefined) throw new Error('Il modello ha restituito un tensore senza dimensioni.')
+    const decoded = tokenizer.batch_decode(generated, { skip_special_tokens: false })[0] ?? ''
+    let text = visibleText(prefix + decoded, specials, false)
+    if (streaming.stopHit) {
+      // Keep the text up to the end of the first stop sequence (the tokens decoded after it are dropped).
+      const ends = stops.map(stop => (text.includes(stop) ? text.indexOf(stop) + stop.length : -1)).filter(end => end >= 0)
+      if (ends.length) text = text.slice(0, Math.min(...ends))
+    }
     const eos = model.generation_config?.eos_token_id
     const eosIds: number[] = Array.isArray(eos) ? eos : eos != null ? [eos] : []
-    const lastId = Number(generated.data?.[generated.data.length - 1])
-    const finishReason = criteria.interrupted ? 'aborted' : !eosIds.includes(lastId) && tokensOut >= maxNew ? 'length' : 'stop'
+    const lastId = Number(generated.data[generated.data.length - 1])
+    const finishReason = streaming.stopHit
+      ? 'stop'
+      : criteria.interrupted ? 'aborted' : !eosIds.includes(lastId) && tokensOut >= maxNew ? 'length' : 'stop'
     // The complete reasoning of this call (the streamed one may miss the last words).
     if (req.thinking) post({ type: 'thinking', id, tokens: tokensOut, text: reasoningText(prefix + decoded) })
     post({ type: 'done', id, text, tokensIn, tokensOut, durationMs: performance.now() - started, finishReason })
@@ -302,9 +329,9 @@ async function generate(req: Extract<WorkerRequest, { type: 'generate' }>): Prom
 
 async function unload(): Promise<void> {
   try {
-    await model?.dispose?.()
-  } catch {
-    /* ignore */
+    await model?.dispose()
+  } catch (error) {
+    console.error('[model.worker] unload failed', error)
   }
   model = null
   tokenizer = null

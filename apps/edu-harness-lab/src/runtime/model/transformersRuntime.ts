@@ -70,7 +70,7 @@ export function createTransformersRuntime(profileId: RealProfileId, options: Tra
     return w
   }
 
-  const send = (msg: WorkerRequest) => ensureWorker().postMessage(msg)
+  const send = (msg: WorkerRequest) =>{  ensureWorker().postMessage(msg) }
 
   const terminate = () => {
     worker?.terminate()
@@ -180,15 +180,17 @@ export function createTransformersRuntime(profileId: RealProfileId, options: Tra
         signal.addEventListener('abort', onAbort, { once: true })
         // Reasoning: switched on in the chat template, with extra tokens for the hidden thinking (never for a guided call).
         const effort = profile.thinking ? (options.thinking?.() ?? 'off') : 'off'
-        const think = effort !== 'off' && !req.forceTool
+        const think = effort !== 'off' && !req.forceTool && !req.prefill
         send({
           type: 'generate',
           id,
           messages: req.messages,
           ...(req.tools ? { tools: req.tools } : {}),
           ...(req.forceTool ? { forceTool: req.forceTool } : {}),
+          ...(req.prefill ? { prefill: req.prefill } : {}),
+          ...(req.stop?.length ? { stop: req.stop } : {}),
           ...(profile.thinking ? { thinking: think } : {}),
-          maxNewTokens: req.maxNewTokens + (think ? THINKING_BUDGET[effort as Exclude<ThinkingEffort, 'off'>] : 0),
+          maxNewTokens: req.maxNewTokens + (think ? THINKING_BUDGET[effort] : 0),
         })
         if (signal.aborted) onAbort()
       })
@@ -203,6 +205,7 @@ export function createTransformersRuntime(profileId: RealProfileId, options: Tra
         }
       }
       terminate()
+      return Promise.resolve()
     },
   }
   return runtime

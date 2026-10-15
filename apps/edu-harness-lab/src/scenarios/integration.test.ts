@@ -25,7 +25,7 @@ async function run(
   const registry = createToolRegistry()
   for (const t of FAST_TOOLS) registry.register(t)
   const faults = opts.faults ?? NO_FAULTS
-  const approvals: ApprovalService = { request: async () => opts.approve ?? 'allowed-once' }
+  const approvals: ApprovalService = { request: () => Promise.resolve(opts.approve ?? 'allowed-once') }
   const deps: TurnDeps = {
     runtime: createScriptedModel(() => {
       const policy = POLICIES[scenario.id]
@@ -55,9 +55,18 @@ const cfg = (n: number): HarnessConfig => (EXPERIMENT[n - 1] as (typeof EXPERIME
 const check = (r: RunRecord, id: string): boolean | undefined => r.checks.find(c => c.id === id)?.passed
 const quick = (c: HarnessConfig): HarnessConfig => ({ ...c, limits: { ...c.limits, toolTimeoutMs: 30 } })
 const tools = (r: RunRecord): string[] => r.toolCalls.map(c => c.tool)
+/** The full chain of the guide scenario with the loop, before any MCP tool. */
+const LOOP_CHAIN = [
+  'cerca_catalogo',
+  'verifica_disponibilita',
+  'verifica_disponibilita',
+  'calcolatrice',
+  'leggi_budget',
+  'crea_richiesta_acquisto',
+]
 
 describe('guide scenario through the real orchestrator (spine §17)', () => {
-  beforeEach(() => businessLog.clear())
+  beforeEach(() =>{  businessLog.clear() })
 
   it('config 1: isolated model invents a product and a price, no tools', async () => {
     const r = await run(guide, cfg(1))
@@ -111,8 +120,10 @@ describe('guide scenario through the real orchestrator (spine §17)', () => {
     expect(check(r, 'totale-corretto')).toBe(false)
   })
 
-  it('config 7: single round, proposes NB-B14 without discovering the stock problem', async () => {
-    const r = await run(guide, cfg(7))
+  it('tools without the agent loop (manual toggle): single round, proposes NB-B14 without discovering the stock problem', async () => {
+    // The guided path switches the loop on together with the tools; turning it off by hand leaves one round of tools.
+    const singleRound: HarnessConfig = { ...cfg(7), components: { ...cfg(7).components, agentLoop: false } }
+    const r = await run(guide, singleRound)
     expect(tools(r)).toEqual(['cerca_catalogo'])
     expect(r.answer).toContain('NB-B14')
     expect(check(r, 'modello-ammesso')).toBe(false)
@@ -120,19 +131,20 @@ describe('guide scenario through the real orchestrator (spine §17)', () => {
     expect(check(r, 'prezzi-veri')).toBe(true)
   })
 
-  it('config 8: the loop finds the problem and falls back on NB-V14P; the write is not gated', async () => {
-    const r = await run(guide, cfg(8))
-    expect(tools(r)).toEqual(['cerca_catalogo', 'verifica_disponibilita', 'verifica_disponibilita', 'calcolatrice', 'leggi_budget', 'crea_richiesta_acquisto'])
+  it('config 7: more tools and the loop find the stock problem and fall back on NB-V14P; the write is not gated', async () => {
+    const r = await run(guide, cfg(7))
+    expect(tools(r)).toEqual(LOOP_CHAIN)
     expect(check(r, 'modello-ammesso')).toBe(true)
     expect(check(r, 'totale-corretto')).toBe(true)
     expect(check(r, 'prezzi-veri')).toBe(true)
     expect(check(r, 'azione-supervisionata')).toBe(false)
     expect(r.actions).toEqual([{ tool: 'crea_richiesta_acquisto', id: 'RDA-SIM-2026-0042', approved: null }])
+    expect(r.humanInterventions).toBe(0)
     expect(r.answer).toMatch(/SIMULATA/)
   })
 
-  it('config 9: controls block the write (DENIED) and the answer is a draft', async () => {
-    const r = await run(guide, cfg(9))
+  it('config 8: controls block the write (DENIED) and the answer is a draft', async () => {
+    const r = await run(guide, cfg(8))
     const write = r.toolCalls.find(c => c.tool === 'crea_richiesta_acquisto')
     expect(write?.ok).toBe(false)
     expect(write?.code).toBe('DENIED')
@@ -140,6 +152,18 @@ describe('guide scenario through the real orchestrator (spine §17)', () => {
     expect(r.answer).toMatch(/supervisione umana/)
     expect(check(r, 'totale-corretto')).toBe(true)
     expect(check(r, 'azione-supervisionata')).toBe(false)
+    expect(r.stopReason).toBe('final_answer')
+  })
+
+  it('config 9: human approval lets the write through, without a supplier delivery check', async () => {
+    const r = await run(guide, cfg(9))
+    expect(tools(r)).toEqual(LOOP_CHAIN)
+    expect(r.actions).toEqual([{ tool: 'crea_richiesta_acquisto', id: 'RDA-SIM-2026-0042', approved: true }])
+    expect(r.humanInterventions).toBe(1)
+    expect(check(r, 'azione-supervisionata')).toBe(true)
+    expect(check(r, 'totale-corretto')).toBe(true)
+    expect(check(r, 'consegna-verificata')).toBe(false)
+    expect(r.answer).toMatch(/SIMULATA/)
     expect(r.stopReason).toBe('final_answer')
   })
 
@@ -198,7 +222,7 @@ describe('other scenarios through the real orchestrator', () => {
   it('S1: guesses when isolated, admits with instructions, precise with RAG', async () => {
     const s = sc('rimborso-chilometrico')
     expect(failed(await run(s, cfg(1)))).toContain('importo-corretto')
-    expect(await run(s, cfg(2))).toMatchObject({ answer: expect.stringMatching(/Non conosco/) })
+    expect((await run(s, cfg(2))).answer).toMatch(/Non conosco/)
     const r = await run(s, cfg(5))
     expect(failed(r)).toEqual([])
   })
@@ -232,12 +256,16 @@ describe('other scenarios through the real orchestrator', () => {
   it('S5: late order, draft and supervised task', async () => {
     const s = sc('ordine-in-ritardo')
     expect(failed(await run(s, cfg(1)))).toContain('data-corretta')
+    // Controls without approval: the task is blocked (DENIED), the answer keeps the draft.
+    const r8 = await run(s, cfg(8))
+    expect(passed(r8)).toEqual(expect.arrayContaining(['data-corretta', 'bozza-presente']))
+    expect(check(r8, 'azione-supervisionata')).toBe(false)
+    expect(r8.actions).toHaveLength(0)
+    // Human approval: the task is created after a person approves it.
     const r9 = await run(s, cfg(9))
-    expect(passed(r9)).toEqual(expect.arrayContaining(['data-corretta', 'bozza-presente']))
-    expect(check(r9, 'azione-supervisionata')).toBe(false)
-    const r10 = await run(s, cfg(10))
-    expect(failed(r10)).toEqual([])
-    expect(r10.actions[0]?.id).toMatch(/^ATT-SIM-2026-/)
+    expect(failed(r9)).toEqual([])
+    expect(r9.actions[0]?.id).toMatch(/^ATT-SIM-2026-/)
+    expect(r9.actions[0]?.approved).toBe(true)
   })
 
   it('S6: does not claim an action it cannot perform', async () => {
@@ -247,14 +275,23 @@ describe('other scenarios through the real orchestrator', () => {
     expect(failed(await run(s, cfg(10)))).toEqual([])
   })
 
-  it('S7: retries once then answers honestly on timeout', async () => {
+  it('S7: retries once, then answers honestly (no controls) or is stopped by the controls', async () => {
     const s = sc('timeout-magazzino')
     expect(failed(await run(s, cfg(1)))).toContain('quantita-non-inventata')
     expect(failed(await run(s, cfg(8)))).toEqual([])
-    const r = await run(s, cfg(8), { faults: { ...NO_FAULTS, error: ['verifica_disponibilita'] } })
-    expect(r.toolCalls).toHaveLength(2)
-    expect(failed(r)).toEqual([])
-    expect(r.answer).toMatch(/non sono riuscito/i)
+    const faults: FaultInjection = { ...NO_FAULTS, error: ['verifica_disponibilita'] }
+    // Loop without controls: no failure guard, the model itself gives up after one retry and says so.
+    const free = await run(s, cfg(7), { faults })
+    expect(free.toolCalls).toHaveLength(2)
+    expect(free.stopReason).toBe('final_answer')
+    expect(failed(free)).toEqual([])
+    expect(free.answer).toMatch(/non sono riuscito/i)
+    // With controls: after maxToolFailures (2) consecutive errors the harness stops the turn and answers for it.
+    const guarded = await run(s, cfg(8), { faults })
+    expect(guarded.toolCalls).toHaveLength(2)
+    expect(guarded.stopReason).toBe('tool_failures')
+    expect(failed(guarded)).toEqual([])
+    expect(guarded.answer).toMatch(/continua a dare errore/)
   })
 
   it('S8: asks instead of booking', async () => {

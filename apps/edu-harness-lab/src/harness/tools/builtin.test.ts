@@ -18,16 +18,23 @@ const tool = (id: string): ToolDefinition => BUILTIN_TOOLS.find(t => t.id === id
 const run = (id: string, args: Record<string, unknown>): Promise<ToolOutcome> => tool(id).execute(args, ctx)
 
 describe('builtin tools', () => {
-  beforeEach(() => businessLog.clear())
+  beforeEach(() =>{  businessLog.clear() })
 
-  it('every tool has a compilable JSON schema and an Italian description', () => {
+  it('every tool has a compilable JSON schema, an English model-facing description and an Italian title', () => {
     const ajv = new Ajv2020({ strict: false })
+    const english = /\b(the|a|an|of|for|and|with|to|in|it)\b/i
+    const italian = /\b(di|il|la|un|una|per|del|che|con|nel|nella|dei|delle)\b/
     expect(BUILTIN_TOOLS.length).toBeGreaterThan(10)
     for (const t of BUILTIN_TOOLS) {
       expect(() => ajv.compile(t.inputSchema), t.id).not.toThrow()
       expect(t.inputSchema.type).toBe('object')
       expect(t.description.length, t.id).toBeGreaterThan(20)
-      expect(t.description, t.id).toMatch(/\b(di|il|la|un|una|per|del|che|con|nel|nella|dei|delle)\b/)
+      // The model reads the description: English, like the rest of the model-facing prompt.
+      expect(t.description, t.id).toMatch(english)
+      expect(t.description, t.id).not.toMatch(italian)
+      // The person reads the title in the UI: Italian.
+      expect(t.title.length, t.id).toBeGreaterThan(3)
+      expect(t.title, t.id).not.toMatch(/\b(the|of|and|with|for|to)\b/i)
       expect(t.source).toBe('builtin')
     }
     expect(new Set(BUILTIN_TOOLS.map(t => t.id)).size).toBe(BUILTIN_TOOLS.length)

@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import type { LevelId } from '../../domain/types'
 import { useLab } from '../../state/store'
 
 interface Progress {
@@ -18,7 +17,7 @@ useLab.subscribe((s) => {
   const p = useProgress.getState()
   const patch: Partial<Progress> = {}
   if (s.level > p.highestReached) patch.highestReached = s.level
-  if (s.runs.length > prevRuns) patch.completed = { ...p.completed, [s.level as LevelId]: true }
+  if (s.runs.length > prevRuns) patch.completed = { ...p.completed, [s.level]: true }
   if (s.runs.length === 0 && prevRuns > 0) patch.completed = {}
   prevRuns = s.runs.length
   if (Object.keys(patch).length) useProgress.setState(patch)

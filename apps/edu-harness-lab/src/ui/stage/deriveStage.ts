@@ -19,6 +19,7 @@ export type Phase =
   | 'executing'
   | 'waitingHuman'
   | 'observing'
+  | 'reflecting'
   | 'answering'
   | 'done'
 
@@ -31,6 +32,7 @@ export const PHASE_LABEL: Record<Phase, string> = {
   executing: 'Esegue lo strumento',
   waitingHuman: 'Attende una persona',
   observing: 'Riporta l’osservazione',
+  reflecting: 'Riesamina la proposta',
   answering: 'Consegna la risposta',
   done: 'Concluso',
 }
@@ -180,6 +182,7 @@ export function litFor(e: TraceEvent, hasOrchestrator: boolean): StageNodeId[] {
     case 'model/response':
       return hasOrchestrator ? ['model', 'orchestrator'] : ['model']
     case 'decision/parsed':
+      return e.decision.type === 'reflect' ? ['orchestrator', 'window'] : ['orchestrator']
     case 'decision/invalid':
     case 'decision/repair':
       return ['orchestrator']
@@ -299,7 +302,7 @@ export function deriveStage(events: readonly TraceEvent[], hasOrchestrator: bool
         break
       case 'decision/parsed':
         s.decision = e.decision
-        s.phase = e.decision.type === 'tool' ? 'validating' : 'answering'
+        s.phase = e.decision.type === 'tool' ? 'validating' : e.decision.type === 'reflect' ? 'reflecting' : 'answering'
         break
       case 'decision/invalid':
         s.invalidOutputs += 1
@@ -343,7 +346,8 @@ export function deriveStage(events: readonly TraceEvent[], hasOrchestrator: bool
           { tool: e.tool, ok: e.outcome.ok, summary: e.outcome.ok ? e.outcome.summary : e.outcome.message },
         ]
         if (e.tool === PLAN_TOOL_ID && e.outcome.ok) {
-          const text = String((e.outcome.data as { piano?: unknown } | undefined)?.piano ?? '')
+          const plan = (e.outcome.data as { piano?: unknown } | undefined)?.piano ?? ''
+          const text = typeof plan === 'string' ? plan : JSON.stringify(plan)
           s.plan = { text, steps: parsePlan(text), offPlan: [] }
         } else if (s.plan) {
           const ok = e.outcome.ok

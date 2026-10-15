@@ -233,9 +233,10 @@ describe('checkers', () => {
   })
 
   it('scenario registry', () => {
-    expect(SCENARIOS).toHaveLength(10)
+    expect(SCENARIOS).toHaveLength(11)
     expect(SCENARIOS[0]?.id).toBe('notebook-nuovi-assunti')
-    expect(new Set(SCENARIOS.map(s => s.id)).size).toBe(10)
+    expect(SCENARIOS.map(s => s.id)).toContain('ragionamento-iterativo')
+    expect(new Set(SCENARIOS.map(s => s.id)).size).toBe(11)
     for (const s of SCENARIOS) {
       expect(s.title && s.shortTitle && s.lesson && s.request).toBeTruthy()
       expect(s.checkers.length).toBeGreaterThan(0)

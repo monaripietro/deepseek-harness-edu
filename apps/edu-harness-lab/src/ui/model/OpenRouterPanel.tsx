@@ -39,11 +39,11 @@ export function OpenRouterPanel({ onClose }: { onClose: () => void }) {
     void useLab.getState().refreshOpenRouterKey()
     const ctrl = new AbortController()
     fetchOpenRouterModels(ctrl.signal)
-      .then(ms => setModels(ms.filter(m => m.tools)))
-      .catch((err) => {
+      .then((ms) =>{  setModels(ms.filter(m => m.tools)) })
+      .catch((err: unknown) => {
         if (!ctrl.signal.aborted) setListError(err instanceof Error ? err.message : String(err))
       })
-    return () => ctrl.abort()
+    return () =>{  ctrl.abort() }
   }, [])
 
   const list = useMemo(() => {
@@ -88,7 +88,7 @@ export function OpenRouterPanel({ onClose }: { onClose: () => void }) {
                 setConfirmForget(false)
                 void forgetKey()
               }}
-              onBlur={() => setConfirmForget(false)}
+              onBlur={() =>{  setConfirmForget(false) }}
             >
               <Trash2 size={13} aria-hidden /> {confirmForget ? 'Conferma: dimentica la chiave' : 'Dimentica la chiave'}
             </button>
@@ -99,7 +99,7 @@ export function OpenRouterPanel({ onClose }: { onClose: () => void }) {
             onSubmit={(e) => {
               e.preventDefault()
               if (!draft.trim()) return
-              void saveKey(draft, remember).then(() => setDraft(''))
+              void saveKey(draft, remember).then(() =>{  setDraft('') })
             }}
           >
             <input
@@ -110,10 +110,10 @@ export function OpenRouterPanel({ onClose }: { onClose: () => void }) {
               placeholder="sk-or-v1-…"
               aria-label="Chiave API di OpenRouter"
               value={draft}
-              onChange={e => setDraft(e.target.value)}
+              onChange={(e) =>{  setDraft(e.target.value) }}
             />
             <label className={styles.orCheck}>
-              <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} /> Ricorda su questo browser (cifrata)
+              <input type="checkbox" checked={remember} onChange={(e) =>{  setRemember(e.target.checked) }} /> Ricorda su questo browser (cifrata)
             </label>
             <button type="submit" className={styles.primary} disabled={!draft.trim()}>
               Salva chiave
@@ -132,7 +132,7 @@ export function OpenRouterPanel({ onClose }: { onClose: () => void }) {
         </h3>
         <label className={styles.orSearch}>
           <Search size={15} aria-hidden />
-          <input placeholder="Cerca per nome (es. gemini, claude, qwen)…" aria-label="Cerca un modello" value={query} onChange={e => setQuery(e.target.value)} />
+          <input placeholder="Cerca per nome (es. gemini, claude, qwen)…" aria-label="Cerca un modello" value={query} onChange={(e) =>{  setQuery(e.target.value) }} />
         </label>
         {listError ? (
           <p className={styles.small} role="alert">
@@ -151,7 +151,7 @@ export function OpenRouterPanel({ onClose }: { onClose: () => void }) {
                   role="radio"
                   aria-checked={picked?.id === m.id}
                   className={`${styles.row} ${picked?.id === m.id ? styles.rowOn : ''}`}
-                  onClick={() => setPicked(m)}
+                  onClick={() =>{  setPicked(m) }}
                 >
                   <span className={styles.radio} aria-hidden />
                   <span className={styles.rowBody}>

@@ -1,4 +1,5 @@
 import type { JsonRpcMessage } from '../../domain/types'
+import { LocalizedError } from '../tools/lang'
 import type { McpTransport } from './simulatedServer'
 
 export const HTTP_TIMEOUT_MS = 15_000
@@ -41,15 +42,21 @@ export function parseMcpBody(contentType: string, body: string, id?: number | st
   return parsed as JsonRpcMessage
 }
 
+/** Errors keep an Italian message (shown in the app) and an English version for the model (LocalizedError). */
 export function describeNetworkError(err: unknown, timedOut: boolean, callerAborted: boolean): Error {
-  if (callerAborted) return new Error('Chiamata annullata.')
-  if (timedOut) return new Error(`Il server MCP non ha risposto entro ${HTTP_TIMEOUT_MS / 1000} s.`)
+  if (callerAborted) return new LocalizedError('Chiamata annullata.', 'Call cancelled.')
+  if (timedOut) {
+    const s = HTTP_TIMEOUT_MS / 1000
+    return new LocalizedError(`Il server MCP non ha risposto entro ${s} s.`, `The MCP server did not respond within ${s} s.`)
+  }
   if (err instanceof TypeError) {
-    return new Error(
+    return new LocalizedError(
       'Impossibile contattare il server MCP: il browser potrebbe aver bloccato la richiesta (CORS) oppure la rete non è disponibile.',
+      'Cannot reach the MCP server: the browser may have blocked the request (CORS) or the network is unavailable.',
     )
   }
-  return new Error(`Errore di comunicazione con il server MCP: ${err instanceof Error ? err.message : String(err)}`)
+  const detail = err instanceof Error ? err.message : String(err)
+  return new LocalizedError(`Errore di comunicazione con il server MCP: ${detail}`, `Communication error with the MCP server: ${detail}`)
 }
 
 /**
@@ -75,7 +82,7 @@ export function createHttpTransport(url: string, fetchImpl: typeof fetch = (...a
         timedOut = true
         controller.abort()
       }, HTTP_TIMEOUT_MS)
-      const onAbort = () => controller.abort()
+      const onAbort = () =>{  controller.abort() }
       if (signal?.aborted) controller.abort()
       signal?.addEventListener('abort', onAbort, { once: true })
 
@@ -98,7 +105,10 @@ export function createHttpTransport(url: string, fetchImpl: typeof fetch = (...a
         if (sid) sessionId = sid
         if (msg.id === undefined) {
           // Notification: the server answers 202 Accepted with no body.
-          if (!res.ok && res.status !== 202) throw new Error(`Il server MCP ha risposto con errore HTTP ${res.status}.`)
+          if (!res.ok && res.status !== 202) {
+            const s = res.status
+            throw new LocalizedError(`Il server MCP ha risposto con errore HTTP ${s}.`, `The MCP server answered with HTTP error ${s}.`)
+          }
           return null
         }
         const text = await res.text()
@@ -110,10 +120,18 @@ export function createHttpTransport(url: string, fetchImpl: typeof fetch = (...a
           } catch {
             /* body is not JSON */
           }
-          throw new Error(`Il server MCP ha risposto con errore HTTP ${res.status}${detail}.`)
+          throw new LocalizedError(
+            `Il server MCP ha risposto con errore HTTP ${res.status}${detail}.`,
+            `The MCP server answered with HTTP error ${res.status}${detail}.`,
+          )
         }
         const parsed = parseMcpBody(res.headers.get('content-type') ?? '', text, msg.id)
-        if (!parsed) throw new Error('Il server MCP non ha restituito una risposta JSON-RPC valida.')
+        if (!parsed) {
+          throw new LocalizedError(
+            'Il server MCP non ha restituito una risposta JSON-RPC valida.',
+            'The MCP server did not return a valid JSON-RPC response.',
+          )
+        }
         return parsed
       } catch (err) {
         if (err instanceof Error && err.message.startsWith('Il server MCP')) throw err

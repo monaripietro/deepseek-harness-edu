@@ -32,6 +32,6 @@ describe('createToolRegistry', () => {
     const r = createToolRegistry()
     const d = r.register(mk('a'))
     d()
-    expect(() => d()).not.toThrow()
+    expect(() =>{  d() }).not.toThrow()
   })
 })

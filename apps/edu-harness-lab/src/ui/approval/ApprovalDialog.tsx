@@ -86,10 +86,10 @@ export function ApprovalDialog() {
             </div>
 
             <div className={styles.actions}>
-              <Button variant="danger" size="lg" icon={<X size={22} />} data-autofocus onClick={() => decide('rejected')}>
+              <Button variant="danger" size="lg" icon={<X size={22} />} data-autofocus onClick={() =>{  decide('rejected') }}>
                 Rifiuta
               </Button>
-              <Button variant="success" size="lg" icon={<Check size={22} />} onClick={() => decide('allowed-once')}>
+              <Button variant="success" size="lg" icon={<Check size={22} />} onClick={() =>{  decide('allowed-once') }}>
                 Approva
               </Button>
             </div>

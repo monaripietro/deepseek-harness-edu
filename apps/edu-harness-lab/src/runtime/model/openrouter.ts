@@ -60,7 +60,11 @@ function toOpenAI(messages: ChatMessage[]): Record<string, unknown>[] {
   let n = 0
   for (const m of messages) {
     if (m.role === 'assistant' && m.tool_calls?.length) {
-      const calls = m.tool_calls.map(tc => ({ id: `call_${++n}`, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.arguments ?? {}) } }))
+      const calls = m.tool_calls.map(tc => ({
+        id: `call_${++n}`,
+        type: 'function',
+        function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
+      }))
       pending.push(...calls.map(c => c.id))
       out.push({ role: 'assistant', content: m.content || null, tool_calls: calls })
     } else if (m.role === 'tool') {
@@ -189,7 +193,7 @@ export function createOpenRouterRuntime({ model, apiKey, thinking }: OpenRouterR
       let content = ''
       let reasoning = ''
       let lastReasoningPost = 0
-      const calls: { name: string; args: string }[] = []
+      const calls: ({ name: string; args: string } | undefined)[] = []
       let finish = 'stop'
       let usage: { prompt_tokens?: number; completion_tokens?: number } | undefined
       try {
@@ -210,7 +214,11 @@ export function createOpenRouterRuntime({ model, apiKey, thinking }: OpenRouterR
             } catch {
               continue
             }
-            if (chunk.error) throw new Error(`OpenRouter: ${String(chunk.error.message ?? 'errore').slice(0, 160)}`)
+            if (chunk.error) {
+              const message = chunk.error.message ?? 'errore'
+              const text = typeof message === 'string' ? message : JSON.stringify(message)
+              throw new Error(`OpenRouter: ${text.slice(0, 160)}`)
+            }
             const choice = chunk.choices?.[0]
             const delta: StreamDelta = choice?.delta ?? {}
             if (typeof delta.reasoning === 'string' && delta.reasoning) {
@@ -266,6 +274,7 @@ export function createOpenRouterRuntime({ model, apiKey, thinking }: OpenRouterR
 
     async unload() {
       ready = false
+      return Promise.resolve()
     },
   }
 }

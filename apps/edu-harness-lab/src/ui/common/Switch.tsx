@@ -20,7 +20,7 @@ export function Switch({ checked, onChange, label, disabled, color }: SwitchProp
       disabled={disabled}
       className={styles.switch}
       style={color ? ({ '--sw': color } as CSSProperties) : undefined}
-      onClick={() => onChange(!checked)}
+      onClick={() =>{  onChange(!checked) }}
     >
       <span className={styles.knob} />
     </button>

@@ -5,7 +5,8 @@ const toHex = (buf: ArrayBuffer): string =>
 
 /** Full SHA-256 of a UTF-8 string, lowercase hex (64 chars). */
 export async function sha256Hex(text: string): Promise<string> {
-  const subtle = globalThis.crypto?.subtle
+  const browser: { crypto?: { subtle?: SubtleCrypto } } = globalThis
+  const subtle = browser.crypto?.subtle
   if (!subtle) throw new Error('SubtleCrypto non disponibile (serve un contesto sicuro HTTPS o localhost).')
   const data = new TextEncoder().encode(text)
   return toHex(await subtle.digest('SHA-256', data))

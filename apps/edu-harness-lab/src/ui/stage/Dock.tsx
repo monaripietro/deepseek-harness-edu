@@ -33,7 +33,7 @@ export function Dock() {
 
   if (!open) return null
   return (
-    <Dialog label="Approfondimenti" onClose={() => setOpen(false)} width={1180}>
+    <Dialog label="Approfondimenti" onClose={() =>{  setOpen(false) }} width={1180}>
       <section className={styles.dock} aria-label="Approfondimenti">
         <div className={styles.head}>
           <h2 className={styles.title}>Approfondimenti</h2>

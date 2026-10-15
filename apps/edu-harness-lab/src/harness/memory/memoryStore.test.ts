@@ -28,7 +28,7 @@ describe('memoryStore', () => {
     const rec = s.write({ scope: 'session', kind: 'fact', key: 'k', text: 't', source: 'tool' })
     s.delete(rec.id)
     expect(s.list().some(r => r.id === rec.id)).toBe(false)
-    expect(() => s.delete('nope')).not.toThrow()
+    expect(() =>{  s.delete('nope') }).not.toThrow()
   })
 
   it('clear() without scope removes everything; clear persistent keeps session', () => {
@@ -62,8 +62,8 @@ describe('memoryStore', () => {
     expect(typeof indexedDB).toBe('undefined')
     const s = mk()
     const rec = s.write({ scope: 'persistent', kind: 'preference', key: 'p', text: 't', source: 'user' })
-    expect(() => s.delete(rec.id)).not.toThrow()
-    expect(() => s.clear()).not.toThrow()
+    expect(() =>{  s.delete(rec.id) }).not.toThrow()
+    expect(() =>{  s.clear() }).not.toThrow()
     await new Promise(r => setTimeout(r, 10))
   })
 })

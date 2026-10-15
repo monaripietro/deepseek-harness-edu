@@ -74,7 +74,7 @@ describe('TopBar', () => {
     })
     render(<TopBar onOpenModel={onOpenModel} onOpenSettings={onOpenSettings} />)
 
-    expect((screen.getByLabelText('Scenario') as HTMLSelectElement).disabled).toBe(true)
+    expect(screen.getByLabelText<HTMLSelectElement>('Scenario').disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: /30%/ }))
     expect(onOpenModel).toHaveBeenCalledOnce()
 

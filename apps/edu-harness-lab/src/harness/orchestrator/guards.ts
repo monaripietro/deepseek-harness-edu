@@ -2,9 +2,11 @@ import type { JSONSchema, ToolDefinition } from '../../domain/types'
 
 export const FAULT_LABEL = '(guasto iniettato dal docente)'
 
+const jsonStringify: (value: unknown) => string | undefined = JSON.stringify
+
 /** JSON with object keys sorted recursively: identical arguments always give the same string. */
 export function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
+  if (value === null || typeof value !== 'object') return jsonStringify(value) ?? 'null'
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
   const obj = value as Record<string, unknown>
   return `{${Object.keys(obj)

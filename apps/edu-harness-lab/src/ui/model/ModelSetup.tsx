@@ -251,7 +251,7 @@ function LocalModelPane({ onClose }: { onClose: () => void }) {
                       setConfirmDelete(false)
                       void useLab.getState().deleteCachedModel(choice)
                     }}
-                    onBlur={() => setConfirmDelete(false)}
+                    onBlur={() =>{  setConfirmDelete(false) }}
                   >
                     <Trash2 size={13} aria-hidden /> {confirmDelete ? 'Conferma: elimina i file dal browser' : 'Elimina dal browser'}
                   </button>
@@ -292,7 +292,7 @@ function LocalModelPane({ onClose }: { onClose: () => void }) {
                       aria-checked={choice === p.id}
                       className={`${styles.row} ${choice === p.id ? styles.rowOn : ''}`}
                       disabled={!option}
-                      onClick={() => setSelected(p.id)}
+                      onClick={() =>{  setSelected(p.id) }}
                     >
                       <span className={styles.radio} aria-hidden />
                       <span className={styles.rowBody}>

@@ -10,11 +10,16 @@
  * No eval / Function anywhere.
  */
 
+import type { PromptLanguage } from '../../domain/types'
+
 export class CalcError extends Error {
   readonly kind: 'syntax' | 'math'
-  constructor(message: string, kind: 'syntax' | 'math') {
+  /** English version of the (Italian) message, for English prompts. */
+  readonly en: string
+  constructor(message: string, kind: 'syntax' | 'math', en: string = message) {
     super(message)
     this.kind = kind
+    this.en = en
   }
 }
 
@@ -71,14 +76,14 @@ function tokenize(src: string): Token[] {
       i++
       continue
     }
-    throw new CalcError(`carattere non valido '${c}' nell'espressione`, 'syntax')
+    throw new CalcError(`carattere non valido '${c}' nell'espressione`, 'syntax', `invalid character '${c}' in the expression`)
   }
   return out
 }
 
 export function evaluateExpression(src: string): number {
   const tokens = tokenize(src)
-  if (tokens.length === 0) throw new CalcError("l'espressione è vuota", 'syntax')
+  if (tokens.length === 0) throw new CalcError("l'espressione è vuota", 'syntax', 'the expression is empty')
   let pos = 0
   const peek = (): Token | undefined => tokens[pos]
   const isOp = (v: string): boolean => {
@@ -101,7 +106,7 @@ export function evaluateExpression(src: string): number {
       const op = (tokens[pos++] as { v: string }).v
       const right = unary()
       if (op === '/') {
-        if (right === 0) throw new CalcError('divisione per zero', 'math')
+        if (right === 0) throw new CalcError('divisione per zero', 'math', 'division by zero')
         left = left / right
       } else left = left * right
     }
@@ -124,7 +129,7 @@ export function evaluateExpression(src: string): number {
       pos++
       const exp = unary()
       const r = Math.pow(base, exp)
-      if (!Number.isFinite(r)) throw new CalcError('risultato non rappresentabile', 'math')
+      if (!Number.isFinite(r)) throw new CalcError('risultato non rappresentabile', 'math', 'the result cannot be represented')
       return r
     }
     return base
@@ -139,7 +144,7 @@ export function evaluateExpression(src: string): number {
   }
   function primary(): number {
     const t = peek()
-    if (t === undefined) throw new CalcError("l'espressione termina in modo inatteso", 'syntax')
+    if (t === undefined) throw new CalcError("l'espressione termina in modo inatteso", 'syntax', 'the expression ends unexpectedly')
     if (t.t === 'num') {
       pos++
       return t.v
@@ -147,19 +152,19 @@ export function evaluateExpression(src: string): number {
     if (t.v === '(') {
       pos++
       const v = expr()
-      if (!isOp(')')) throw new CalcError("manca una parentesi chiusa ')'", 'syntax')
+      if (!isOp(')')) throw new CalcError("manca una parentesi chiusa ')'", 'syntax', "a closing parenthesis ')' is missing")
       pos++
       return v
     }
-    throw new CalcError(`simbolo inatteso '${t.v}'`, 'syntax')
+    throw new CalcError(`simbolo inatteso '${t.v}'`, 'syntax', `unexpected symbol '${t.v}'`)
   }
 
   const result = expr()
   if (pos < tokens.length) {
     const t = tokens[pos] as Token
-    throw new CalcError(`simbolo inatteso '${t.v}'`, 'syntax')
+    throw new CalcError(`simbolo inatteso '${t.v}'`, 'syntax', `unexpected symbol '${t.v}'`)
   }
-  if (!Number.isFinite(result)) throw new CalcError('risultato non rappresentabile', 'math')
+  if (!Number.isFinite(result)) throw new CalcError('risultato non rappresentabile', 'math', 'the result cannot be represented')
   return result
 }
 
@@ -168,20 +173,33 @@ export function round2(n: number): number {
   return Object.is(r, -0) ? 0 : r
 }
 
+/** Groups thousands and writes 2 decimals with the given separators; `keepZeros` false drops ",00". */
+function formatGrouped(n: number, thousands: string, decimal: string, keepZeros: boolean): string {
+  const neg = n < 0
+  const [int = '0', dec = '00'] = Math.abs(n).toFixed(2).split('.')
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, thousands)
+  const decimals = keepZeros || dec !== '00' ? `${decimal}${dec}` : ''
+  return `${neg ? '-' : ''}${grouped}${decimals}`
+}
+
 /** Italian number format, e.g. 5948.72 -> "5.948,72" (explicit grouping, independent of ICU data). */
 export function formatItNumber(n: number): string {
-  const neg = n < 0
-  const [int = '0', dec] = Math.abs(n).toFixed(2).split('.')
-  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-  const decimals = dec && dec !== '00' ? `,${dec}` : ''
-  return `${neg ? '-' : ''}${grouped}${decimals}`
+  return formatGrouped(n, '.', ',', false)
 }
 
 /** Italian currency-like format with always two decimals: "1.219,00". */
 export function formatItMoney(n: number): string {
-  const neg = n < 0
-  const [int = '0', dec = '00'] = Math.abs(n).toFixed(2).split('.')
-  return `${neg ? '-' : ''}${int.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${dec}`
+  return formatGrouped(n, '.', ',', true)
+}
+
+/** English number format, e.g. 5948.72 -> "5,948.72" (like formatItNumber, decimals only when not zero). */
+export function formatEnNumber(n: number): string {
+  return formatGrouped(n, ',', '.', false)
+}
+
+/** English currency-like format with always two decimals: "1,219.00". */
+export function formatEnMoney(n: number): string {
+  return formatGrouped(n, ',', '.', true)
 }
 
 export interface CalcResult {
@@ -189,7 +207,8 @@ export interface CalcResult {
   text: string
 }
 
-export function calculate(expression: string): CalcResult {
+/** Evaluates and rounds to 2 decimals; `text` is formatted for the prompt language (default Italian). */
+export function calculate(expression: string, lang: PromptLanguage = 'it'): CalcResult {
   const value = round2(evaluateExpression(expression))
-  return { value, text: formatItNumber(value) }
+  return { value, text: lang === 'en' ? formatEnNumber(value) : formatItNumber(value) }
 }

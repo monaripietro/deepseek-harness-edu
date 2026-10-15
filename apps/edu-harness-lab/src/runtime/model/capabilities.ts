@@ -65,7 +65,7 @@ interface NavigatorLike {
 /** Probes the browser. Never throws. */
 export async function detectCapabilities(): Promise<CapabilityReport> {
   const nav: NavigatorLike = typeof navigator !== 'undefined' ? navigator : {}
-  const browser = detectBrowserName(String(nav.userAgent ?? ''))
+  const browser = detectBrowserName(nav.userAgent ?? '')
 
   let webgpu = false
   let shaderF16 = false

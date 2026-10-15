@@ -35,7 +35,7 @@ describe('NodeDetails', () => {
     expect(document.activeElement).toBe(previousFocus)
     const bodyChildren = Array.from(document.body.childNodes)
     expect(bodyChildren).toHaveLength(previousBodyChildren.length)
-    previousBodyChildren.forEach((child, index) => expect(bodyChildren[index]).toBe(child))
+    previousBodyChildren.forEach((child, index) =>{  expect(bodyChildren[index]).toBe(child) })
     previousSelection = null
     previousFocus = null
     previousBodyChildren = []

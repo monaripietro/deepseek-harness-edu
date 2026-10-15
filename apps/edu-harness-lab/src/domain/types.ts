@@ -161,6 +161,8 @@ export interface ContextHints {
   availableTools: string[]
   /** Observations already returned to the model in this turn, in order. */
   toolResults: ToolObservation[]
+  /** Prior public draft/check passes when the iterative-reflection scenario is active. */
+  reflections?: string[]
   /** Ids of documents whose chunks are included. */
   docIds: string[]
   /** Keys of memory records included. */
@@ -231,6 +233,13 @@ export interface ModelRequest {
    * and the model only completes the argument. Used by the orchestrator when a calculation is needed.
    */
   forceTool?: { name: string; arg: string }
+  /**
+   * Guided start: the runtime writes this text at the start of the answer and the model continues it
+   * (local models; ignored by remote ones). The returned text includes it.
+   */
+  prefill?: string
+  /** Stop sequences: generation ends right after the first one (local models; ignored by remote ones). */
+  stop?: string[]
 }
 
 export interface ModelResponse {
@@ -276,6 +285,7 @@ export interface CapabilityReport {
 
 export type ModelDecision =
   | { type: 'answer'; text: string; sources?: string[] }
+  | { type: 'reflect'; text: string }
   | { type: 'tool'; tool: string; args: Record<string, unknown>; rationale?: string }
   | { type: 'ask'; question: string }
 
@@ -329,6 +339,8 @@ export const NO_FAULTS: FaultInjection = { timeout: [], error: [], empty: [], in
 export interface ToolExecContext {
   signal: AbortSignal
   data: ScenarioData
+  /** Language of the tool results the model reads (default 'it'). */
+  lang?: PromptLanguage
   faults: FaultInjection
   mcp: McpHub
   retriever: Retriever
@@ -428,7 +440,7 @@ export interface MemoryStore {
   write(rec: Omit<MemoryRecord, 'id' | 'createdAt'>): MemoryRecord
   delete(id: string): void
   clear(scope?: MemoryScope): void
-  subscribe(cb: () => void): Disposer
+  subscribe: (cb: () => void) => Disposer
 }
 
 // ───────────────────────── Knowledge (RAG) ─────────────────────────
@@ -520,7 +532,7 @@ export interface McpHub {
   callTool(serverId: string, tool: string, args: Record<string, unknown>, signal: AbortSignal): Promise<{ text: string; isError: boolean }>
   /** ToolDefinitions (mcp__<server>__<tool>) for connected servers. */
   toolDefinitions(): ToolDefinition[]
-  subscribe(cb: () => void): Disposer
+  subscribe: (cb: () => void) => Disposer
 }
 
 // ───────────────────────── Scenarios ─────────────────────────
@@ -564,6 +576,50 @@ export interface Checker {
   check(run: RunRecord): boolean
 }
 
+/** Model-facing facts and instructions selected for one educational task. */
+/**
+ * Language of everything the model reads (request, task data, documents, memory, tool results) and of its answer.
+ * The app UI stays Italian. Harness prompts (protocol, tool descriptions) are English in both.
+ */
+export type PromptLanguage = 'it' | 'en'
+
+/** The same scenario with model-facing texts in another language: ids, codes and numbers stay the same. */
+export interface ScenarioTranslation {
+  request: string
+  taskData?: ScenarioData['taskData']
+  instructions?: string
+  reflectionPrompt?: string
+}
+
+/**
+ * Micro-steps of the reflection loop: the model drafts a candidate, then checks it against questions with the
+ * candidate's own numbers, then answers. The orchestrator opens the right block for local models (prefill) and
+ * routes on the model's own yes/no answers: it never judges the candidate itself.
+ */
+export interface ReflectionGuide {
+  /** Written after `<self_reflection>` when a draft is due, e.g. a line that names the slots to fill. */
+  draftStart: string
+  /** Written after `<self_reflection>` when a check is due, e.g. 'Rule 1: '. */
+  checkStart: string
+  /**
+   * Deterministic read-back of a draft: its candidate restated, with the check questions using its numbers
+   * (`complete: false` when the draft has no complete candidate: the text then asks for one).
+   */
+  readback: (draft: string) => { text: string; complete: boolean }
+  /** The model's own verdict in a check: every answer yes → 'pass', any no → 'fail', unclear → null. */
+  verdict: (check: string) => 'pass' | 'fail' | null
+}
+
+export interface ScenarioContext {
+  taskData: ScenarioData['taskData']
+  memoryKeys: string[]
+  documentIds: string[]
+  /** Task-specific English instructions, added with the system-instructions component. */
+  instructions: string
+  /** The task instructions replace the general assistant instructions (persona, citations, tables) when they are unrelated to the task. */
+  replacesGeneralInstructions?: boolean
+}
+
 export interface Scenario {
   id: string
   title: string
@@ -573,6 +629,20 @@ export interface Scenario {
   request: string
   /** Level at which the scenario shows its point. */
   showcaseLevel: LevelId
+  /**
+   * Last guided level this scenario needs: later layers add nothing to it, so the guided path stops here
+   * (never below showcaseLevel). Omitted means the whole path.
+   */
+  maxLevel?: LevelId
+  context?: ScenarioContext
+  /** Faults selected when opening a scenario that demonstrates a tool failure. */
+  faults?: FaultInjection
+  /** Scenario-specific system prompt for draft/review iterations when the agent loop is enabled. */
+  reflectionPrompt?: string
+  /** Reflection loop split into micro-steps (draft → check → answer) that even a small model can follow. */
+  reflectionGuide?: ReflectionGuide
+  /** English model-facing texts (prompt language 'en'). */
+  en?: ScenarioTranslation
   checkers: Checker[]
 }
 
@@ -594,6 +664,8 @@ export type StopReason =
 export interface RunRecord {
   id: string
   scenarioId: string
+  /** Prompt language of the run (checkers read answers in this language). Missing means 'it'. */
+  language?: PromptLanguage
   configKey: string
   configLabel: string
   input: string
@@ -602,6 +674,8 @@ export interface RunRecord {
   durationMs: number
   steps: number
   toolCalls: { tool: string; args: Record<string, unknown>; ok: boolean; code?: ToolErrorCode }[]
+  /** Public draft/check passes, separate from the final answer and native model reasoning. */
+  reflections?: string[]
   sourcesUsed: string[]
   memoryUsed: string[]
   errors: string[]
@@ -626,6 +700,8 @@ export interface TurnDeps {
   config: HarnessConfig
   scenario: Scenario
   data: ScenarioData
+  /** Prompt language (default 'it'): `scenario` and `data` must already be in this language. */
+  language?: PromptLanguage
   registry: ToolRegistry
   memory: MemoryStore
   retriever: Retriever
@@ -672,7 +748,7 @@ export type TraceEventBody =
   | { type: 'memory/write'; record: MemoryRecord }
   | { type: 'memory/delete'; id: string }
   | { type: 'context/assembled'; snapshot: ContextSnapshot }
-  | { type: 'model/request'; tokensIn: number; protocol: 'json' | 'text'; mustAnswer: boolean }
+  | { type: 'model/request'; tokensIn: number; protocol: 'json' | 'text'; mustAnswer: boolean; reflection?: boolean }
   | { type: 'model/response'; text: string; durationMs: number; finishReason: ModelResponse['finishReason']; tokensOut?: number }
   | { type: 'decision/parsed'; decision: ModelDecision }
   | { type: 'decision/invalid'; raw: string; error: string; attempt: number }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Brain, BookOpen, Wrench } from 'lucide-react'
+import { Brain, BookOpen, RefreshCw, Wrench } from 'lucide-react'
 import { useLab } from '../../state/store'
+import { SCENARIOS } from '../../scenarios'
 import styles from './ModelActivity.module.css'
 
 /** Streamed text that is prose for the reader (not a tool call or a JSON decision being written). */
@@ -9,23 +10,43 @@ export function proseOf(streaming: string): string {
 }
 
 /**
+ * Keeps structured outputs out of the final-answer display while they are being generated.
+ * @returns Unstructured answer prose, never a draft or tool decision.
+ */
+export function useStreamedProse(): string {
+  return useLab((s) => {
+    const request = s.events.findLast(event => event.runId === s.currentRunId && event.type === 'model/request')
+    if (request?.type === 'model/request' && request.protocol === 'json') return ''
+    if (s.config.components.orchestrator && s.config.components.agentLoop &&
+      SCENARIOS.find(scenario => scenario.id === s.scenarioId)?.reflectionPrompt) return ''
+    return proseOf(s.streamingText)
+  })
+}
+
+/**
  * Live sign of what the model is doing before any visible text, so a long wait does not look like a freeze:
  * reading the context, reasoning (time and tokens) or writing a tool call.
  */
 export function ModelActivityNote({ fallback }: { fallback: string }) {
   const activity = useLab(s => s.modelActivity)
-  const writingCall = useLab(s => s.streamingText.length > 0 && !proseOf(s.streamingText))
+  const hasOutput = useLab(s => s.streamingText.length > 0)
+  const prose = useStreamedProse()
+  const writingCall = hasOutput && !prose
+  const reflection = useLab(s =>
+    s.config.components.agentLoop && !!SCENARIOS.find(scenario => scenario.id === s.scenarioId)?.reflectionPrompt,
+  )
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!activity) return
-    const timer = setInterval(() => setNow(Date.now()), 500)
-    return () => clearInterval(timer)
+    const timer = setInterval(() =>{  setNow(Date.now()) }, 500)
+    return () =>{  clearInterval(timer) }
   }, [activity])
   if (!activity) {
     if (!writingCall) return <>{fallback}</>
     return (
       <span role="status">
-        <Wrench size={14} aria-hidden /> Il modello scrive la richiesta a uno strumento…
+        {reflection ? <RefreshCw size={14} aria-hidden /> : <Wrench size={14} aria-hidden />}
+        {' '}{reflection ? 'Il modello scrive il prossimo passo del ciclo…' : 'Il modello scrive la richiesta a uno strumento…'}
       </span>
     )
   }
@@ -39,8 +60,8 @@ export function ModelActivityNote({ fallback }: { fallback: string }) {
   }
   return (
     <span role="status">
-      <Brain size={14} aria-hidden /> Il modello sta ragionando… {secs} s{activity.tokens > 0 ? ` · ${activity.tokens} token` : ''}
-      {' '}· si legge in «Ragionamento del modello»
+      <Brain size={14} aria-hidden /> Il modello genera thinking nativo… {secs} s{activity.tokens > 0 ? ` · ${activity.tokens} token` : ''}
+      {' '}· si legge in «Thinking nativo»
     </span>
   )
 }
@@ -62,14 +83,15 @@ export function ReasoningDisclosure({ parts, live = false }: { parts: string[]; 
   return (
     <details className={styles.reasoning}>
       <summary className={styles.summary}>
-        <Brain size={14} aria-hidden /> Ragionamento del modello
+        <Brain size={14} aria-hidden /> Thinking nativo
         <span className={styles.count}>
           {list.length === 1 ? '1 chiamata' : `${list.length} chiamate`}
           {live ? ' · in corso' : ''}
         </span>
       </summary>
       <p className={styles.warning}>
-        Testo generato dal modello prima di rispondere: non è una spiegazione affidabile di come decide, e può contenere errori.
+        Testo del canale di ragionamento del modello, se disponibile.
+        Non sono le bozze del ciclo agentico e non è una spiegazione affidabile di come decide. Può contenere errori.
       </p>
       {list.map((text, i) => (
         <div key={i} className={styles.part}>

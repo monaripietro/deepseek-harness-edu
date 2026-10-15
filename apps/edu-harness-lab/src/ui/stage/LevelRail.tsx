@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react'
 import { ArrowLeft, ArrowRight, Check, ChevronDown, ListOrdered, Lock } from 'lucide-react'
 import type { LevelId } from '../../domain/types'
-import { COMPONENTS, LEVELS, configForLevel } from '../../harness/levels'
+import { COMPONENTS, LEVELS, configForLevel, levelsFor } from '../../harness/levels'
+import { SCENARIOS } from '../../scenarios'
 import { useLab } from '../../state/store'
 import { isUnlocked, useProgress } from '../shell/progress'
 import styles from './LevelRail.module.css'
@@ -39,6 +40,9 @@ export function LevelRail() {
   const status = useLab(s => s.status)
   const updateConfig = useLab(s => s.updateConfig)
   const highest = useProgress(s => s.highestReached)
+  const scenarioId = useLab(s => s.scenarioId)
+  // Only the levels that change this scenario's outcome: later layers add nothing to it.
+  const levels = levelsFor(SCENARIOS.find(item => item.id === scenarioId))
   const def = LEVELS[level]
   const running = status === 'running' || status === 'awaitingApproval'
 
@@ -72,14 +76,14 @@ export function LevelRail() {
     )
   }
 
-  const next = LEVELS[level + 1]
+  const next = levels.find(l => l.id === level + 1)
 
   return (
     <section className={styles.rail} aria-label="Percorso guidato">
       <div className={styles.guidedTop}>
         <nav className={styles.progression} aria-label="Avanzamento livelli">
           <ol className={styles.steps}>
-            {LEVELS.map((l) => {
+            {levels.map((l) => {
               const state = stepState(l.id, level, highest)
               return (
                 <li key={l.id}>
@@ -89,7 +93,7 @@ export function LevelRail() {
                     disabled={state === 'locked' || running}
                     aria-current={l.id === level ? 'step' : undefined}
                     aria-label={stepName(l.id, l.title, state)}
-                    onClick={() => setLevel(l.id)}
+                    onClick={() =>{  setLevel(l.id) }}
                   >
                     {l.id + 1}
                   </button>
@@ -107,7 +111,7 @@ export function LevelRail() {
           </summary>
           <div className={styles.levelListViewport}>
             <ol className={styles.levelList}>
-              {LEVELS.map((l) => {
+              {levels.map((l) => {
                 const state = stepState(l.id, level, highest)
                 return (
                   <li key={l.id}>
@@ -117,7 +121,7 @@ export function LevelRail() {
                       disabled={state === 'locked' || running}
                       aria-current={l.id === level ? 'step' : undefined}
                       aria-label={stepName(l.id, l.title, state)}
-                      onClick={() => setLevel(l.id)}
+                      onClick={() =>{  setLevel(l.id) }}
                     >
                       <span className={styles.levelMarker} aria-hidden>
                         {state === 'done' ? <Check size={14} /> : state === 'locked' ? <Lock size={12} /> : l.id + 1}
@@ -136,7 +140,7 @@ export function LevelRail() {
           <button
             type="button"
             className={styles.navBtn}
-            onClick={() => setLevel((level - 1) as LevelId)}
+            onClick={() =>{  setLevel((level - 1) as LevelId) }}
             disabled={level === 0 || running}
             aria-label="Livello precedente"
           >
@@ -145,8 +149,8 @@ export function LevelRail() {
           <button
             type="button"
             className={styles.nextBtn}
-            onClick={() => setLevel((level + 1) as LevelId)}
-            disabled={level === LEVELS.length - 1 || running}
+            onClick={() =>{  setLevel((level + 1) as LevelId) }}
+            disabled={!next || running}
             aria-label={next ? `Livello successivo: ${next.title}` : 'Percorso completato'}
           >
             <span>{next ? 'Successivo' : 'Completato'}</span>
@@ -158,7 +162,7 @@ export function LevelRail() {
       <div className={styles.now}>
         <div className={styles.levelHeading}>
           <p className={styles.levelTag}>
-            Livello {level + 1}/{LEVELS.length}
+            Livello {level + 1}/{levels.length}
           </p>
           <h2 className={styles.levelTitle}>{def?.title}</h2>
         </div>

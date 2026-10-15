@@ -7,13 +7,13 @@ import type {
   MemoryRecord,
   ModelRuntime,
   Scenario,
-  ScenarioData,
   ToolDefinition,
   ToolOutcome,
   TraceEvent,
   TurnDeps,
 } from '../../domain/types'
 import { NO_FAULTS, REAL_LOCAL } from '../../domain/types'
+import { SCENARIO_DATA } from '../../scenarios/data'
 import { createEventBus } from '../events'
 import { baseConfig } from '../levels'
 import { runTurn } from './orchestrator'
@@ -43,7 +43,7 @@ function mkTool(id: string, over: Partial<ToolDefinition> = {}, outcome?: ToolOu
     errors: [],
     latencyMs: [0, 0],
     source: 'builtin',
-    execute: async () => outcome ?? { ok: true, data: id === 'scrivi' ? { id: 'RDA-SIM-1' } : {}, summary: `esito di ${id}` },
+    execute: () => Promise.resolve(outcome ?? { ok: true, data: id === 'scrivi' ? { id: 'RDA-SIM-1' } : {}, summary: `esito di ${id}` }),
     ...over,
   }
 }
@@ -112,7 +112,7 @@ function setup(script: string[], opts: Opts = {}) {
     runtime: opts.runtime ?? rt,
     config,
     scenario,
-    data: {} as ScenarioData,
+    data: SCENARIO_DATA,
     registry: { list: () => TOOLS, get: (id: string) => TOOLS.find(t => t.id === id), register: () => () => {} },
     memory: {
       list: () => opts.memory ?? [],
@@ -127,9 +127,9 @@ function setup(script: string[], opts: Opts = {}) {
     },
     retriever: { search: () => [] },
     approvals: {
-      request: async (req: ApprovalRequest) => {
+      request: (req: ApprovalRequest) => {
         asked.push(req)
-        return opts.approval ?? 'allowed-once'
+        return Promise.resolve(opts.approval ?? 'allowed-once')
       },
     },
     mcp: { servers: () => [], connect: async () => {}, toolDefinitions: () => [] },
@@ -170,8 +170,10 @@ describe('runTurn', () => {
     expect(r.steps).toBe(2)
     expect(r.toolCalls).toEqual([{ tool: 'calc', args: { x: '1' }, ok: true }])
     expect(s.requests[1]?.hints.mustAnswer).toBe(true)
-    expect(s.requests[1]?.messages[0]?.content).not.toContain('Strumenti disponibili')
-    expect(s.requests[1]?.messages.some(m => m.content.startsWith('[OSSERVAZIONE da calc]'))).toBe(true)
+    // Model-facing protocol is in English: the tool list ('## Tools') disappears once an answer is due.
+    expect(s.requests[0]?.messages[0]?.content).toContain('## Tools')
+    expect(s.requests[1]?.messages[0]?.content).not.toContain('## Tools')
+    expect(s.requests[1]?.messages.some(m => m.content.startsWith('[RESULT of calc]'))).toBe(true)
   })
 
   it('single round: repeated tool requests when an answer is due end in invalid_output', async () => {
@@ -273,7 +275,8 @@ describe('runTurn', () => {
     const s2 = setup([call('calc'), answer()], { on: LOOP, faults: { invalidArgsOnce: true } })
     await s2.run()
     const val = s2.bus.events().find(e => e.type === 'tool/validation')
-    expect(val && val.type === 'tool/validation' && val.errors?.[0]).toContain('guasto iniettato dal docente')
+    const errors = val?.errors
+    expect(errors?.[0]).toContain('guasto iniettato dal docente')
   })
 
   it('repairs an invalid decision, then gives up with invalid_output', async () => {
@@ -294,7 +297,7 @@ describe('runTurn', () => {
   })
 
   it('a throwing model becomes a model_error record, never an exception', async () => {
-    const boom = { ...runtime([]).rt, info: runtime([]).rt.info, generate: async () => { throw new Error('boom') } } as unknown as ModelRuntime
+    const boom: ModelRuntime = { ...runtime([]).rt, generate: () => Promise.reject(new Error('boom')) }
     const s = setup([], { runtime: boom })
     const r = await s.run()
     expect(r.stopReason).toBe('model_error')
@@ -320,7 +323,7 @@ describe('runTurn', () => {
     const s = setup(['ok'], { on: ['memory'], memory: mem })
     const r = await s.run()
     expect(r.memoryUsed).toEqual(['centro_costo'])
-    expect(s.requests[0]?.messages[0]?.content).toContain('MEMORIA')
+    expect(s.requests[0]?.messages[0]?.content).toContain('## MEMORY')
     expect(s.requests[0]?.messages[0]?.content).toContain('CC-410')
     expect(s.written[0]).toMatchObject({ kind: 'taskState', scope: 'session' })
     expect(s.types()).toContain('memory/ignore')

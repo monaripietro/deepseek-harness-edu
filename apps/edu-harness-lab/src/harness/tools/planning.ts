@@ -1,10 +1,15 @@
-import type { ToolDefinition, ToolOutcome } from '../../domain/types'
+import type { PromptLanguage, ToolDefinition, ToolOutcome } from '../../domain/types'
 import { REAL_LOCAL } from '../../domain/types'
+import { t } from './lang'
 
-/** Records the plan written by the model (no side effects). */
-export function recordPlan(args: Record<string, unknown>): ToolOutcome {
+/** Records the plan written by the model (no side effects). Texts in the prompt language (default Italian). */
+export function recordPlan(args: Record<string, unknown>, lang?: PromptLanguage): ToolOutcome {
   const piano = typeof args.piano === 'string' ? args.piano.trim() : ''
-  return piano ? { ok: true, data: { piano }, summary: `Piano registrato:\n${piano}` } : { ok: false, code: 'INVALID_ARGS', message: 'Il piano è vuoto: scrivi i passi numerati.' }
+  if (!piano) {
+    const message = t(lang, 'Il piano è vuoto: scrivi i passi numerati.', 'The plan is empty: write the numbered steps.')
+    return { ok: false, code: 'INVALID_ARGS', message }
+  }
+  return { ok: true, data: { piano }, summary: `${t(lang, 'Piano registrato', 'Plan recorded')}:\n${piano}` }
 }
 
 /**
@@ -36,7 +41,7 @@ export const PLAN_TOOL: ToolDefinition = {
   errors: [{ code: 'INVALID_ARGS', message: 'Piano vuoto.' }],
   latencyMs: [0, 0],
   source: 'builtin',
-  async execute(args) {
-    return recordPlan(args)
+  execute(args, ctx) {
+    return Promise.resolve(recordPlan(args, ctx.lang))
   },
 }

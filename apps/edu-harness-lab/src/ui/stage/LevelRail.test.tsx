@@ -4,19 +4,20 @@ import { LevelRail } from './LevelRail'
 
 const mocks = vi.hoisted(() => ({
   lab: {
-    view: 'guided' as 'guided' | 'lab',
-    level: 0 as number,
-    status: 'idle' as 'idle' | 'running' | 'awaitingApproval' | 'done',
+    view: 'guided',
+    level: 0,
+    scenarioId: 'notebook-nuovi-assunti',
+    status: 'idle',
     setLevel: vi.fn(),
     updateConfig: vi.fn(),
   },
   progress: {
     highestReached: 0,
-    completed: {} as Record<number, boolean>,
+    completed: {},
   },
 }))
 
-const initialLab = { view: 'guided' as const, level: 0, status: 'idle' as const }
+const initialLab = { view: 'guided' as const, level: 0, scenarioId: 'notebook-nuovi-assunti', status: 'idle' as const }
 const initialProgress = { highestReached: 0, completed: {} as Record<number, boolean> }
 
 vi.mock('../../state/store', () => ({
@@ -32,6 +33,7 @@ describe('LevelRail', () => {
   beforeEach(() => {
     mocks.lab.view = 'guided'
     mocks.lab.level = 0
+    mocks.lab.scenarioId = 'notebook-nuovi-assunti'
     mocks.lab.status = 'idle'
     mocks.lab.setLevel.mockReset()
     mocks.lab.updateConfig.mockReset()
@@ -50,19 +52,19 @@ describe('LevelRail', () => {
     render(<LevelRail />)
 
     const progression = screen.getByRole('navigation', { name: 'Avanzamento livelli' })
-    const steps = within(progression).getAllByRole('button')
+    const steps = within(progression).getAllByRole<HTMLButtonElement>('button')
     expect(steps).toHaveLength(10)
     expect(steps[0]?.getAttribute('aria-current')).toBe('step')
-    expect((steps[1] as HTMLButtonElement).disabled).toBe(false)
-    expect((steps[2] as HTMLButtonElement).disabled).toBe(true)
+    expect(steps[1]?.disabled).toBe(false)
+    expect(steps[2]?.disabled).toBe(true)
 
     expect(screen.getByRole('heading', { name: 'Il modello, da solo' })).toBeTruthy()
     expect(screen.getByText('Fai la domanda al modello così com’è.')).toBeTruthy()
     expect(screen.getByText('Modello linguistico')).toBeTruthy()
-    expect((screen.getByRole('button', { name: 'Livello precedente' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Livello precedente' }).disabled).toBe(true)
 
-    const next = screen.getByRole('button', { name: 'Livello successivo: Istruzioni di sistema' })
-    expect((next as HTMLButtonElement).disabled).toBe(false)
+    const next = screen.getByRole<HTMLButtonElement>('button', { name: 'Livello successivo: Istruzioni di sistema' })
+    expect(next.disabled).toBe(false)
     fireEvent.click(next)
     expect(mocks.lab.setLevel).toHaveBeenCalledWith(1)
 
@@ -72,8 +74,41 @@ describe('LevelRail', () => {
     fireEvent.click(screen.getByText('Tutti i livelli'))
     expect(details.hasAttribute('open')).toBe(true)
     expect(
-      (within(details).getByRole('button', { name: /Livello 10: Strumenti esterni via MCP — bloccato/ }) as HTMLButtonElement).disabled,
+      within(details).getByRole<HTMLButtonElement>('button', { name: /Livello 10: Strumenti esterni via MCP — bloccato/ }).disabled,
     ).toBe(true)
+    expect(screen.getByText('Livello 1/10')).toBeTruthy()
+  })
+
+  it('shows only the levels the selected scenario needs and ends the path at its last one', () => {
+    mocks.lab.scenarioId = 'sala-senza-data'
+    mocks.lab.level = 1
+    mocks.progress.highestReached = 1
+    render(<LevelRail />)
+
+    const progression = screen.getByRole('navigation', { name: 'Avanzamento livelli' })
+    expect(within(progression).getAllByRole('button').map(step => step.textContent)).toEqual(['1', '2'])
+    expect(screen.getByText('Livello 2/2')).toBeTruthy()
+
+    const done = screen.getByRole('button', { name: 'Percorso completato' })
+    expect(done.textContent).toBe('Completato')
+    expect((done as HTMLButtonElement).disabled).toBe(true)
+
+    const details = screen.getByText('Tutti i livelli').closest('details')
+    if (!details) throw new Error('Tutti i livelli details not found')
+    expect(within(details).getAllByRole('button')).toHaveLength(2)
+    expect(within(details).queryByRole('button', { name: /Livello 3:/ })).toBeNull()
+  })
+
+  it('offers the next level until the scenario’s last one', () => {
+    mocks.lab.scenarioId = 'margine-commessa'
+    mocks.lab.level = 4
+    mocks.progress.highestReached = 4
+    render(<LevelRail />)
+
+    expect(within(screen.getByRole('navigation', { name: 'Avanzamento livelli' })).getAllByRole('button')).toHaveLength(6)
+    expect(screen.getByText('Livello 5/6')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Livello successivo: Il primo strumento' }))
+    expect(mocks.lab.setLevel).toHaveBeenCalledWith(5)
   })
 
   it('keeps guided navigation and lab presets disabled while a run is busy', () => {
@@ -82,13 +117,13 @@ describe('LevelRail', () => {
     mocks.lab.status = 'awaitingApproval'
     rerender(<LevelRail />)
     const progression = screen.getByRole('navigation', { name: 'Avanzamento livelli' })
-    expect(within(progression).getAllByRole('button').every(button => (button as HTMLButtonElement).disabled)).toBe(true)
-    expect((screen.getByRole('button', { name: 'Livello successivo: Istruzioni di sistema' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(within(progression).getAllByRole<HTMLButtonElement>('button').every(button => button.disabled)).toBe(true)
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Livello successivo: Istruzioni di sistema' }).disabled).toBe(true)
 
     mocks.lab.view = 'lab'
     rerender(<LevelRail />)
     expect(screen.queryByRole('navigation', { name: 'Avanzamento livelli' })).toBeNull()
-    expect((screen.getByRole('button', { name: /^Solo modello/ }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: /^Solo modello/ }).disabled).toBe(true)
   })
 
   it('keeps lab presets actionable when idle', () => {

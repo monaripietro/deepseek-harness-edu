@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { REAL_LOCAL } from '../../domain/types'
 import type { ComponentId, TraceEventBase, TraceEventBody } from '../../domain/types'
@@ -7,10 +7,11 @@ import { useLab } from '../../state/store'
 import type { LabState } from '../../state/store'
 import { Narration } from './Narration'
 
-let originalState: Pick<LabState, 'events' | 'level' | 'status'> = {
+let originalState: Pick<LabState, 'events' | 'level' | 'status' | 'scenarioId'> = {
   events: useLab.getState().events,
   level: useLab.getState().level,
   status: useLab.getState().status,
+  scenarioId: useLab.getState().scenarioId,
 }
 let originalBodyNodes = Array.from(document.body.childNodes)
 
@@ -33,8 +34,8 @@ function mountedEvents(components: ComponentId[]) {
 }
 
 beforeEach(() => {
-  const { events, level, status } = useLab.getState()
-  originalState = { events, level, status }
+  const { events, level, status, scenarioId } = useLab.getState()
+  originalState = { events, level, status, scenarioId }
   originalBodyNodes = Array.from(document.body.childNodes)
 })
 
@@ -67,17 +68,47 @@ describe('Narration', () => {
       '+ Contesto del compito: aggiunto all’harness.',
     )
 
-    const count = screen.getByText('2 eventi precedenti')
-    const summary = count.closest('summary')
-    if (!summary) throw new Error('Storico summary not found')
-    const details = summary.parentElement as HTMLDetailsElement | null
-    expect(details?.open).toBe(false)
+    const toggle = screen.getByRole('button', { name: 'Storico 2 eventi precedenti' })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByRole('list', { name: 'Eventi precedenti' })).toBeNull()
 
-    fireEvent.click(summary)
+    fireEvent.click(toggle)
 
-    expect(details?.open).toBe(true)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('list', { name: 'Eventi precedenti' }).tabIndex).toBe(0)
     expect(screen.getAllByRole('listitem')).toHaveLength(2)
     expect(screen.getByRole('region', { name: 'Evento corrente' })).toBeTruthy()
+  })
+
+  it('follows new history only while the reader stays at the bottom', () => {
+    const events = [
+      traceEvent(1, { type: 'harness/plugin-mounted', component: 'instructions' }),
+      traceEvent(2, { type: 'harness/plugin-unmounted', component: 'instructions' }),
+      traceEvent(3, { type: 'harness/plugin-mounted', component: 'context' }),
+    ]
+    useLab.setState({ events })
+    render(<Narration />)
+    fireEvent.click(screen.getByRole('button', { name: 'Storico 2 eventi precedenti' }))
+    const list = screen.getByRole('list', { name: 'Eventi precedenti' })
+    Object.defineProperties(list, { scrollHeight: { value: 600 }, clientHeight: { value: 120 } })
+
+    list.scrollTop = 480
+    fireEvent.scroll(list)
+    act(() =>{  useLab.setState({ events: [...events, traceEvent(4, { type: 'harness/plugin-unmounted', component: 'context' })] }) })
+    expect(list.scrollTop).toBe(600)
+
+    list.scrollTop = 40
+    fireEvent.scroll(list)
+    act(() =>{  useLab.setState({ events: [...useLab.getState().events, traceEvent(5, { type: 'harness/plugin-mounted', component: 'memory' })] }) })
+    expect(list.scrollTop).toBe(40)
+  })
+
+  it('labels narration as harness events and gives reflection-specific guidance', () => {
+    useLab.setState({ scenarioId: 'ragionamento-iterativo', level: 7 })
+    render(<Narration />)
+    expect(screen.getByText(/Eventi dell’harness, non pensieri del modello/)).toBeTruthy()
+    expect(screen.getByText('Focus dello scenario · Riflessione iterativa')).toBeTruthy()
+    expect(screen.queryByText(/Più strumenti/)).toBeNull()
   })
 
   it('combines consecutive harness additions into one current event', () => {
@@ -91,7 +122,7 @@ describe('Narration', () => {
     expect(current.textContent).toContain(
       'Istruzioni di sistema, Contesto del compito, Memoria, Conoscenza (RAG), Strumenti e Orchestratore',
     )
-    expect(current.textContent?.match(/Il modello resta invariato\./g)).toHaveLength(1)
+    expect(current.textContent.match(/Il modello resta invariato\./g)).toHaveLength(1)
     expect(screen.queryByRole('list')).toBeNull()
   })
 
@@ -105,11 +136,11 @@ describe('Narration', () => {
 
     render(<Narration />)
 
-    const currentText = screen.getByRole('region', { name: 'Evento corrente' }).textContent ?? ''
+    const currentText = screen.getByRole('region', { name: 'Evento corrente' }).textContent
     expect(currentText.indexOf('Il retriever cerca')).toBeLessThan(currentText.indexOf('retrieval'))
 
     const summary = screen.getByText(`Focus del livello · ${level.title}`)
-    const details = summary.closest('details') as HTMLDetailsElement | null
+    const details = summary.closest('details')
     expect(details?.open).toBe(false)
     fireEvent.click(summary)
 

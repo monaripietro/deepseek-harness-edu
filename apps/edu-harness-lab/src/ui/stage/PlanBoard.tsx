@@ -29,7 +29,7 @@ export function PlanBoard({ stage }: { stage: StageState }) {
       data-node="orchestrator"
       tabIndex={0}
       aria-label="Piano del modello: apri i dettagli del ciclo"
-      onClick={() => toggle('orchestrator')}
+      onClick={() =>{  toggle('orchestrator') }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()

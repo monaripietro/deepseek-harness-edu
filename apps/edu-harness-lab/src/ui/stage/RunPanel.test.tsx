@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { REAL_LOCAL } from '../../domain/types'
+import { configForLevel } from '../../harness/levels'
 import { DEFAULT_SCENARIO_ID } from '../../scenarios'
 import { useLab } from '../../state/store'
 import type { ChatEntry } from '../../state/store'
@@ -16,9 +17,15 @@ function resetStore() {
     chat: [],
     runs: [],
     currentRunId: null,
+    events: [],
+    modelActivity: null,
+    reasoningText: '',
+    runReasoning: [],
     streamingText: '',
     needsModel: false,
     pendingApproval: null,
+    level: 0,
+    config: configForLevel(0),
     profile: null,
     modelInfo: initialModelInfo,
     loadProgress: initialLoadProgress,
@@ -70,9 +77,9 @@ describe('RunPanel', () => {
     render(<RunPanel />)
 
     expect(screen.getByText('Risposta in arrivo dal modello reale.')).not.toBeNull()
-    expect((screen.getByRole('textbox', { name: 'La tua richiesta' }) as HTMLTextAreaElement).disabled).toBe(true)
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'La tua richiesta' }).disabled).toBe(true)
     expect(screen.getByRole('status').textContent).toBe('In esecuzione')
-    act(() => useLab.setState({ status: 'awaitingApproval', streamingText: '' }))
+    act(() =>{  useLab.setState({ status: 'awaitingApproval', streamingText: '' }) })
     expect(screen.getByRole('status').textContent).toBe('In attesa di approvazione')
     expect(screen.getByText('In attesa della tua approvazione…')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Ferma' })).not.toBeNull()
@@ -101,5 +108,54 @@ describe('RunPanel', () => {
     expect(screen.getByText('Dettaglio leggibile.').tagName).toBe('STRONG')
     expect(screen.getByLabelText(/REALE, LOCALE/i)).not.toBeNull()
     expect(screen.getByText('Risposta finale')).not.toBeNull()
+  })
+
+  it('offers a reflection loop without loading another model or activating tools', () => {
+    useLab.getState().setScenario('ragionamento-iterativo')
+    const loadModel = vi.spyOn(useLab.getState(), 'loadModel')
+    render(<RunPanel />)
+
+    expect(screen.getByLabelText('Come provare il ragionamento iterativo')).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Attiva ciclo di riflessione e controlli' }))
+
+    expect(useLab.getState().level).toBe(7)
+    expect(useLab.getState().config.enabledTools).toEqual([])
+    expect(useLab.getState().config.components.tools).toBe(false)
+    expect(useLab.getState().config.components.agentLoop).toBe(true)
+    expect(useLab.getState().config.components.controls).toBe(true)
+    expect(screen.getByText(/Limite configurato: 10 passi/)).not.toBeNull()
+    expect(loadModel).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    '<self_reflection>\nBozza non finale',
+    '<self_reflection>Bozza non finale</self_reflection>',
+    '<final_answer>\nBozza non finale',
+    'Refletteri',
+  ])('does not render reflection-loop output as answer prose before it is accepted: %s', (streamingText) => {
+    useLab.getState().setScenario('ragionamento-iterativo')
+    useLab.getState().setLevel(7)
+    useLab.setState({
+      status: 'running',
+      chat: [{ id: 'reflection-stream', role: 'assistant', text: '', streaming: true }],
+      streamingText,
+    })
+    render(<RunPanel />)
+
+    expect(screen.queryByText(/Bozza non finale/)).toBeNull()
+    expect(screen.queryByText('Refletteri')).toBeNull()
+    expect(screen.getByText('Esecuzione del modello')).not.toBeNull()
+    expect(screen.queryByText('Risposta finale')).toBeNull()
+    expect(screen.getByText('Il modello scrive il prossimo passo del ciclo…')).not.toBeNull()
+  })
+
+  it('does not label an invalid model output as a final answer', () => {
+    useLab.setState({
+      status: 'done',
+      chat: [{ id: 'invalid-answer', role: 'assistant', text: 'Formato non valido.', stopReason: 'invalid_output' }],
+    })
+    render(<RunPanel />)
+    expect(screen.getByText('Esito senza risposta finale')).not.toBeNull()
+    expect(screen.queryByText('Risposta finale')).toBeNull()
   })
 })

@@ -8,7 +8,6 @@ import {
   fmtNum,
   hasDoc,
   hasInstructions,
-  hasKind,
   hasTool,
   isJson,
   knowsDoc,
@@ -27,7 +26,8 @@ import {
  *   with data/tools -> precise, with sources.
  */
 
-const byCodeOrder = (code: string) => (a: Record<string, unknown>) => String(a.codice ?? '').toUpperCase() === code
+const byCodeOrder = (code: string) => (a: Record<string, unknown>) =>
+  typeof a.codice === 'string' && a.codice.toUpperCase() === code
 
 // ───────────────────────── S1: rimborso chilometrico senza informazioni ─────────────────────────
 
@@ -221,14 +221,14 @@ export function s7(h: ContextHints): string {
         [],
       )
     }
-    if (s.kind === 'failed' || h.mustAnswer || h.guardNotice || (s.kind === 'todo' && s.retry && h.mustAnswer)) {
+    if (s.kind === 'failed' || h.mustAnswer || h.guardNotice) {
       const why = s.kind === 'failed' ? ` (${s.message})` : ''
       return reply(h, `Non sono riuscito a verificare la disponibilità: il magazzino non risponde${why}. Non posso confermare quanti NB-V14P ci siano, quindi non ti do un numero. Riprova più tardi o chiedi alla logistica.`, [])
     }
     return toolDecision(
       'verifica_disponibilita',
       { codice: 'NB-V14P', quantita: 4 },
-      s.kind === 'todo' && s.retry ? 'Il magazzino non ha risposto: riprovo la stessa verifica una volta.' : 'Verifico la disponibilità di NB-V14P a magazzino.',
+      s.retry ? 'Il magazzino non ha risposto: riprovo la stessa verifica una volta.' : 'Verifico la disponibilità di NB-V14P a magazzino.',
     )
   }
   if (hasInstructions(h)) {
@@ -240,11 +240,8 @@ export function s7(h: ContextHints): string {
 // ───────────────────────── S8: prenotare una sala senza data ─────────────────────────
 
 export function s8(h: ContextHints): string {
-  const hasTask = hasKind(h, 'taskData')
   if (hasInstructions(h) || isJson(h)) {
-    const q = hasTask
-      ? 'Per quale orario e in quale sede? Presumo il 3/11/2026, il giorno in cui entrano i 4 nuovi assunti: conferma la data e dimmi a che ora e quante persone parteciperanno.'
-      : 'Per quale giorno e a che ora ti serve la sala, per quante persone e in quale sede?'
+    const q = 'Non ho uno strumento per verificare o prenotare sale. Per quale giorno e a che ora ti serve, per quante persone e in quale sede?'
     return ask(h, q)
   }
   return 'Fatto! Ho prenotato la Sala Blu per domani alle 10:00, per 10 persone. Riceverai la conferma via email.'
@@ -274,10 +271,10 @@ export function s9(h: ContextHints): string {
     const item = cat && cat.kind === 'ok' ? catalogItems(cat.data).find(i => i.code === 'NB-V14P') : undefined
     if (eur !== undefined && item) {
       const diff = round2(eur - item.price)
-      const verdict = diff > 0 ? `costa ${fmtEur(diff)} in più per unità: non conviene` : `costa ${fmtEur(Math.abs(diff))} in meno per unità: conviene, salvo dazi e trasporto`
+      const verdict = diff > 0 ? `è superiore di ${fmtEur(diff)} per unità` : `è inferiore di ${fmtEur(Math.abs(diff))} per unità`
       return reply(
         h,
-        `1.350 dollari equivalgono a ${fmtEur(eur)} (tasso fisso didattico ${fmtNum(tasso ?? 0, 4)} del ${dataTassi ?? 'giorno di riferimento'}, non un tasso di mercato). Il nostro prezzo di catalogo per il Notebook Vega 14 Pro (NB-V14P) è ${fmtEur(item.price)} IVA esclusa: l’offerta americana ${verdict}.`,
+        `1.350 dollari equivalgono a ${fmtEur(eur)} (tasso fisso didattico ${fmtNum(tasso ?? 0, 4)} del ${dataTassi ?? 'giorno di riferimento'}, non un tasso di mercato). Il nostro prezzo di catalogo per il Notebook Vega 14 Pro (NB-V14P) è ${fmtEur(item.price)} IVA esclusa. A parità di imposte, il prezzo convertito ${verdict}. Il trattamento IVA dell’offerta non è indicato; mancano anche dazi e trasporto, quindi non posso confermare la convenienza complessiva.`,
         [],
       )
     }

@@ -85,7 +85,7 @@ function stationFor(phase: Phase, streaming: boolean): StationId | null {
 }
 
 /** True when an element between target and the viewport can still scroll in the wheel direction. */
-function canScroll(target: HTMLElement | null, stop: HTMLElement, dy: number): boolean {
+function canScroll(target: Element | null, stop: HTMLElement, dy: number): boolean {
   for (let n = target; n && n !== stop; n = n.parentElement) {
     const oy = getComputedStyle(n).overflowY
     if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight + 1) {
@@ -115,7 +115,7 @@ function useViewportTransform(viewportRef: React.RefObject<HTMLDivElement | null
       setSize({ w: entry.contentRect.width, h: entry.contentRect.height })
     })
     ro.observe(el)
-    return () => ro.disconnect()
+    return () =>{  ro.disconnect() }
   }, [viewportRef])
 
   const fit = Math.max(0.05, Math.min((size.w - FIT_MARGIN * 2) / WORLD_W, (size.h - FIT_MARGIN * 2) / WORLD_H))
@@ -131,12 +131,12 @@ function useViewportTransform(viewportRef: React.RefObject<HTMLDivElement | null
     const s2 = fit * z
     setCam({ zoom: z, cx: wx - (mx - size.w / 2) / s2, cy: wy - (my - size.h / 2) / s2 })
   }
-  const panBy = (dx: number, dy: number) => setCam(c => ({ ...c, cx: c.cx - dx / (fit * c.zoom), cy: c.cy - dy / (fit * c.zoom) }))
-  const centerOn = (cx: number, cy: number) => setCam(c => ({ ...c, cx, cy }))
+  const panBy = (dx: number, dy: number) =>{  setCam(c => ({ ...c, cx: c.cx - dx / (fit * c.zoom), cy: c.cy - dy / (fit * c.zoom) })) }
+  const centerOn = (cx: number, cy: number) =>{  setCam(c => ({ ...c, cx, cy })) }
   /** 50%: the whole map on screen. */
-  const showAll = () => setCam({ zoom: 1, cx: WORLD_W / 2, cy: WORLD_H / 2 })
+  const showAll = () =>{  setCam({ zoom: 1, cx: WORLD_W / 2, cy: WORLD_H / 2 }) }
   /** 100% on the agent loop. */
-  const home = () => setCam({ zoom: DEFAULT_ZOOM, cx: HOME.cx, cy: HOME.cy })
+  const home = () =>{  setCam({ zoom: DEFAULT_ZOOM, cx: HOME.cx, cy: HOME.cy }) }
   return { s, tx, ty, size, zoom: cam.zoom, pct: Math.round((cam.zoom / DEFAULT_ZOOM) * 100), zoomAt, panBy, centerOn, showAll, home }
 }
 
@@ -247,8 +247,8 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
     const el = viewportRef.current
     if (!el) return
     const onWheel = (e: WheelEvent) => {
-      const target = e.target as HTMLElement | null
-      if (target?.closest?.('[data-panel], textarea')) return
+      const target = e.target instanceof Element ? e.target : null
+      if (target?.closest('[data-panel], textarea')) return
       if (!e.ctrlKey && !e.metaKey && canScroll(target, el, e.deltaY)) return
       e.preventDefault()
       const v = viewRef.current
@@ -261,7 +261,7 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
       }
     }
     el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
+    return () =>{  el.removeEventListener('wheel', onWheel) }
   }, [])
 
   // Drag to pan from anywhere (background or cards); a drag never opens a card.
@@ -301,15 +301,15 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
     if (e.target !== e.currentTarget) return
     const v = viewRef.current
     const keys: Record<string, () => void> = {
-      ArrowLeft: () => v.panBy(PAN_STEP, 0),
-      ArrowRight: () => v.panBy(-PAN_STEP, 0),
-      ArrowUp: () => v.panBy(0, PAN_STEP),
-      ArrowDown: () => v.panBy(0, -PAN_STEP),
-      '+': () => v.zoomAt(v.zoom * 1.2),
-      '=': () => v.zoomAt(v.zoom * 1.2),
-      '-': () => v.zoomAt(v.zoom / 1.2),
-      '0': () => v.showAll(),
-      '1': () => v.home(),
+      ArrowLeft: () =>{  v.panBy(PAN_STEP, 0) },
+      ArrowRight: () =>{  v.panBy(-PAN_STEP, 0) },
+      ArrowUp: () =>{  v.panBy(0, PAN_STEP) },
+      ArrowDown: () =>{  v.panBy(0, -PAN_STEP) },
+      '+': () =>{  v.zoomAt(v.zoom * 1.2) },
+      '=': () =>{  v.zoomAt(v.zoom * 1.2) },
+      '-': () =>{  v.zoomAt(v.zoom / 1.2) },
+      '0': () =>{  v.showAll() },
+      '1': () =>{  v.home() },
     }
     const act = keys[e.key]
     if (!act) return
@@ -367,13 +367,13 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
         const next: Partial<Record<EdgeId, number>> = {}
         let changed = false
         for (const [k, v] of Object.entries(h)) {
-          if (v !== undefined && v > now) next[k as EdgeId] = v
+          if (v > now) next[k as EdgeId] = v
           else changed = true
         }
         return changed ? next : h
       })
     }, 300)
-    return () => clearInterval(t)
+    return () =>{  clearInterval(t) }
   }, [])
 
   const lit = (id: StageNodeId) => stage.lit.includes(id)
@@ -489,7 +489,7 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
                 initial={{ x: f.xs[0], y: f.ys[0], opacity: 0, scale: 0.6 }}
                 animate={{ x: f.xs, y: f.ys, opacity: [0, 1, 1, 1, 0], scale: [0.6, 1, 1, 1, 0.8] }}
                 transition={{ duration: f.duration, delay: f.delay, ease: 'easeInOut' }}
-                onAnimationComplete={() => setFlyers(cur => cur.filter(x => x.id !== f.id))}
+                onAnimationComplete={() =>{  setFlyers(cur => cur.filter(x => x.id !== f.id)) }}
               >
                 <span className={styles.flyerChip}>{f.label}</span>
               </motion.div>
@@ -499,13 +499,13 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
       </div>
 
       <div className={styles.zoomBar} data-zoom role="toolbar" aria-label="Zoom della vista">
-        <button type="button" onClick={() => view.zoomAt(view.zoom / 1.25)} aria-label="Allontana" title="Allontana (−)">
+        <button type="button" onClick={() =>{  view.zoomAt(view.zoom / 1.25) }} aria-label="Allontana" title="Allontana (−)">
           <ZoomOut size={16} />
         </button>
         <button type="button" className={styles.zoomPct} onClick={view.home} title="Torna al 100% sul ciclo agentico (1)">
           {view.pct}%
         </button>
-        <button type="button" onClick={() => view.zoomAt(view.zoom * 1.25)} aria-label="Avvicina" title="Avvicina (+)">
+        <button type="button" onClick={() =>{  view.zoomAt(view.zoom * 1.25) }} aria-label="Avvicina" title="Avvicina (+)">
           <ZoomIn size={16} />
         </button>
         <button type="button" onClick={view.showAll} aria-label="Mostra tutta la mappa" title="Mostra tutta la mappa (0)">
@@ -556,7 +556,7 @@ function ModelCore({ stage, lit, selected }: { stage: StageState; lit: boolean; 
         transition={busy ? { duration: 1.6, repeat: Infinity, ease: 'easeInOut' } : { duration: 0.3 }}
         aria-label={`Modello linguistico: ${info.label}. ${busy ? 'Sta lavorando.' : 'In attesa.'} Apri i dettagli.`}
         aria-pressed={selected}
-        onClick={() => toggle('model')}
+        onClick={() =>{  toggle('model') }}
       >
         <Cpu size={34} aria-hidden className={styles.coreIcon} />
         <span className={styles.coreTitle}>MODELLO</span>
@@ -622,7 +622,7 @@ function AgentLoop({ stage, selected }: { stage: StageState; selected: boolean }
       duration: Math.min(1.6, ((target - cur) / 90) * 0.55) / Math.max(0.5, speed),
       ease: [0.45, 0, 0.25, 1],
     })
-    return () => ctl.stop()
+    return () =>{  ctl.stop() }
   }, [station, stage.step, deg, speed])
   const tokenX = useTransform(deg, d => local(d).x)
   const tokenY = useTransform(deg, d => local(d).y)
@@ -720,7 +720,7 @@ function AgentLoop({ stage, selected }: { stage: StageState; selected: boolean }
           animate={{ scale: 1 }}
           aria-pressed={selected}
           aria-label="Orchestratore e ciclo agentico: apri i dettagli"
-          onClick={() => toggle('orchestrator')}
+          onClick={() =>{  toggle('orchestrator') }}
         >
           <span className={styles.ringPillHead}>
             <Repeat size={14} aria-hidden />

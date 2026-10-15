@@ -141,7 +141,7 @@ function guideText(h: ContextHints): string {
 const byCode =
   (code: string) =>
     (a: Record<string, unknown>): boolean =>
-      String(a.codice ?? '').toUpperCase() === code
+      typeof a.codice === 'string' && a.codice.toUpperCase() === code
 
 function sources(h: ContextHints): string[] {
   const out: string[] = []

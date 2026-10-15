@@ -8,12 +8,12 @@ import type { ModelInfo, ModelProfileId, ThinkingEffort } from '../../domain/typ
 export type RealProfileId = Exclude<ModelProfileId, 'test-double' | 'openrouter'>
 
 /** Where the weights come from. Flip `selfHosted` later to serve the weights from the app origin. */
-export const MODEL_SOURCE = {
+export const MODEL_SOURCE: Readonly<{ selfHosted: boolean; localModelPath: string }> = {
   /** false = download from the Hugging Face hub (cached by Transformers.js in the Cache API). */
   selfHosted: false,
   /** Used only when selfHosted is true: folder served by the app, containing `<repo-id>/...`. */
   localModelPath: '/models/',
-} as const
+}
 
 /** Context window the app actually uses: small prompts keep CPU prefill fast. */
 export const APP_CONTEXT_LIMIT = 4000

@@ -63,6 +63,7 @@ export function narrate(e: TraceEvent, components: Record<ComponentId, boolean>)
       return { family: 'model', tone: 'info', text: `Il contesto è pronto: ≈ ${n(e.snapshot.budget.usedTokens)} token (${list}). È tutto ciò che il modello potrà vedere.`, term: 'finestra di contesto' }
     }
     case 'model/request':
+      if (e.reflection) return { family: 'model', tone: 'info', text: 'Avviata una chiamata del ciclo di riflessione. L’output dirà se il modello ha prodotto una bozza, una verifica o una risposta.', term: 'richiesta al modello' }
       return e.protocol === 'json'
         ? e.mustAnswer
           ? { family: 'model', tone: 'info', text: 'Il modello legge il contesto: ora deve dare la risposta finale.' }
@@ -71,8 +72,18 @@ export function narrate(e: TraceEvent, components: Record<ComponentId, boolean>)
     case 'model/response':
       return { family: 'model', tone: 'info', text: `Il modello ha finito di scrivere in ${(e.durationMs / 1000).toLocaleString('it-IT', { maximumFractionDigits: 1 })} s.` }
     case 'decision/parsed':
-      if (e.decision.type === 'tool' && e.decision.tool === 'pianifica')
-        return { family: 'orchestration', tone: 'info', text: `Il modello scrive il suo piano: ${String(e.decision.args.piano ?? '').replace(/\s+/g, ' ').slice(0, 220)}`, term: 'piano' }
+      if (e.decision.type === 'reflect')
+        return { family: 'orchestration', tone: 'info', text: 'Il modello produce una bozza o una verifica, non la risposta. L’orchestratore la reinserisce nel contesto e avvia un altro passo sullo stesso compito.', term: 'ragionamento iterativo' }
+      if (e.decision.type === 'tool' && e.decision.tool === 'pianifica') {
+        const plan = e.decision.args.piano ?? ''
+        const text = typeof plan === 'string' ? plan : JSON.stringify(plan)
+        return {
+          family: 'orchestration',
+          tone: 'info',
+          text: `Il modello scrive il suo piano: ${text.replace(/\s+/g, ' ').slice(0, 220)}`,
+          term: 'piano',
+        }
+      }
       if (e.decision.type === 'tool')
         return {
           family: 'orchestration',
@@ -87,6 +98,8 @@ export function narrate(e: TraceEvent, components: Record<ComponentId, boolean>)
         ? { family: 'orchestration', tone: 'warn', text: `Il modello ha fatto i conti a mente (${e.error.replace(/^[^(]*\(([^)]*)\).*$/, '$1')}): l’orchestratore non accetta numeri che non vengono da una fonte o da uno strumento.`, term: 'verifica dei calcoli' }
         : { family: 'governance', tone: 'warn', text: 'La risposta del modello non rispetta il formato richiesto.' }
     case 'decision/repair':
+      if (/prima bozza/.test(e.instruction))
+        return { family: 'orchestration', tone: 'info', text: e.instruction, term: 'bozza guidata' }
       if (/piano/.test(e.instruction))
         return { family: 'orchestration', tone: 'info', text: 'Prima di agire, l’orchestratore fa scrivere al modello un piano: passi numerati, ciascuno con lo strumento da usare.', term: 'pianificazione' }
       return /calcolatrice/.test(e.instruction)

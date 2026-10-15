@@ -99,10 +99,10 @@ function summarize(e: TraceEvent): ReactNode {
     case 'run/start':
       return `«${clip(e.input, 100)}» · ${e.configLabel}`
     case 'run/end':
-      return `${e.record.steps} ${e.record.steps === 1 ? 'passo' : 'passi'} · ${e.record.toolCalls.length} chiamate a strumenti`
+      return `${e.record.steps} ${e.record.steps === 1 ? 'passo' : 'passi'} · ${e.record.toolCalls.length} chiamate a strumenti${e.record.reflections?.length ? ` · ${e.record.reflections.length} riflessioni` : ''}`
     case 'harness/plugin-mounted':
     case 'harness/plugin-unmounted':
-      return COMPONENTS[e.component]?.label ?? e.component
+      return COMPONENTS[e.component].label
     case 'rag/query':
       return `«${clip(e.query, 90)}»`
     case 'rag/results': {
@@ -128,7 +128,7 @@ function summarize(e: TraceEvent): ReactNode {
       return `${(e.durationMs / 1000).toFixed(1)} s${e.tokensOut ? ` · ${e.tokensOut} token` : ''} · ${e.finishReason}`
     case 'decision/parsed': {
       const d = e.decision
-      return d.type === 'tool' ? `Vuole usare ${d.tool}` : d.type === 'answer' ? 'Vuole rispondere' : `Chiede: ${clip(d.question, 80)}`
+      return d.type === 'tool' ? `Vuole usare ${d.tool}` : d.type === 'answer' ? 'Vuole rispondere' : d.type === 'reflect' ? `Riesamina la proposta: ${clip(d.text, 80)}` : `Chiede: ${clip(d.question, 80)}`
     }
     case 'decision/invalid':
       return `Tentativo ${e.attempt}: ${clip(e.error, 90)}`
@@ -227,7 +227,7 @@ export function AgentTrace() {
         <h2 className={styles.title}>REGISTRO DEGLI EVENTI</h2>
         <div className={styles.filters} role="group" aria-label="Filtra eventi">
           {FILTERS.map(f => (
-            <Chip key={f.id} selected={filter === f.id} color="var(--c-model)" onClick={() => setFilter(f.id)}>
+            <Chip key={f.id} selected={filter === f.id} color="var(--c-model)" onClick={() =>{  setFilter(f.id) }}>
               {f.label}
             </Chip>
           ))}
@@ -253,7 +253,7 @@ export function AgentTrace() {
               if (r.kind === 'sep')
                 return (
                   <li key={r.e.id} className={styles.sep}>
-                    {r.e.type === 'harness/plugin-mounted' ? '+' : '−'} {COMPONENTS[(r.e as Extract<TraceEvent, { type: 'harness/plugin-mounted' }>).component]?.label ?? ''}
+                    {r.e.type === 'harness/plugin-mounted' ? '+' : '−'} {COMPONENTS[(r.e as Extract<TraceEvent, { type: 'harness/plugin-mounted' }>).component].label}
                   </li>
                 )
               return <EventRow key={r.e.id} e={r.e} off={r.off} reduce={!!reduce} />
@@ -283,7 +283,7 @@ function EventRow({ e, off, reduce }: { e: TraceEvent; off: number; reduce: bool
         <Icon size={20} />
       </span>
       <div className={styles.body}>
-        <button type="button" className={styles.line} aria-expanded={open} onClick={() => setOpen(v => !v)}>
+        <button type="button" className={styles.line} aria-expanded={open} onClick={() =>{  setOpen(v => !v) }}>
           <span className={styles.top}>
             <span className={styles.label}>{EVENT_LABEL[e.type]}</span>
             <span className={styles.time}>{fmtOffset(off)}</span>

@@ -7,13 +7,14 @@ import type { ComponentId } from '../../domain/types'
 import { useLab } from '../../state/store'
 import type { ComparisonRow } from '../../state/store'
 import { COMPONENTS, COMPONENT_ORDER, EXPERIMENT } from '../../harness/levels'
-import { SCENARIOS } from '../../scenarios'
+import { requestFor } from '../../scenarios'
 import { businessLog } from '../../harness/tools/businessLog'
 import { Button } from '../common/Button'
 import { ProvenanceBadge } from '../common/ProvenanceBadge'
 import { Switch } from '../common/Switch'
 import { STOP_LABEL } from '../common/labels'
 import { ComparisonMatrix } from './ComparisonMatrix'
+import { ReflectionTrace } from '../chat/ReflectionTrace'
 import styles from './ComparisonView.module.css'
 
 const ESSENTIAL = new Set(['c01', 'c02', 'c05', 'c07', 'c10'])
@@ -52,7 +53,7 @@ function useBusinessLog(): LogEntry[] {
   const [entries, setEntries] = useState<LogEntry[]>(read)
   useEffect(() => {
     setEntries(read())
-    return (businessLog as unknown as { subscribe(cb: () => void): () => void }).subscribe(() => setEntries(read()))
+    return (businessLog as unknown as { subscribe(cb: () => void): () => void }).subscribe(() =>{  setEntries(read()) })
   }, [])
   return entries
 }
@@ -106,11 +107,12 @@ function Column({ row, prev, index }: { row: ComparisonRow; prev?: ComparisonRow
       {row.status === 'error' && <p className={styles.errText}>{row.error}</p>}
       {rec && (
         <>
-          <h4 className={styles.resultTitle}>Risultato dell’esecuzione</h4>
+          <ReflectionTrace record={rec} />
+          <h4 className={styles.resultTitle}>{rec.stopReason === 'final_answer' ? 'Risposta finale' : 'Esito senza risposta finale'}</h4>
           <div className={`${styles.answer} ${open ? '' : styles.clamp}`}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{rec.answer || '_Nessuna risposta._'}</ReactMarkdown>
           </div>
-          <button className={styles.expand} onClick={() => setOpen(!open)} aria-expanded={open}>
+          <button className={styles.expand} onClick={() =>{  setOpen(!open) }} aria-expanded={open}>
             {open ? <><ChevronUp size={14} aria-hidden /> Riduci</> : <><ChevronDown size={14} aria-hidden /> Espandi</>}
           </button>
 
@@ -154,7 +156,8 @@ export function ComparisonView() {
   const modelInfo = useLab(s => s.modelInfo)
   const loadProgress = useLab(s => s.loadProgress)
   const [essential, setEssential] = useState(false)
-  const request = SCENARIOS.find(s => s.id === scenarioId)?.request ?? ''
+  const promptLanguage = useLab(s => s.promptLanguage)
+  const request = requestFor(scenarioId, promptLanguage)
   const log = useBusinessLog()
 
   const rows = useMemo(() => {

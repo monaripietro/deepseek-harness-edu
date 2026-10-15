@@ -18,6 +18,7 @@ import type {
   RunRecord,
   Scenario,
   TraceEvent,
+  PromptLanguage,
   ThinkingEffort,
 } from '../domain/types'
 import { NO_FAULTS } from '../domain/types'
@@ -27,9 +28,11 @@ import {
   EXPERIMENT,
   LEVELS,
   baseConfig,
+  clampLevel,
   configForLevel,
   configKeyOf,
   describeConfig,
+  lastLevelOf,
 } from '../harness/levels'
 import { runTurn } from '../harness/orchestrator/orchestrator'
 import { createToolRegistry } from '../harness/tools/registry'
@@ -38,7 +41,7 @@ import { toolFromSpec } from '../harness/tools/custom'
 import { createMemoryStore } from '../harness/memory/memoryStore'
 import { createRetriever } from '../harness/rag/retriever'
 import { createMcpHub } from '../harness/mcp/hub'
-import { DEFAULT_SCENARIO_ID, SCENARIOS, SCENARIO_DATA } from '../scenarios'
+import { DEFAULT_SCENARIO_ID, SCENARIO_DATA, getScenario, scenarioDataFor } from '../scenarios'
 import { createTransformersRuntime } from '../runtime/model/transformersRuntime'
 import { NOT_LOADED_INFO, PROFILE_LIST, PROFILES, resolveVariant } from '../runtime/model/profiles'
 import type { RealProfileId } from '../runtime/model/profiles'
@@ -46,6 +49,15 @@ import { cachedBytes, deleteCachedRepo, forgetLastModel, isVariantCached, lastMo
 import { createOpenRouterRuntime } from '../runtime/model/openrouter'
 import type { RemoteModel } from '../runtime/model/openrouter'
 import { forgetApiKey, hasRememberedApiKey, loadApiKey, maskKey, saveApiKey } from '../runtime/model/secretStore'
+
+const PROMPT_LANGUAGE_KEY = 'harness-lab:prompt-language'
+function savedPromptLanguage(): PromptLanguage {
+  try {
+    return localStorage.getItem(PROMPT_LANGUAGE_KEY) === 'en' ? 'en' : 'it'
+  } catch {
+    return 'it'
+  }
+}
 
 const THINKING_KEY = 'harness-lab:thinking'
 function savedThinking(): ThinkingEffort {
@@ -68,17 +80,20 @@ export const retriever = createRetriever(SCENARIO_DATA.documents)
 export const memory = createMemoryStore(SCENARIO_DATA.memorySeeds)
 
 let faultsRef: FaultInjection = NO_FAULTS
-export const mcpHub = createMcpHub({ bus, data: () => SCENARIO_DATA, faults: () => faultsRef })
+export const mcpHub = createMcpHub({ bus, data: () => scenarioDataFor(useLab.getState().promptLanguage), faults: () => faultsRef })
 
 let liveRuntime: ModelRuntime | null = null
 let abortCtl: AbortController | null = null
 const customToolDisposers = new Map<string, () => void>()
 
 function currentScenario(): Scenario {
-  const id = useLab.getState().scenarioId
-  const scenario = SCENARIOS.find(s => s.id === id) ?? SCENARIOS[0]
-  if (!scenario) throw new Error('No scenarios are defined.')
-  return scenario
+  return getScenario(useLab.getState().scenarioId)
+}
+
+function withScenarioDefaults(config: HarnessConfig, scenario: Scenario): HarnessConfig {
+  return scenario.reflectionPrompt
+    ? { ...config, components: { ...config.components, tools: false, approval: false, mcp: false }, enabledTools: [], mcpServers: [] }
+    : config
 }
 
 const pacer = createPacer(() => {
@@ -170,69 +185,72 @@ export interface LabState {
   comparing: boolean
 
   // actions
-  setView(v: View): void
-  setPanel(p: SidePanel): void
-  openLab(l: LabId | null): void
-  setTeacherOpen(o: boolean): void
-  setTheme(t: Theme): void
-  setPresentation(p: boolean): void
-  finishWelcome(): void
+  setView: (v: View) => void
+  setPanel: (p: SidePanel) => void
+  openLab: (l: LabId | null) => void
+  setTeacherOpen: (o: boolean) => void
+  setTheme: (t: Theme) => void
+  setPresentation: (p: boolean) => void
+  finishWelcome: () => void
 
-  setLevel(l: LevelId): void
-  nextLevel(): void
-  prevLevel(): void
-  toggleComponent(c: ComponentId): void
-  updateConfig(patch: Partial<HarnessConfig>): void
-  setScenario(id: string): void
-  addCustomTool(spec: CustomToolSpec): void
-  removeCustomTool(id: string): void
+  setLevel: (l: LevelId) => void
+  nextLevel: () => void
+  prevLevel: () => void
+  toggleComponent: (c: ComponentId) => void
+  updateConfig: (patch: Partial<HarnessConfig>) => void
+  setScenario: (id: string) => void
+  addCustomTool: (spec: CustomToolSpec) => void
+  removeCustomTool: (id: string) => void
 
-  detect(): Promise<void>
-  loadModel(p: RealProfileId, opts?: { cacheOnly?: boolean }): Promise<void>
+  detect: () => Promise<void>
+  loadModel: (p: RealProfileId, opts?: { cacheOnly?: boolean }) => Promise<void>
+  /** Language of what the model reads and answers (scenario texts, data, tool results). The UI stays Italian. */
+  promptLanguage: PromptLanguage
+  setPromptLanguage: (l: PromptLanguage) => void
   /** Reasoning effort for models that can think (local Qwen3/Gemma 4, OpenRouter reasoning models). */
   thinking: ThinkingEffort
-  setThinking(e: ThinkingEffort): void
+  setThinking: (e: ThinkingEffort) => void
   /** OpenRouter key status (never the key itself). */
   openRouterKey: { present: boolean; remembered: boolean; masked: string | null }
-  refreshOpenRouterKey(): Promise<void>
-  saveOpenRouterKey(key: string, remember: boolean): Promise<void>
-  forgetOpenRouterKey(): Promise<void>
+  refreshOpenRouterKey: () => Promise<void>
+  saveOpenRouterKey: (key: string, remember: boolean) => Promise<void>
+  forgetOpenRouterKey: () => Promise<void>
   remoteModel: RemoteModel | null
-  useOpenRouterModel(m: RemoteModel, opts?: { silent?: boolean }): Promise<void>
+  useOpenRouterModel: (m: RemoteModel, opts?: { silent?: boolean }) => Promise<void>
   /** Models whose files are already in the browser cache, with the bytes they use. */
   cachedModels: Partial<Record<RealProfileId, number>>
-  refreshModelCache(): Promise<void>
+  refreshModelCache: () => Promise<void>
   /** Restart the model used last time, only if it is fully cached (no download). */
-  resumeLastModel(): Promise<boolean>
-  deleteCachedModel(p: RealProfileId): Promise<void>
-  dismissNeedsModel(): void
+  resumeLastModel: () => Promise<boolean>
+  deleteCachedModel: (p: RealProfileId) => Promise<void>
+  dismissNeedsModel: () => void
 
-  send(input?: string): Promise<RunRecord | null>
-  stop(): void
-  decideApproval(o: ApprovalOutcome): void
-  resetConversation(): void
+  send: (input?: string) => Promise<RunRecord | null>
+  stop: () => void
+  decideApproval: (o: ApprovalOutcome) => void
+  resetConversation: () => void
 
-  setSpeed(s: number): void
-  togglePause(): void
-  setStepMode(on: boolean): void
-  step(): void
-  setFaults(f: Partial<FaultInjection>): void
+  setSpeed: (s: number) => void
+  togglePause: () => void
+  setStepMode: (on: boolean) => void
+  step: () => void
+  setFaults: (f: Partial<FaultInjection>) => void
 
-  runExperiment(): Promise<void>
-  wipeData(): Promise<void>
+  runExperiment: () => Promise<void>
+  wipeData: () => Promise<void>
 }
 
 const initialConfig = configForLevel(0)
 
 /** Components that require other components to make sense. */
-function normalizeComponents(cfg: HarnessConfig, changed: ComponentId, on: boolean): HarnessConfig {
+function normalizeComponents(cfg: HarnessConfig, changed: ComponentId, on: boolean, reflection = false): HarnessConfig {
   const c = { ...cfg.components, [changed]: on, model: true }
   if (on) {
     if (changed === 'tools' || changed === 'agentLoop' || changed === 'controls' || changed === 'approval' || changed === 'mcp') c.orchestrator = true
-    if (changed === 'agentLoop' || changed === 'approval' || changed === 'mcp') c.tools = true
+    if ((changed === 'agentLoop' && !reflection) || changed === 'approval' || changed === 'mcp') c.tools = true
   } else {
     if (changed === 'orchestrator') { c.tools = false; c.agentLoop = false; c.controls = false; c.approval = false; c.mcp = false }
-    if (changed === 'tools') { c.agentLoop = false; c.approval = false; c.mcp = false }
+    if (changed === 'tools') { if (!reflection) c.agentLoop = false; c.approval = false; c.mcp = false }
   }
   const next: HarnessConfig = { ...cfg, components: c }
   if (c.tools && next.enabledTools.length === 0) next.enabledTools = ['calcolatrice']
@@ -259,7 +277,7 @@ const approvalsFor = (auto: boolean): ApprovalService => ({
   request(req, signal) {
     return new Promise<ApprovalOutcome>((resolve) => {
       if (auto) {
-        setTimeout(() => resolve('allowed-once'), 600)
+        setTimeout(() =>{  resolve('allowed-once') }, 600)
         return
       }
       const onAbort = () => {
@@ -300,6 +318,7 @@ export const useLab = create<LabState>()((set, get) => ({
   needsModel: false,
   capabilities: null,
   cachedModels: {},
+  promptLanguage: savedPromptLanguage(),
   thinking: savedThinking(),
   openRouterKey: { present: hasRememberedApiKey(), remembered: hasRememberedApiKey(), masked: null },
   remoteModel: null,
@@ -327,24 +346,28 @@ export const useLab = create<LabState>()((set, get) => ({
   comparison: [],
   comparing: false,
 
-  setView: view => set({ view }),
-  setPanel: panel => set({ panel }),
-  openLab: lab => set({ lab }),
-  setTeacherOpen: teacherOpen => set({ teacherOpen }),
-  setTheme: theme => set({ theme }),
-  setPresentation: presentation => set({ presentation }),
-  finishWelcome: () => set({ welcomeDone: true }),
+  setView: (view) =>{  set({ view }) },
+  setPanel: (panel) =>{  set({ panel }) },
+  openLab: (lab) =>{  set({ lab }) },
+  setTeacherOpen: (teacherOpen) =>{  set({ teacherOpen }) },
+  setTheme: (theme) =>{  set({ theme }) },
+  setPresentation: (presentation) =>{  set({ presentation }) },
+  finishWelcome: () =>{  set({ welcomeDone: true }) },
 
-  setLevel(level) {
+  setLevel(requested) {
+    const scenario = currentScenario()
+    // The guided path of a scenario stops at its last useful level.
+    const level = clampLevel(requested, scenario)
     const prev = get().config
     const next = configForLevel(level, prev)
     next.enabledTools = [...next.enabledTools, ...(level >= 6 ? get().customTools.map(t => t.id) : [])]
-    emitComponentDiff(prev, next)
-    set({ level, config: next })
+    const configured = withScenarioDefaults(next, scenario)
+    emitComponentDiff(prev, configured)
+    set({ level, config: configured })
   },
   nextLevel() {
     const l = get().level
-    if (l < 9) get().setLevel((l + 1) as LevelId)
+    if (l < lastLevelOf(currentScenario())) get().setLevel((l + 1) as LevelId)
   },
   prevLevel() {
     const l = get().level
@@ -353,7 +376,7 @@ export const useLab = create<LabState>()((set, get) => ({
   toggleComponent(c) {
     if (c === 'model') return
     const prev = get().config
-    const next = normalizeComponents(prev, c, !prev.components[c])
+    const next = normalizeComponents(prev, c, !prev.components[c], !!currentScenario().reflectionPrompt)
     emitComponentDiff(prev, next)
     set({ config: next })
   },
@@ -361,7 +384,23 @@ export const useLab = create<LabState>()((set, get) => ({
     set({ config: { ...get().config, ...patch } })
   },
   setScenario(scenarioId) {
-    set({ scenarioId })
+    const scenario = getScenario(scenarioId)
+    const s = get()
+    if (s.scenarioId === scenarioId) return
+    const previous = currentScenario()
+    const faults = scenario.faults ?? (previous.faults ? NO_FAULTS : s.faults)
+    // Past the new scenario's last useful level the guided path steps back to it; the free laboratory keeps its configuration.
+    const level = clampLevel(s.level, scenario)
+    const clampedGuided = level !== s.level && s.view === 'guided'
+    if (!previous.reflectionPrompt && !scenario.reflectionPrompt && !clampedGuided) {
+      set({ scenarioId, level, history: [], faults })
+      return
+    }
+    const defaults = configForLevel(level, s.config)
+    defaults.enabledTools = [...defaults.enabledTools, ...(level >= 6 ? s.customTools.map(t => t.id) : [])]
+    const config = withScenarioDefaults(defaults, scenario)
+    emitComponentDiff(s.config, config)
+    set({ scenarioId, level, config, history: [], faults })
   },
   addCustomTool(spec) {
     customToolDisposers.get(spec.id)?.()
@@ -406,12 +445,12 @@ export const useLab = create<LabState>()((set, get) => ({
       // if a file is missing after all, fall back to a normal download.
       if (source === 'cache' && !opts?.cacheOnly) {
         try {
-          await rt.load(p => set({ loadProgress: { ...p, source: 'cache' } }), undefined, { cacheOnly: true })
+          await rt.load((p) =>{  set({ loadProgress: { ...p, source: 'cache' } }) }, undefined, { cacheOnly: true })
         } catch {
           source = 'network'
         }
       }
-      if (!rt.isReady()) await rt.load(p => set({ loadProgress: { ...p, source } }), undefined, opts)
+      if (!rt.isReady()) await rt.load((p) =>{  set({ loadProgress: { ...p, source } }) }, undefined, opts)
       set({ modelInfo: rt.info, needsModel: false, loadProgress: { phase: 'ready', loadedBytes: 1, totalBytes: 1, source } })
       rememberLastModel(profile)
       // Keep the downloaded weights: ask the browser not to evict them, then update what is on disk.
@@ -435,6 +474,14 @@ export const useLab = create<LabState>()((set, get) => ({
       if (variant && (await isVariantCached(p.repo, variant.dtype))) next[p.id] = await cachedBytes(p.repo)
     }
     set({ cachedModels: next })
+  },
+  setPromptLanguage(promptLanguage) {
+    set({ promptLanguage, history: [] })
+    try {
+      localStorage.setItem(PROMPT_LANGUAGE_KEY, promptLanguage)
+    } catch {
+      /* storage unavailable */
+    }
   },
   setThinking(thinking) {
     set({ thinking })
@@ -468,7 +515,7 @@ export const useLab = create<LabState>()((set, get) => ({
     const rt = liveRuntime
     set({ profile: 'openrouter', remoteModel: model, loadProgress: { phase: 'checking', loadedBytes: 0, totalBytes: 0, source: 'network' } })
     try {
-      await rt.load(p => set({ loadProgress: p }))
+      await rt.load((p) =>{  set({ loadProgress: p }) })
       set({ modelInfo: rt.info, needsModel: false, loadProgress: { phase: 'ready', loadedBytes: 1, totalBytes: 1, source: 'network' } })
       rememberLastModel('openrouter')
       rememberRemoteModel(model)
@@ -507,7 +554,8 @@ export const useLab = create<LabState>()((set, get) => ({
   async send(input) {
     const s = get()
     if (s.status === 'running' || s.status === 'awaitingApproval') return null
-    const scenario = currentScenario()
+    const language = get().promptLanguage
+    const scenario = getScenario(get().scenarioId, language)
     const text = (input ?? scenario.request).trim()
     if (!text) return null
     const runtime = activeRuntime()
@@ -534,7 +582,8 @@ export const useLab = create<LabState>()((set, get) => ({
           runtime,
           config: s.config,
           scenario,
-          data: SCENARIO_DATA,
+          data: scenarioDataFor(language),
+          language,
           registry,
           memory,
           retriever,
@@ -546,7 +595,7 @@ export const useLab = create<LabState>()((set, get) => ({
           history: s.config.components.memory ? s.history : [],
           configKey: configKeyOf(s.config),
           configLabel: describeConfig(s.config),
-          onToken: t => set({ streamingText: get().streamingText + t, modelActivity: null }),
+          onToken: (t) =>{  set({ streamingText: get().streamingText + t, modelActivity: null }) },
           onThinking: (tokens, text) => {
             if (tokens === null) return
             const activity = get().modelActivity
@@ -557,7 +606,7 @@ export const useLab = create<LabState>()((set, get) => ({
             })
           },
           // Each model call streams on its own: the text shown is always the current call's.
-          onModelCall: active =>
+          onModelCall: (active) =>{
             set(
               active
                 ? { streamingText: '', reasoningText: '', modelActivity: { kind: 'reading', since: Date.now(), tokens: 0 } }
@@ -566,7 +615,7 @@ export const useLab = create<LabState>()((set, get) => ({
                   runReasoning: get().reasoningText ? [...get().runReasoning, get().reasoningText] : get().runReasoning,
                   reasoningText: '',
                 },
-            ),
+            ) },
         },
         abortCtl.signal,
       )
@@ -647,7 +696,8 @@ export const useLab = create<LabState>()((set, get) => ({
       set({ needsModel: true })
       return
     }
-    const scenario = currentScenario()
+    const language = get().promptLanguage
+    const scenario = getScenario(get().scenarioId, language)
     const rows: ComparisonRow[] = EXPERIMENT.map(e => ({ key: e.key, label: e.label, short: e.short, status: 'pending' }))
     set({ comparing: true, comparison: rows, fastForward: true })
     const fastPacer = createPacer(() => ({ speed: 0, paused: false, stepMode: false }))
@@ -660,9 +710,10 @@ export const useLab = create<LabState>()((set, get) => ({
           scenario.request,
           {
             runtime,
-            config: { ...exp.config, autoApprove: true },
+            config: withScenarioDefaults({ ...exp.config, autoApprove: true }, scenario),
             scenario,
-            data: SCENARIO_DATA,
+            data: scenarioDataFor(language),
+            language,
             registry,
             memory,
             retriever,

@@ -4,7 +4,7 @@ import { Ban, FilePlus2, Pin, PinOff, RotateCcw, Search, Trash2, X } from 'lucid
 import type { PolicyDoc, RagSettings } from '../../domain/types'
 import { retriever, useLab } from '../../state/store'
 import { DEFAULT_RAG } from '../../harness/levels'
-import { SCENARIOS } from '../../scenarios'
+import { requestFor } from '../../scenarios'
 import { EXCLUSION_LABEL } from '../common/labels'
 import styles from './RagLab.module.css'
 import lab from './lab.module.css'
@@ -27,7 +27,8 @@ export function RagLab() {
   const updateConfig = useLab(s => s.updateConfig)
   const scenarioId = useLab(s => s.scenarioId)
   const reduce = useReducedMotion()
-  const scenarioRequest = SCENARIOS.find(s => s.id === scenarioId)?.request ?? ''
+  const promptLanguage = useLab(s => s.promptLanguage)
+  const scenarioRequest = requestFor(scenarioId, promptLanguage)
   const [query, setQuery] = useState(scenarioRequest)
   const [version, setVersion] = useState(0)
   const [reading, setReading] = useState<PolicyDoc | null>(null)
@@ -37,13 +38,13 @@ export function RagLab() {
   const docs = useMemo(() => retriever.documents(), [version])
   const hits = useMemo(() => (query.trim() ? retriever.search(query, rag) : []), [query, rag, version])
 
-  const patch = (p: Partial<RagSettings>) => updateConfig({ rag: { ...rag, ...p } })
+  const patch = (p: Partial<RagSettings>) =>{  updateConfig({ rag: { ...rag, ...p } }) }
   const toggleList = (key: 'pinnedChunkIds' | 'excludedChunkIds', other: 'pinnedChunkIds' | 'excludedChunkIds', id: string) => {
     const has = rag[key].includes(id)
     patch({ [key]: has ? rag[key].filter(x => x !== id) : [...rag[key], id], [other]: rag[other].filter(x => x !== id) })
   }
 
-  const addDoc = (e: React.FormEvent) => {
+  const addDoc = (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!title.trim() || !text.trim()) return
     const n = docs.filter(d => d.userAdded).length + 1
@@ -73,7 +74,7 @@ export function RagLab() {
         <h3 id="rag-docs" className={lab.h3}>Documenti ({docs.length})</h3>
         <div className={lab.cards}>
           {docs.map(d => (
-            <button key={d.id} className={`${lab.card} ${lab.cardBtn}`} onClick={() => setReading(d)} aria-label={`Leggi ${d.title}`}>
+            <button key={d.id} className={`${lab.card} ${lab.cardBtn}`} onClick={() =>{  setReading(d) }} aria-label={`Leggi ${d.title}`}>
               <div className={lab.spread}><code className={lab.mono}>{d.id}</code><Status doc={d} /></div>
               <strong>{d.title}</strong>
               <span className={lab.muted}>{d.category} · versione {d.version}{d.validFrom ? ` · dal ${d.validFrom}` : ''}</span>
@@ -85,18 +86,18 @@ export function RagLab() {
       <section className={lab.section} aria-labelledby="rag-search">
         <h3 id="rag-search" className={lab.h3}>Ricerca dal vivo</h3>
         <label className={lab.label}>Domanda
-          <input className={lab.input} value={query} onChange={e => setQuery(e.target.value)} />
+          <input className={lab.input} value={query} onChange={(e) =>{  setQuery(e.target.value) }} />
         </label>
         <div className={styles.controls}>
           <label className={lab.label}>Frammenti massimi (topK): {rag.topK}
-            <input type="range" min={1} max={8} step={1} value={rag.topK} onChange={e => patch({ topK: Number(e.target.value) })} />
+            <input type="range" min={1} max={8} step={1} value={rag.topK} onChange={(e) =>{  patch({ topK: Number(e.target.value) }) }} />
           </label>
           <label className={lab.label}>Punteggio minimo: {rag.minScore.toFixed(2)}
-            <input type="range" min={0} max={1} step={0.05} value={rag.minScore} onChange={e => patch({ minScore: Number(e.target.value) })} />
+            <input type="range" min={0} max={1} step={0.05} value={rag.minScore} onChange={(e) =>{  patch({ minScore: Number(e.target.value) }) }} />
           </label>
-          <label className={lab.check}><input type="checkbox" checked={rag.includeOutdated} onChange={e => patch({ includeOutdated: e.target.checked })} />Includi versioni superate</label>
-          <label className={lab.check}><input type="checkbox" checked={rag.includeDistractors} onChange={e => patch({ includeDistractors: e.target.checked })} />Includi documenti irrilevanti</label>
-          <button className={`${lab.btn} ${lab.sm}`} onClick={() => patch({ ...DEFAULT_RAG })}><RotateCcw size={14} aria-hidden /> Ripristina</button>
+          <label className={lab.check}><input type="checkbox" checked={rag.includeOutdated} onChange={(e) =>{  patch({ includeOutdated: e.target.checked }) }} />Includi versioni superate</label>
+          <label className={lab.check}><input type="checkbox" checked={rag.includeDistractors} onChange={(e) =>{  patch({ includeDistractors: e.target.checked }) }} />Includi documenti irrilevanti</label>
+          <button className={`${lab.btn} ${lab.sm}`} onClick={() =>{  patch({ ...DEFAULT_RAG }) }}><RotateCcw size={14} aria-hidden /> Ripristina</button>
         </div>
 
         <ol className={styles.hits} aria-live="polite">
@@ -122,10 +123,10 @@ export function RagLab() {
                     <div className={styles.snippet}>{h.chunk.text}</div>
                   </div>
                   <div className={styles.hitActions}>
-                    <button className={`${lab.btn} ${lab.sm} ${pinned ? lab.primary : ''}`} aria-pressed={pinned} onClick={() => toggleList('pinnedChunkIds', 'excludedChunkIds', h.chunk.id)}>
+                    <button className={`${lab.btn} ${lab.sm} ${pinned ? lab.primary : ''}`} aria-pressed={pinned} onClick={() =>{  toggleList('pinnedChunkIds', 'excludedChunkIds', h.chunk.id) }}>
                       {pinned ? <PinOff size={14} aria-hidden /> : <Pin size={14} aria-hidden />}{pinned ? 'Sblocca' : 'Fissa'}
                     </button>
-                    <button className={`${lab.btn} ${lab.sm} ${excluded ? lab.danger : ''}`} aria-pressed={excluded} onClick={() => toggleList('excludedChunkIds', 'pinnedChunkIds', h.chunk.id)}>
+                    <button className={`${lab.btn} ${lab.sm} ${excluded ? lab.danger : ''}`} aria-pressed={excluded} onClick={() =>{  toggleList('excludedChunkIds', 'pinnedChunkIds', h.chunk.id) }}>
                       <Ban size={14} aria-hidden />{excluded ? 'Riammetti' : 'Escludi'}
                     </button>
                   </div>
@@ -140,9 +141,11 @@ export function RagLab() {
       <section className={lab.section} aria-labelledby="rag-add">
         <form className={lab.card} onSubmit={addDoc}>
           <h3 id="rag-add" className={lab.h3}><FilePlus2 size={20} aria-hidden /> Aggiungi un documento</h3>
-          <label className={lab.label}>Titolo<input className={lab.input} value={title} onChange={e => setTitle(e.target.value)} /></label>
+          <label className={lab.label}>
+            Titolo<input className={lab.input} value={title} onChange={(e) => { setTitle(e.target.value) }} />
+          </label>
           <label className={lab.label}>Testo
-            <textarea className={lab.textarea} value={text} onChange={e => setText(e.target.value)} />
+            <textarea className={lab.textarea} value={text} onChange={(e) =>{  setText(e.target.value) }} />
           </label>
           <div className={lab.row}>
             <button className={`${lab.btn} ${lab.primary}`} type="submit" disabled={!title.trim() || !text.trim()}>Aggiungi</button>
@@ -162,7 +165,7 @@ export function RagLab() {
             <div className={styles.readerCard}>
               <div className={lab.spread}>
                 <div className={lab.row}><code className={lab.mono}>{reading.id}</code><Status doc={reading} /></div>
-                <button className={lab.btn} autoFocus onClick={() => setReading(null)} aria-label="Chiudi il documento"><X size={16} aria-hidden /></button>
+                <button className={lab.btn} autoFocus onClick={() =>{  setReading(null) }} aria-label="Chiudi il documento"><X size={16} aria-hidden /></button>
               </div>
               <h3 className={lab.h2}>{reading.title}</h3>
               <p className={lab.muted}>{reading.category} · versione {reading.version}</p>

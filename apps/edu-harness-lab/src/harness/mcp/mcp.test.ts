@@ -125,8 +125,9 @@ describe('allowlist and real HTTP transport', () => {
     const init = { jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-06-18', capabilities: {}, serverInfo: { name: 'Real', version: '1' } } }
     const list = { jsonrpc: '2.0', id: 2, result: { tools: [{ name: 'search', description: 'cerca', inputSchema: { type: 'object' } }] } }
     const fetchMock = vi.fn(async (url: string | URL | Request, reqInit?: RequestInit) => {
-      calls.push({ url: String(url), init: reqInit ?? {} })
-      const body = JSON.parse(String(reqInit?.body)) as { id?: number; method: string }
+      const request = new Request(url, reqInit)
+      calls.push({ url: request.url, init: reqInit ?? {} })
+      const body = JSON.parse(await request.text()) as { id?: number; method: string }
       if (body.method === 'initialize') {
         return new Response(`event: message\ndata: ${JSON.stringify(init)}\n\n`, {
           status: 200,
@@ -136,7 +137,7 @@ describe('allowlist and real HTTP transport', () => {
       if (body.id === undefined) return new Response(null, { status: 202 })
       return new Response(JSON.stringify(list), { status: 200, headers: { 'content-type': 'application/json' } })
     })
-    const hub = mkHub({}, fetchMock as unknown as typeof fetch)
+    const hub = mkHub({}, fetchMock)
     await hub.connect('mslearn')
     const s = state(hub, 'mslearn')
     expect(s.state).toBe('connected')
@@ -172,11 +173,11 @@ describe('allowlist and real HTTP transport', () => {
 
   it('a network failure leads to an error state, and only allowlisted URLs are used', async () => {
     const urls: string[] = []
-    const fetchMock = vi.fn(async (url: string | URL | Request) => {
-      urls.push(String(url))
-      throw new TypeError('Failed to fetch')
+    const fetchMock = vi.fn((url: string | URL | Request) => {
+      urls.push(typeof url === 'string' ? url : url instanceof URL ? url.href : url.url)
+      return Promise.reject(new TypeError('Failed to fetch'))
     })
-    const hub = mkHub({}, fetchMock as unknown as typeof fetch)
+    const hub = mkHub({}, fetchMock)
     await hub.connect('deepwiki')
     expect(state(hub, 'deepwiki').state).toBe('error')
     expect(state(hub, 'deepwiki').error).toMatch(/CORS|rete/)
@@ -186,7 +187,7 @@ describe('allowlist and real HTTP transport', () => {
 
   it('does not hit the network for the simulated server', async () => {
     const fetchMock = vi.fn()
-    const hub = mkHub({}, fetchMock as unknown as typeof fetch)
+    const hub = mkHub({}, fetchMock)
     await hub.connect('techsupply')
     expect(fetchMock).not.toHaveBeenCalled()
   })

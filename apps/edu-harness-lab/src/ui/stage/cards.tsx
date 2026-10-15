@@ -1,10 +1,10 @@
-import { ModelActivityNote, proseOf } from '../model/ModelActivity'
+import { ModelActivityNote, useStreamedProse } from '../model/ModelActivity'
 import { useCallback, useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, ClipboardList, Database, Hand, Library, MessageSquare, Play, Plug, ScrollText, Search, ShieldCheck, Sparkles, Square, UserCheck, Wrench, X } from 'lucide-react'
 import type { ContextKind } from '../../domain/types'
 import { INSTRUCTION_SECTIONS } from '../../harness/orchestrator/instructions'
-import { SCENARIO_DATA, SCENARIOS } from '../../scenarios'
+import { SCENARIOS, getScenario, requestFor } from '../../scenarios'
 import { guideScenario } from '../../scenarios/guide'
 import { mcpHub, memory, registry, retriever, useLab } from '../../state/store'
 import { CONTEXT_KIND_LABEL, STOP_LABEL } from '../common/labels'
@@ -28,7 +28,7 @@ export function onDockRequest(cb: (t: DockTab) => void) {
   }
 }
 export function useDockTab() {
-  return useCallback((t: DockTab) => dockListeners.forEach(cb => cb(t)), [])
+  return useCallback((t: DockTab) =>{  dockListeners.forEach((cb) =>{  cb(t) }) }, [])
 }
 
 const toolName = (id: string) => id.replace(/^mcp__\w+?__/, 'MCP·')
@@ -42,9 +42,11 @@ export function QuestionCard({ lit }: { lit: boolean }) {
   const stop = useLab(s => s.stop)
   const scenario = SCENARIOS.find(s => s.id === scenarioId) ?? guideScenario
   const draft = useStageUi(s => s.draft)
+  const promptLanguage = useLab(s => s.promptLanguage)
+  const request = requestFor(scenario.id, promptLanguage) || scenario.request
   const setText = useStageUi(s => s.setDraft)
-  const text = draft ?? scenario.request
-  useEffect(() => setText(null), [scenario.request, setText])
+  const text = draft ?? request
+  useEffect(() =>{  setText(null) }, [request, setText])
   const running = status === 'running' || status === 'awaitingApproval'
 
   const action = running ? (
@@ -84,7 +86,7 @@ export function QuestionCard({ lit }: { lit: boolean }) {
         className={styles.question}
         value={text}
         disabled={running}
-        onChange={e => setText(e.target.value)}
+        onChange={(e) =>{  setText(e.target.value) }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey && !running) {
             e.preventDefault()
@@ -94,8 +96,8 @@ export function QuestionCard({ lit }: { lit: boolean }) {
       />
       <div className={styles.questionActions}>
         {action}
-        {text !== scenario.request && !running && (
-          <button type="button" className={styles.linkBtn} onClick={() => setText(null)}>
+        {text !== request && !running && (
+          <button type="button" className={styles.linkBtn} onClick={() =>{  setText(null) }}>
             Domanda dello scenario
           </button>
         )}
@@ -108,10 +110,9 @@ export function QuestionCard({ lit }: { lit: boolean }) {
 
 export function AnswerCard({ stage, lit }: { stage: StageState; lit: boolean }) {
   const status = useLab(s => s.status)
-  const streaming = useLab(s => s.streamingText)
+  const prose = useStreamedProse()
   const running = status === 'running' || status === 'awaitingApproval'
   const passed = stage.checks.filter(c => c.passed).length
-  const prose = proseOf(streaming)
   const plain = stage.answer?.replace(/[#*_`>|-]+/g, ' ').replace(/\s+/g, ' ').trim()
 
   return (
@@ -163,6 +164,7 @@ export function AnswerCard({ stage, lit }: { stage: StageState; lit: boolean }) 
 // ───────────────────────── Instructions / context / memory / RAG ─────────────────────────
 
 export function InstructionsCard({ active, lit }: { active: boolean; lit: boolean }) {
+  const instructions = useLab(s => getScenario(s.scenarioId).context.instructions)
   return (
     <StageCard
       node="instructions"
@@ -183,13 +185,17 @@ export function InstructionsCard({ active, lit }: { active: boolean; lit: boolea
             <dd>{s.text}</dd>
           </div>
         ))}
+        <div>
+          <dt>Scenario</dt>
+          <dd>{instructions}</dd>
+        </div>
       </dl>
     </StageCard>
   )
 }
 
 export function ContextCard({ active, lit }: { active: boolean; lit: boolean }) {
-  const td = SCENARIO_DATA.taskData
+  const td = useLab(s => getScenario(s.scenarioId).context.taskData)
   return (
     <StageCard
       node="context"
@@ -545,10 +551,10 @@ export function HumanCard({ stage, active, lit }: { stage: StageState; active: b
           <p className={styles.approvalAction}>{pending.toolTitle}</p>
           <p className={styles.approvalEffects}>{pending.effects}</p>
           <div className={styles.approvalBtns}>
-            <button type="button" className={styles.approve} onClick={() => decide('allowed-once')}>
+            <button type="button" className={styles.approve} onClick={() =>{  decide('allowed-once') }}>
               <Check size={15} aria-hidden /> Approva
             </button>
-            <button type="button" className={styles.reject} onClick={() => decide('rejected')}>
+            <button type="button" className={styles.reject} onClick={() =>{  decide('rejected') }}>
               <X size={15} aria-hidden /> Rifiuta
             </button>
           </div>
