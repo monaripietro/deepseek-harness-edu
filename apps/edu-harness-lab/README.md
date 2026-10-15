@@ -40,6 +40,8 @@ Harness Lab usa sempre un modello linguistico **vero**, scaricato una volta da H
 | Qwen3 0.6B | ~0,6 GB | CPU, GPU se disponibile |
 | LFM2.5 1.2B | ~0,8 GB | solo WebGPU |
 
+Con i modelli che ragionano (Qwen3, Gemma 4 e i modelli OpenRouter che lo supportano) il livello di ragionamento si sceglie nella finestra del modello. Il testo del ragionamento non è in primo piano: si legge solo espandendo «Ragionamento del modello» nella risposta, con l’avvertenza che è testo generato, non una spiegazione affidabile di come il modello decide (con OpenRouter compare solo se il fornitore lo restituisce).
+
 Il server di sviluppo invia gli header COOP/COEP: la pagina è isolata e ONNX Runtime può usare più core della CPU. Gli strumenti vengono passati al modello con il suo template di chat nativo (tool calling), e le sue chiamate vengono validate ed eseguite dall'orchestratore.
 
 ## Link utili per la lezione

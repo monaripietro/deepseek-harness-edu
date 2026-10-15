@@ -103,6 +103,8 @@ export interface ChatEntry {
   provenance?: ProvenanceTag
   stopReason?: RunRecord['stopReason']
   streaming?: boolean
+  /** Reasoning text of each model call of the run (thinking models only), shown when expanded. */
+  reasoning?: string[]
 }
 
 export interface ComparisonRow {
@@ -147,8 +149,14 @@ export interface LabState {
   runs: RunRecord[]
   pendingApproval: (ApprovalRequest & { resolve: (o: ApprovalOutcome) => void }) | null
   streamingText: string
-  /** Hidden reasoning in progress: since when and how many tokens (0 = unknown). Never its text. */
-  reasoning: { tokens: number; since: number } | null
+  /**
+   * What the model is doing now, before any visible text: reading the context or reasoning
+   * (token count, 0 = unknown). Never the reasoning text.
+   */
+  modelActivity: { kind: 'reading' | 'thinking'; since: number; tokens: number } | null
+  /** Reasoning text of the current model call, and of the finished calls of the last run. */
+  reasoningText: string
+  runReasoning: string[]
 
   // playback / teacher
   speed: number
@@ -306,7 +314,9 @@ export const useLab = create<LabState>()((set, get) => ({
   runs: [],
   pendingApproval: null,
   streamingText: '',
-  reasoning: null,
+  modelActivity: null,
+  reasoningText: '',
+  runReasoning: [],
 
   speed: 1,
   paused: false,
@@ -513,6 +523,8 @@ export const useLab = create<LabState>()((set, get) => ({
       status: 'running',
       chat: [...s.chat, userEntry, { id: assistantId, role: 'assistant', text: '', streaming: true, provenance: runtime.info.provenance }],
       streamingText: '',
+      reasoningText: '',
+      runReasoning: [],
       panel: s.panel,
     })
     try {
@@ -534,9 +546,27 @@ export const useLab = create<LabState>()((set, get) => ({
           history: s.config.components.memory ? s.history : [],
           configKey: configKeyOf(s.config),
           configLabel: describeConfig(s.config),
-          onToken: t => set({ streamingText: get().streamingText + t, reasoning: null }),
-          onThinking: tokens =>
-            set({ reasoning: tokens === null ? null : { tokens, since: get().reasoning?.since ?? Date.now() } }),
+          onToken: t => set({ streamingText: get().streamingText + t, modelActivity: null }),
+          onThinking: (tokens, text) => {
+            if (tokens === null) return
+            const activity = get().modelActivity
+            set({
+              ...(text !== undefined ? { reasoningText: text } : {}),
+              // Once visible text has started the indicator stays off; only the text is updated.
+              ...(activity ? { modelActivity: { kind: 'thinking' as const, since: activity.since, tokens } } : {}),
+            })
+          },
+          // Each model call streams on its own: the text shown is always the current call's.
+          onModelCall: active =>
+            set(
+              active
+                ? { streamingText: '', reasoningText: '', modelActivity: { kind: 'reading', since: Date.now(), tokens: 0 } }
+                : {
+                  modelActivity: null,
+                  runReasoning: get().reasoningText ? [...get().runReasoning, get().reasoningText] : get().runReasoning,
+                  reasoningText: '',
+                },
+            ),
         },
         abortCtl.signal,
       )
@@ -555,6 +585,7 @@ export const useLab = create<LabState>()((set, get) => ({
               configLabel: record.configLabel,
               provenance: record.modelProvenance,
               stopReason: record.stopReason,
+              reasoning: get().runReasoning,
             }
             : m,
         ),
@@ -585,7 +616,7 @@ export const useLab = create<LabState>()((set, get) => ({
     get().stop()
     bus.clear()
     memory.clear('session')
-    set({ chat: [], history: [], events: [], status: 'idle', currentRunId: null, streamingText: '', reasoning: null })
+    set({ chat: [], history: [], events: [], status: 'idle', currentRunId: null, streamingText: '', modelActivity: null, reasoningText: '', runReasoning: [] })
   },
 
   setSpeed(speed) {

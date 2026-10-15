@@ -1,4 +1,4 @@
-import { ReasoningNote } from '../model/ReasoningNote'
+import { ModelActivityNote, ReasoningDisclosure, proseOf, useLiveReasoning } from '../model/ModelActivity'
 import { useEffect, useId, useRef, useState } from 'react'
 import { Cpu, FileText, Play, Square } from 'lucide-react'
 import type { ChatEntry, RunStatus } from '../../state/store'
@@ -166,6 +166,7 @@ export function RunPanel() {
 }
 
 function ConversationEntry({ message, streamingText, status }: { message: ChatEntry; streamingText: string; status: RunStatus }) {
+  const live = useLiveReasoning()
   if (message.role === 'user') {
     return (
       <li className={styles.request}>
@@ -181,7 +182,7 @@ function ConversationEntry({ message, streamingText, status }: { message: ChatEn
     )
   }
 
-  const text = message.streaming ? streamingText : message.text
+  const text = message.streaming ? proseOf(streamingText) : message.text
 
   return (
     <li className={styles.answer} aria-busy={message.streaming}>
@@ -191,9 +192,10 @@ function ConversationEntry({ message, streamingText, status }: { message: ChatEn
         {message.provenance && <ProvenanceBadge tag={message.provenance} />}
         {message.stopReason && <span className={styles.stopReason}>{STOP_LABEL[message.stopReason]}</span>}
       </div>
+      <ReasoningDisclosure parts={message.streaming ? live : (message.reasoning ?? [])} live={message.streaming} />
       {message.streaming && !text ? (
         <p className={styles.pending}>
-          {status === 'awaitingApproval' ? 'In attesa della tua approvazione…' : <ReasoningNote fallback="Il sistema sta preparando la risposta…" />}
+          {status === 'awaitingApproval' ? 'In attesa della tua approvazione…' : <ModelActivityNote fallback="Il sistema sta preparando la risposta…" />}
         </p>
       ) : (
         <div className={styles.answerText}>

@@ -1,4 +1,4 @@
-import { ReasoningNote } from '../model/ReasoningNote'
+import { ModelActivityNote, proseOf } from '../model/ModelActivity'
 import { useCallback, useEffect } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Check, ClipboardList, Database, Hand, Library, MessageSquare, Play, Plug, ScrollText, Search, ShieldCheck, Sparkles, Square, UserCheck, Wrench, X } from 'lucide-react'
@@ -111,7 +111,7 @@ export function AnswerCard({ stage, lit }: { stage: StageState; lit: boolean }) 
   const streaming = useLab(s => s.streamingText)
   const running = status === 'running' || status === 'awaitingApproval'
   const passed = stage.checks.filter(c => c.passed).length
-  const prose = streaming && !/^\s*(\{|<\||<tool_call|\[)/.test(streaming) ? streaming : ''
+  const prose = proseOf(streaming)
   const plain = stage.answer?.replace(/[#*_`>|-]+/g, ' ').replace(/\s+/g, ' ').trim()
 
   return (
@@ -131,7 +131,7 @@ export function AnswerCard({ stage, lit }: { stage: StageState; lit: boolean }) 
         plain ? (
           <p className={styles.clamp3}>{plain}</p>
         ) : running ? (
-          <p className={`${styles.clamp3} ${styles.waiting}`}>{prose ? prose.slice(-160) : <ReasoningNote fallback="Il sistema sta lavorando…" />}</p>
+          <p className={`${styles.clamp3} ${styles.waiting}`}>{prose ? prose.slice(-160) : <ModelActivityNote fallback="Il sistema sta lavorando…" />}</p>
         ) : (
           <p className={styles.placeholder}>La risposta comparirà qui.</p>
         )

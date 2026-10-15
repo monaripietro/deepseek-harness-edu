@@ -15,8 +15,8 @@ export type WorkerEvent =
   | { type: 'progress'; loaded: number; total: number; file?: string; phase: 'downloading' | 'initializing' }
   | { type: 'ready'; backend: 'webgpu' | 'wasm'; threads: number }
   | { type: 'token'; id: string; text: string }
-  /** Reasoning in progress: only how many tokens, never the text. */
-  | { type: 'thinking'; id: string; tokens: number }
+  /** Reasoning in progress: tokens so far and its text (shown only if the user expands it). */
+  | { type: 'thinking'; id: string; tokens: number; text: string }
   | {
     type: 'done'
     id: string

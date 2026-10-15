@@ -1,3 +1,4 @@
+import { ModelActivityNote, ReasoningDisclosure, proseOf, useLiveReasoning } from '../model/ModelActivity'
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
@@ -238,12 +239,39 @@ function QuestionDetails() {
   )
 }
 
+/** The answer while the run is in progress: the text as it is written, or what the model is doing. */
+function RunningAnswer() {
+  const prose = useLab(s => proseOf(s.streamingText))
+  const reasoning = useLiveReasoning()
+  return (
+    <>
+      <ReasoningDisclosure parts={reasoning} live />
+      {prose ? (
+        <Markdown>{prose}</Markdown>
+      ) : (
+        <p className={styles.muted}>
+          <ModelActivityNote fallback="Il sistema sta lavorando…" />
+        </p>
+      )}
+    </>
+  )
+}
+
+/** Reasoning of the last run, collapsed. */
+function LastReasoning() {
+  const reasoning = useLiveReasoning()
+  return <ReasoningDisclosure parts={reasoning} />
+}
+
 function AnswerDetails({ stage }: { stage: StageState }) {
-  if (!stage.answer && !stage.stopReason) return <p className={styles.muted}>Nessuna risposta ancora: premi Avvia.</p>
+  if (!stage.answer && !stage.stopReason) {
+    return stage.running ? <RunningAnswer /> : <p className={styles.muted}>Nessuna risposta ancora: premi Avvia.</p>
+  }
   return (
     <>
       {stage.answer && (
         <Section title="Testo completo">
+          <LastReasoning />
           <div className={styles.answer}>
             <Markdown>{stage.answer}</Markdown>
           </div>

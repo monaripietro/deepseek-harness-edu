@@ -7,6 +7,15 @@ import type { ChatMessage } from '../../domain/types'
 const BLOCK_RES = [/<\|channel>[\s\S]*?<channel\|>/g, /<think>[\s\S]*?<\/think>/g]
 const OPENERS = ['<|channel>', '<think>']
 
+/** The reasoning ("thinking") segments of raw decoded text, without their markers (also an unclosed one). */
+export function reasoningText(raw: string): string {
+  const parts: string[] = []
+  for (const m of raw.matchAll(/<think>([\s\S]*?)(?:<\/think>|$)|<\|channel>([\s\S]*?)(?:<channel\|>|$)/g)) {
+    parts.push((m[1] ?? m[2] ?? '').replace(/^\s*thought\b/, ''))
+  }
+  return parts.join('\n').trim()
+}
+
 /**
  * Removes reasoning ("thinking") segments and special tokens from raw decoded text.
  * Inner reasoning must never be shown. With `streaming`, a trailing partial marker is held back

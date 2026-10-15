@@ -93,6 +93,7 @@ interface StreamToolCallDelta {
 
 interface StreamDelta {
   content?: unknown
+  reasoning?: unknown
   tool_calls?: StreamToolCallDelta[]
 }
 
@@ -168,9 +169,9 @@ export function createOpenRouterRuntime({ model, apiKey, thinking }: OpenRouterR
       const forceName = req.forceTool?.name
       const forced = forceName !== undefined && req.tools?.some(t => t.function.name === forceName)
       if (forced) body.tool_choice = { type: 'function', function: { name: forceName } }
-      // Reasoning stays private: requested with exclude, never shown. Off for guided calls (some providers reject both).
-      if (model.reasoning) body.reasoning = effort === 'off' || forced ? { enabled: false } : { effort, exclude: true }
-      // The reasoning stays hidden: only signal that it is happening (until the first visible text).
+      // Reasoning: off for guided calls (some providers reject both). Its text, when the provider returns it,
+      // is shown only if the user expands it.
+      if (model.reasoning) body.reasoning = effort === 'off' || forced ? { enabled: false } : { effort, exclude: false }
       if (model.reasoning && effort !== 'off' && !forced) onThinking?.(0)
 
       let res = await post(key, body, signal)
@@ -186,6 +187,8 @@ export function createOpenRouterRuntime({ model, apiKey, thinking }: OpenRouterR
       const decoder = new TextDecoder()
       let buffer = ''
       let content = ''
+      let reasoning = ''
+      let lastReasoningPost = 0
       const calls: { name: string; args: string }[] = []
       let finish = 'stop'
       let usage: { prompt_tokens?: number; completion_tokens?: number } | undefined
@@ -210,6 +213,14 @@ export function createOpenRouterRuntime({ model, apiKey, thinking }: OpenRouterR
             if (chunk.error) throw new Error(`OpenRouter: ${String(chunk.error.message ?? 'errore').slice(0, 160)}`)
             const choice = chunk.choices?.[0]
             const delta: StreamDelta = choice?.delta ?? {}
+            if (typeof delta.reasoning === 'string' && delta.reasoning) {
+              reasoning += delta.reasoning
+              const now = performance.now()
+              if (now - lastReasoningPost > 250) {
+                lastReasoningPost = now
+                onThinking?.(0, reasoning)
+              }
+            }
             if (typeof delta.content === 'string' && delta.content) {
               content += delta.content
               onToken(delta.content)

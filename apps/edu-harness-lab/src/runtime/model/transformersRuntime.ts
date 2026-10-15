@@ -160,7 +160,7 @@ export function createTransformersRuntime(profileId: RealProfileId, options: Tra
         }
         const onEvent = (e: WorkerEvent) => {
           if (e.type === 'token' && e.id === id) onToken(e.text)
-          else if (e.type === 'thinking' && e.id === id) onThinking?.(e.tokens)
+          else if (e.type === 'thinking' && e.id === id) onThinking?.(e.tokens, e.text)
           else if (e.type === 'done' && e.id === id) {
             finish()
             resolve({

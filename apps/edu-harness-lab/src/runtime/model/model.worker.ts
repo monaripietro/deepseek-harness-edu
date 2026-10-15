@@ -12,7 +12,7 @@ import { opfsAvailable, opfsCache } from './opfsCache'
 import type { ChatMessage } from '../../domain/types'
 import { MODEL_SOURCE, PROFILES, toolCallPrefix } from './profiles'
 import type { ModelProfile } from './profiles'
-import { classifyError, visibleText } from './textUtils'
+import { classifyError, reasoningText, visibleText } from './textUtils'
 import type { WorkerEvent, WorkerRequest } from './workerProtocol'
 
 env.allowRemoteModels = !MODEL_SOURCE.selfHosted
@@ -233,20 +233,22 @@ async function generate(req: Extract<WorkerRequest, { type: 'generate' }>): Prom
     let emitted = ''
     let generatedTokens = 0
     let lastThinkingPost = 0
+    let reasoningSoFar = ''
     const streamer = new TextStreamer(tokenizer, {
-      // Before the first visible text a thinking model is reasoning: report how much (throttled), never what.
+      // Before the first visible text a thinking model is reasoning: report it (throttled).
       token_callback_function: () => {
         generatedTokens += 1
         if (!req.thinking || emitted) return
         const now = performance.now()
         if (now - lastThinkingPost < 250) return
         lastThinkingPost = now
-        post({ type: 'thinking', id, tokens: generatedTokens })
+        post({ type: 'thinking', id, tokens: generatedTokens, text: reasoningSoFar })
       },
       skip_prompt: true,
       skip_special_tokens: false,
       callback_function: (chunk: string) => {
         raw += chunk
+        if (req.thinking) reasoningSoFar = reasoningText(raw)
         const visible = visibleText(raw, specials, true)
         if (visible.length > emitted.length && visible.startsWith(emitted)) {
           post({ type: 'token', id, text: visible.slice(emitted.length) })
@@ -286,6 +288,8 @@ async function generate(req: Extract<WorkerRequest, { type: 'generate' }>): Prom
     const eosIds: number[] = Array.isArray(eos) ? eos : eos != null ? [eos] : []
     const lastId = Number(generated.data?.[generated.data.length - 1])
     const finishReason = criteria.interrupted ? 'aborted' : !eosIds.includes(lastId) && tokensOut >= maxNew ? 'length' : 'stop'
+    // The complete reasoning of this call (the streamed one may miss the last words).
+    if (req.thinking) post({ type: 'thinking', id, tokens: tokensOut, text: reasoningText(prefix + decoded) })
     post({ type: 'done', id, text, tokensIn, tokensOut, durationMs: performance.now() - started, finishReason })
   } catch (err) {
     const { code, message, detail } = classifyError(err)

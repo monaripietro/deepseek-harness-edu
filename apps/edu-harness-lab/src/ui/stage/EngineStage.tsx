@@ -542,7 +542,9 @@ function ModelCore({ stage, lit, selected }: { stage: StageState; lit: boolean; 
   const streaming = useLab(s => s.streamingText)
   const toggle = useStageUi(s => s.toggle)
   const busy = stage.modelBusy
+  const activity = useLab(s => s.modelActivity)
   const tail = streaming.slice(-54)
+  const coreNote = activity?.kind === 'thinking' ? `ragiona…${activity.tokens ? ` ${activity.tokens} token` : ''}` : tail || 'sta leggendo…'
   return (
     <>
       <motion.button
@@ -562,7 +564,7 @@ function ModelCore({ stage, lit, selected }: { stage: StageState; lit: boolean; 
         <AnimatePresence>
           {busy && (
             <motion.span className={styles.coreStream} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              {tail ? tail : 'sta leggendo…'}
+              {coreNote}
             </motion.span>
           )}
         </AnimatePresence>

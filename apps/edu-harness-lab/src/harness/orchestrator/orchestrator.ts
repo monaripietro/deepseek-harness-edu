@@ -634,6 +634,7 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
     try {
       const aborted = new Promise<never>((_, reject) => ctl.signal.addEventListener('abort', () => reject(new Error('aborted'))))
       aborted.catch(() => {})
+      deps.onModelCall?.(true)
       return await Promise.race([deps.runtime.generate(req, deps.onToken ?? noop, ctl.signal, deps.onThinking), aborted])
     } catch (err) {
       if (signal.aborted) throw new Halt('user_stop', STOP_MESSAGES.user_stop)
@@ -642,7 +643,7 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
     } finally {
       clearTimeout(timer)
       signal.removeEventListener('abort', onAbort)
-      deps.onThinking?.(null)
+      deps.onModelCall?.(false)
     }
   }
 }
