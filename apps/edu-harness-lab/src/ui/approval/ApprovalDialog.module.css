@@ -1,0 +1,20 @@
+.wrap { display: grid; gap: var(--sp-4); padding: var(--sp-6); font-size: var(--fs-md); color: var(--text); }
+.shield { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; background: var(--c-governance-soft); color: var(--c-governance); border: 2px solid var(--c-governance); }
+.title { margin: 0; font-size: var(--fs-xl); font-weight: 800; letter-spacing: 0.1em; color: var(--c-governance); line-height: var(--lh-tight); }
+.block { display: grid; gap: var(--sp-2); padding: var(--sp-4) var(--sp-5); border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border); }
+.block h3 { margin: 0; font-size: var(--fs-sm); font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
+.block p, .block ul, .block blockquote { margin: 0; line-height: var(--lh-normal); }
+.block ul { padding-left: 1.2em; }
+.block blockquote { padding-left: var(--sp-4); border-left: 4px solid var(--c-model); font-style: italic; }
+.action { font-size: var(--fs-lg); font-weight: 700; }
+.action code { margin-left: var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--c-action); }
+.hint { font-size: var(--fs-sm); color: var(--text-muted); }
+.args { display: grid; gap: var(--sp-2); margin: 0; }
+.args > div { display: grid; grid-template-columns: minmax(110px, 30%) 1fr; gap: var(--sp-3); }
+.args dt { color: var(--text-muted); font-family: var(--font-mono); font-size: var(--fs-sm); }
+.args dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.prov { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-lg); background: var(--c-governance-soft); }
+.prov p { margin: 0; font-weight: 700; }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); margin-top: var(--sp-2); }
+.actions button { justify-content: center; min-height: 60px; font-size: var(--fs-lg); font-weight: 800; }
+@media (max-width: 520px) { .actions { grid-template-columns: 1fr; } .args > div { grid-template-columns: 1fr; gap: 0; } }

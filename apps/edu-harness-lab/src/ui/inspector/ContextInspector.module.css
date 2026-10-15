@@ -1,0 +1,48 @@
+.root { display: flex; flex-direction: column; gap: var(--sp-5); padding: var(--sp-5); font-size: var(--fs-md); color: var(--text); }
+.head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.title { margin: 0; font-size: var(--fs-md); font-weight: 800; letter-spacing: 0.12em; }
+.steps { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.empty { display: grid; justify-items: center; gap: var(--sp-3); padding: var(--sp-7) var(--sp-5); text-align: center; color: var(--text-muted); border: 1px dashed var(--border-strong); border-radius: var(--r-lg); }
+.empty p { margin: 0; max-width: 40ch; line-height: var(--lh-normal); }
+.callout { display: flex; gap: var(--sp-3); align-items: center; padding: var(--sp-4) var(--sp-5); border-radius: var(--r-lg); background: var(--c-model-soft); border: 1px solid var(--c-model); }
+.callout p { margin: 0; font-weight: 700; font-size: var(--fs-lg); }
+.barBlock { display: grid; gap: var(--sp-3); padding: var(--sp-4) var(--sp-5); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); }
+.barTop { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-3); }
+.big { font-size: var(--fs-xl); font-weight: 800; }
+.muted { color: var(--text-muted); }
+.bar { display: flex; height: 28px; border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; gap: 2px; }
+.seg { height: 100%; min-width: 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); margin: 0; padding: 0; list-style: none; font-size: var(--fs-sm); color: var(--text-muted); }
+.legend li { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 4px; }
+.legend b { color: var(--text); }
+.groups { display: grid; gap: var(--sp-5); }
+.group { display: grid; gap: var(--sp-2); }
+.groupTitle { margin: 0 0 var(--sp-1); font-size: var(--fs-sm); font-weight: 800; letter-spacing: 0.12em; }
+.card { background: var(--surface); border: 1px solid var(--border); border-left: 5px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+.out { opacity: 0.6; }
+.out .cardTitle { text-decoration: line-through; }
+.cardHead { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); cursor: pointer; }
+.cardHead:focus-visible, .toggle:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
+.cardMain { flex: 1; display: grid; gap: 2px; min-width: 0; }
+.cardTitle { font-weight: 700; overflow-wrap: anywhere; }
+.cardMeta { font-size: var(--fs-sm); color: var(--text-muted); }
+.reason { color: var(--c-governance); }
+.cardText { margin: 0; padding: var(--sp-3) var(--sp-4) var(--sp-4); font-family: var(--font-mono); font-size: var(--fs-sm); line-height: var(--lh-normal); white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface-2); max-height: 320px; overflow: auto; }
+.toggle { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-4) var(--sp-5); border-radius: var(--r-lg); background: var(--surface-2); border: 1px solid var(--border-strong); font-weight: 700; cursor: pointer; }
+.toggle span { flex: 1; }
+.toggle:hover { background: var(--surface-3); }
+.rot { transform: rotate(180deg); }
+.prompt { overflow: hidden; }
+.promptInner { display: grid; gap: var(--sp-3); }
+.msg { border-radius: var(--r-lg); padding: var(--sp-3) var(--sp-4); background: var(--surface); border: 1px solid var(--border); }
+.msg pre { margin: var(--sp-2) 0 0; font-family: var(--font-mono); font-size: var(--fs-sm); line-height: var(--lh-normal); white-space: pre-wrap; overflow-wrap: anywhere; }
+.role { font-size: var(--fs-xs); font-weight: 800; letter-spacing: 0.12em; }
+.role_system { border-color: var(--c-information); }
+.role_system .role { color: var(--c-information); }
+.role_user { border-color: var(--c-model); }
+.role_user .role { color: var(--c-model); }
+.role_assistant { border-color: var(--c-orchestration); }
+.role_assistant .role { color: var(--c-orchestration); }
+.role_tool { border-color: var(--c-action); }
+.role_tool .role { color: var(--c-action); }

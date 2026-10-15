@@ -1,0 +1,205 @@
+/*
+ * Harness Lab design tokens — visual language of e38.it:
+ * warm off-white paper, lavender sections, ink text, teal / violet / lime accents,
+ * system fonts (no bundled font files), soft radii, very light shadows, thin dotted lines.
+ * Light is the default theme; [data-theme] switches to dark or "aula" (projector).
+ */
+:root {
+  /* e38 brand palette */
+  --e38-bg: #fcfbf8;
+  --e38-surface: #f5f3f7;
+  --e38-lavender: #f1edff;
+  --e38-text: #1d2428;
+  --e38-muted: #5f6d72;
+  --e38-teal: #176d76;
+  --e38-violet: #9372ff;
+  --e38-violet-deep: #6548c9;
+  --e38-lime: #c9fc00;
+
+  /* Families of the harness (text-safe colour + soft tint) */
+  --c-model: var(--e38-text); /* the model is a black box */
+  --c-model-soft: color-mix(in srgb, var(--e38-text) 7%, transparent);
+  --c-model-glow: rgba(29, 36, 40, 0.14);
+  --c-information: var(--e38-teal);
+  --c-information-soft: color-mix(in srgb, var(--e38-teal) 10%, transparent);
+  --c-action: #587500; /* lime, deepened for text and strokes */
+  --c-action-fill: var(--e38-lime);
+  --c-action-soft: color-mix(in srgb, var(--e38-lime) 26%, transparent);
+  --c-orchestration: var(--e38-violet-deep);
+  --c-orchestration-fill: var(--e38-violet);
+  --c-orchestration-soft: var(--e38-lavender);
+  --c-governance: #b83a5e;
+  --c-governance-soft: color-mix(in srgb, #b83a5e 9%, transparent);
+  --c-user: var(--e38-text);
+  --c-user-fill: var(--e38-lime);
+
+  /* Semantic states (always with icon + text) */
+  --c-success: #4b7300;
+  --c-warning: #a36200;
+  --c-danger: #b83a5e;
+  --c-info: var(--e38-teal);
+
+  /* Provenance badges */
+  --c-prov-real: #4b7300;
+  --c-prov-local: var(--e38-muted);
+  --c-prov-simulated: var(--e38-violet-deep);
+  --c-prov-prerecorded: var(--e38-teal);
+  --c-prov-external: #a36200;
+  --c-prov-unavailable: #8a959a;
+
+  /* Surfaces & text */
+  --bg: var(--e38-bg);
+  --bg-elev: #ffffff;
+  --surface: #ffffff;
+  --surface-2: var(--e38-surface);
+  --surface-3: #ebe7f1;
+  --section: linear-gradient(180deg, var(--e38-lavender) 0%, color-mix(in srgb, var(--e38-surface) 70%, var(--e38-bg)) 70%);
+  --border: color-mix(in srgb, var(--e38-text) 13%, var(--e38-bg));
+  --border-strong: color-mix(in srgb, var(--e38-text) 30%, var(--e38-bg));
+  --text: var(--e38-text);
+  --text-muted: var(--e38-muted);
+  --text-faint: #8a959a;
+  --on-ink: #fcfbf8;
+  --focus: var(--e38-teal);
+  --canvas-grid: rgba(29, 36, 40, 0.07);
+  --boundary: color-mix(in srgb, var(--e38-teal) 40%, transparent);
+
+  /* Typography */
+  /* System fonts only: nothing to download and no third-party font licenses to ship. */
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  --fs-xs: 0.8125rem;
+  --fs-sm: 0.9375rem;
+  --fs-md: 1.0625rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.625rem;
+  --fs-2xl: 2.25rem;
+  --fs-3xl: 3.5rem;
+  --lh-tight: 1.15;
+  --lh-normal: 1.6;
+
+  /* Spacing (e38 scale) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+
+  /* Shape & depth */
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+  --shadow-1: 0 1px 3px rgba(29, 36, 40, 0.07), 0 1px 2px rgba(29, 36, 40, 0.04);
+  --shadow-2: 0 4px 16px rgba(29, 36, 40, 0.08), 0 2px 4px rgba(29, 36, 40, 0.04);
+  --shadow-glow: var(--shadow-2);
+
+  /* Motion (e38 durations and easings) */
+  --dur-fast: 150ms;
+  --dur-base: 250ms;
+  --dur-slow: 350ms;
+  --dur-scene: 700ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  /* Layers */
+  --z-canvas: 1;
+  --z-panel: 10;
+  --z-overlay: 50;
+  --z-modal: 100;
+  --z-toast: 200;
+
+  /* Layout */
+  --topbar-h: 68px;
+  --left-w: 300px;
+  --right-w: 440px;
+
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --c-model: #f2f0eb;
+  --c-model-soft: rgba(242, 240, 235, 0.1);
+  --c-model-glow: rgba(0, 0, 0, 0.4);
+  --c-information: #4fb3bd;
+  --c-information-soft: rgba(79, 179, 189, 0.14);
+  --c-action: #c9fc00;
+  --c-action-soft: rgba(201, 252, 0, 0.14);
+  --c-orchestration: #b49dff;
+  --c-orchestration-soft: rgba(147, 114, 255, 0.16);
+  --c-governance: #f07e9b;
+  --c-governance-soft: rgba(240, 126, 155, 0.14);
+  --c-user: #f2f0eb;
+  --c-success: #b5e61d;
+  --c-warning: #f0b45b;
+  --c-danger: #f07e9b;
+  --c-info: #4fb3bd;
+  --c-prov-real: #b5e61d;
+  --c-prov-local: #a9b4b8;
+  --c-prov-simulated: #b49dff;
+  --c-prov-prerecorded: #4fb3bd;
+  --c-prov-external: #f0b45b;
+  --c-prov-unavailable: #7b858a;
+  --bg: #14191c;
+  --bg-elev: #1b2125;
+  --surface: #1d2428;
+  --surface-2: #232b30;
+  --surface-3: #2c353b;
+  --section: linear-gradient(180deg, #1f2430 0%, #1a2024 70%);
+  --border: rgba(242, 240, 235, 0.12);
+  --border-strong: rgba(242, 240, 235, 0.28);
+  --text: #f2f0eb;
+  --text-muted: #a9b4b8;
+  --text-faint: #7b858a;
+  --on-ink: #14191c;
+  --focus: #4fb3bd;
+  --canvas-grid: rgba(242, 240, 235, 0.06);
+  --boundary: rgba(79, 179, 189, 0.45);
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 6px 22px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+
+/* "Aula": maximum contrast and larger type for projectors. */
+[data-theme='aula'] {
+  --bg: #ffffff;
+  --surface-2: #f3f1f6;
+  --section: #f6f3ff;
+  --border: rgba(0, 0, 0, 0.32);
+  --border-strong: rgba(0, 0, 0, 0.6);
+  --text: #000000;
+  --text-muted: #2f3a3e;
+  --text-faint: #4a5458;
+  --c-information: #0f5960;
+  --c-orchestration: #4f33b3;
+  --c-action: #3f5600;
+  --c-governance: #9a2347;
+  --fs-xs: 0.9375rem;
+  --fs-sm: 1.0625rem;
+  --fs-md: 1.1875rem;
+  --fs-lg: 1.4375rem;
+  --fs-xl: 1.875rem;
+  --fs-2xl: 2.5rem;
+  --fs-3xl: 3.75rem;
+}
+
+/* Presentation mode enlarges everything (classroom projection). */
+[data-presentation='true'] {
+  font-size: 118%;
+  --left-w: 0px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 1ms;
+    --dur-base: 1ms;
+    --dur-slow: 1ms;
+    --dur-scene: 1ms;
+  }
+}

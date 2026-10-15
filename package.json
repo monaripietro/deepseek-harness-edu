@@ -14,9 +14,11 @@
     "native/system",
     "native/system/packages/*",
     "apps/*",
+    "!apps/edu-harness-lab",
     "website"
   ],
   "scripts": {
+    "lab": "pnpm --dir apps/edu-harness-lab dev",
     "prepare:primary-runtime": "tsx scripts/primary-runtime/prepare.ts",
     "build": "tsx scripts/build.ts",
     "build:bench": "npm run build:native-system && npm run build:lib && tsdown --config-loader native --config benchmarks/tsdown.config.ts",

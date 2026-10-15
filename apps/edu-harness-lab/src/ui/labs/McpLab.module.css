@@ -1,0 +1,15 @@
+.realCard { border-color: var(--c-prov-external); }
+.sub { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); cursor: pointer; }
+.timeline { list-style: none; margin: 0; padding: 0; display: flex; gap: var(--sp-5); flex-wrap: wrap; }
+.step { display: flex; align-items: center; gap: 8px; color: var(--text-faint); }
+.stepDone { color: var(--c-success); }
+.dot { width: 24px; height: 24px; border-radius: 50%; border: 1px solid currentColor; display: grid; place-items: center; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+.tool { border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); background: var(--surface-2); }
+.tool summary { cursor: pointer; display: flex; gap: var(--sp-3); flex-wrap: wrap; }
+.try { display: flex; flex-direction: column; gap: var(--sp-3); margin-top: var(--sp-3); }
+.resErr { border-color: var(--c-danger); }
+.wire { display: flex; flex-direction: column; gap: 4px; max-height: 360px; overflow: auto; margin-top: var(--sp-3); }
+.wireRow summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 4px 0; }

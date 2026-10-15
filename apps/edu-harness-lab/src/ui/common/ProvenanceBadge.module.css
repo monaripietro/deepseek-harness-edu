@@ -1,0 +1,48 @@
+.wrap {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px 1px 6px;
+  border-radius: var(--r-pill);
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  line-height: 1.6;
+  white-space: nowrap;
+  border: 1.5px solid currentColor;
+}
+
+.real {
+  color: var(--c-prov-real);
+  background: color-mix(in srgb, var(--c-prov-real) 14%, transparent);
+}
+.simulated {
+  color: var(--c-prov-simulated);
+  border-style: dashed;
+  background: color-mix(in srgb, var(--c-prov-simulated) 10%, transparent);
+}
+.prerecorded {
+  color: var(--c-prov-prerecorded);
+  border-style: dotted;
+  background: color-mix(in srgb, var(--c-prov-prerecorded) 10%, transparent);
+}
+.unavailable {
+  color: var(--c-prov-unavailable);
+  text-decoration: line-through;
+}
+.local {
+  color: var(--c-prov-local);
+  border-width: 1px;
+}
+.external {
+  color: var(--c-prov-external);
+  border-width: 1px;
+  background: color-mix(in srgb, var(--c-prov-external) 10%, transparent);
+}

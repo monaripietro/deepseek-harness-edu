@@ -1,0 +1,34 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: var(--sp-5);
+  background: rgba(29, 36, 40, 0.38);
+  backdrop-filter: blur(4px);
+}
+.card {
+  --tone: var(--c-model);
+  position: relative;
+  width: min(var(--w, 760px), 100%);
+  max-height: min(92dvh, 900px);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-xl);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 64px rgba(29, 36, 40, 0.18), var(--shadow-1);
+  overflow: hidden;
+  outline: none;
+}
+.close {
+  position: absolute;
+  top: var(--sp-3);
+  right: var(--sp-3);
+  z-index: 2;
+}
+.body {
+  overflow: auto;
+  min-height: 0;
+}

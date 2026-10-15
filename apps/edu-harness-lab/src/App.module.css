@@ -1,0 +1,241 @@
+.app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--c-orchestration-soft) 55%, transparent) 0%, transparent 320px),
+    var(--bg);
+}
+
+.screen {
+  height: 100dvh;
+  min-height: 560px;
+  display: flex;
+  flex-direction: column;
+}
+/* The map takes the whole width; the "Prova e racconto" drawer is optional and pushes it when open. */
+.engine {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+}
+.engineWithDrawer {
+  grid-template-columns: minmax(0, 1fr) var(--drawer-w, 480px);
+}
+/* While dragging the drawer edge: no text selection, resize cursor everywhere. */
+.resizing,
+.resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+.stageWrap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  background: var(--section);
+  overflow: hidden;
+}
+/* Bottom-right actions over the map: full screen and the optional "Prova e racconto" drawer. */
+.stageActions {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 25;
+  display: flex;
+  gap: var(--sp-2);
+}
+.stageAction {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 36px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.stageAction:hover {
+  background: var(--surface-2);
+}
+.runAction {
+  border-color: var(--c-action-fill);
+  background: var(--c-action-fill);
+  color: #1d2428;
+  font-weight: 700;
+}
+.runAction:hover {
+  background: var(--c-action-fill);
+  filter: brightness(0.96);
+}
+.stopAction {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--on-ink);
+}
+.stopAction:hover {
+  background: var(--text);
+}
+.stageActionOn {
+  background: var(--c-orchestration-soft);
+  border-color: color-mix(in srgb, var(--c-orchestration-fill) 45%, var(--border));
+}
+.narrationWrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+}
+/* Drag handle on the drawer's left edge. */
+.resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 5;
+  width: 12px;
+  display: grid;
+  place-items: center;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+.resizer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: transparent;
+  transition: background 0.15s;
+}
+.resizer:hover::before,
+.resizer:focus-visible::before,
+.resizing .resizer::before {
+  background: var(--c-orchestration-fill, var(--c-orchestration));
+}
+.resizerGrip {
+  width: 4px;
+  height: 44px;
+  border-radius: 99px;
+  background: var(--border-strong);
+  transition: background 0.15s;
+}
+.resizer:hover .resizerGrip,
+.resizer:focus-visible .resizerGrip {
+  background: var(--c-orchestration-fill, var(--c-orchestration));
+}
+.drawerClose {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-muted);
+}
+.drawerClose:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.narrationWrap[hidden] {
+  display: none;
+}
+.sideTabs {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4) var(--sp-3) var(--sp-5);
+  border-bottom: 1px solid var(--border);
+}
+.sideTabs > [role='tablist'] {
+  flex: 1;
+  max-width: 380px;
+}
+/* The narration panel sits flush inside the drawer. */
+.sidePane > aside {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: var(--sp-5) var(--sp-6);
+}
+.sideTabs button[role='tab'] {
+  white-space: nowrap;
+  font-weight: 500;
+}
+.sideBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.sidePane {
+  height: 100%;
+  min-height: 0;
+}
+.sidePane[hidden] {
+  display: none;
+}
+
+.presentationScreen {
+  height: auto;
+}
+.presenting.engineWithDrawer {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(560px, 1fr) 360px;
+}
+
+.compare {
+  flex: 1;
+  min-width: 0;
+  padding: var(--sp-5);
+}
+
+@media (max-width: 1120px) {
+  .screen {
+    height: auto;
+  }
+  .engine,
+  .engineWithDrawer {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+  }
+  .stageWrap {
+    min-height: 560px;
+  }
+  .narrationWrap {
+    height: 540px;
+  }
+}
+
+@media (max-width: 700px) {
+  .engine {
+    padding: var(--sp-2) var(--sp-3) var(--sp-4);
+  }
+  .stageWrap {
+    min-height: 0;
+    overflow: visible;
+  }
+  .narrationWrap {
+    height: auto;
+    min-height: 500px;
+  }
+  .compare {
+    padding: var(--sp-3);
+  }
+}

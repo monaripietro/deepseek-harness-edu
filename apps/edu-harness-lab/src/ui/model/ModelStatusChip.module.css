@@ -1,0 +1,68 @@
+.chip {
+  display: inline-flex;
+  max-width: min(100%, 250px);
+  min-width: 0;
+  min-height: 40px;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+}
+.chip:hover {
+  border-color: var(--c-model);
+}
+.chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.chip > svg {
+  flex: none;
+}
+.empty {
+  border-color: var(--focus);
+  background: var(--c-information-soft);
+}
+.error {
+  border-color: var(--c-danger);
+  background: var(--c-governance-soft);
+  color: var(--c-danger);
+}
+.label {
+  flex: 1;
+  min-width: 0;
+  max-width: 185px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 560px) {
+  .chip {
+    min-height: 36px;
+    gap: var(--sp-1);
+    padding: 0 9px;
+  }
+  .label {
+    max-width: 120px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
