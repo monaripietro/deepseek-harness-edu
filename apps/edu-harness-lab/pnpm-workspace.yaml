@@ -1,0 +1,10 @@
+allowBuilds:
+  onnxruntime-node: false
+  protobufjs: false
+minimumReleaseAgeExclude:
+  - framer-motion@14.2.0
+  - lucide-react@1.56.0
+  - motion-dom@14.2.0
+  - motion-utils@14.1.1
+  - motion@14.2.0
+strictDepBuilds: false

@@ -1,0 +1,34 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write apps/edu-harness-lab/README.md
+/harness-lab-from-model-to-agent:
+  en: c4f27f1035a93d00
+  zh: cca82a68a205ceb5
+/harness-lab-from-model-to-agent/summary:
+  en: 0e8cd6d55cbac52f
+  zh: 9c44d352bbc857cf
+/harness-lab-from-model-to-agent/table-of-contents:
+  en: 8892c117025a8975
+  zh: c5c0f6d0757b6848
+/harness-lab-from-model-to-agent/startup:
+  en: ef1a540286c409b3
+  zh: 69fa25a57c7b5011
+/harness-lab-from-model-to-agent/using-the-lab:
+  en: 5f71143425114d70
+  zh: 3481a50244d719ee
+/harness-lab-from-model-to-agent/models:
+  en: fe14f8dbdcf09520
+  zh: fb1d2d28282705da
+/harness-lab-from-model-to-agent/scenario-context:
+  en: c5e0a431bc7caec5
+  zh: 8358068bf0fdd508
+/harness-lab-from-model-to-agent/iterative-reflection-without-tools:
+  en: 90f0e59e6e42ab12
+  zh: c31c15d653ddc55f
+/harness-lab-from-model-to-agent/lesson-links:
+  en: 57116c13127e4248
+  zh: e82fb85aa2c65942
+/harness-lab-from-model-to-agent/real-and-simulated-components:
+  en: 1382860a1eb3f9d4
+  zh: 088f012f479d7305

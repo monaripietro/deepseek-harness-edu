@@ -1,0 +1,98 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  height: 40px;
+  padding: 0 var(--sp-4);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast), border-color var(--dur-fast), box-shadow var(--dur-base), opacity var(--dur-fast);
+}
+.btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  transform: translateY(-1px);
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.primary {
+  background: var(--c-action-fill);
+  border-color: var(--c-action-fill);
+  color: #1d2428;
+  border-radius: var(--r-sm);
+  font-weight: 700;
+}
+.primary:hover:not(:disabled) {
+  background: var(--c-action-fill);
+  filter: brightness(0.97);
+  transform: translateY(-1px);
+}
+.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+.ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.danger {
+  background: color-mix(in srgb, var(--c-danger) 18%, transparent);
+  border-color: var(--c-danger);
+  color: var(--c-danger);
+}
+.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--c-danger) 30%, transparent);
+}
+.success {
+  background: color-mix(in srgb, var(--c-success) 20%, transparent);
+  border-color: var(--c-success);
+  color: var(--c-success);
+}
+.success:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--c-success) 32%, transparent);
+}
+.sm {
+  height: 32px;
+  padding: 0 var(--sp-3);
+  font-size: var(--fs-xs);
+}
+.lg {
+  height: 52px;
+  padding: 0 var(--sp-6);
+  font-size: var(--fs-md);
+}
+.icon {
+  width: 40px;
+  padding: 0;
+}
+.icon.sm {
+  width: 32px;
+}
+.active {
+  background: var(--c-model-soft);
+  border-color: var(--c-model);
+  color: var(--text);
+}
+.label {
+  display: inline;
+}
+@media (max-width: 1499px) {
+  .hideLabel .label {
+    display: none;
+  }
+  .hideLabel {
+    padding: 0;
+    width: 40px;
+  }
+}

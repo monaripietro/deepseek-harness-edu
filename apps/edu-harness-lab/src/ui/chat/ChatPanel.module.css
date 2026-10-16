@@ -1,0 +1,23 @@
+.root { display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-5); font-size: var(--fs-md); color: var(--text); }
+.title { margin: 0; font-size: var(--fs-md); font-weight: 800; letter-spacing: 0.12em; }
+.empty { display: grid; justify-items: center; gap: var(--sp-3); padding: var(--sp-7) var(--sp-5); text-align: center; color: var(--text-muted); border: 1px dashed var(--border-strong); border-radius: var(--r-lg); }
+.empty p { margin: 0; max-width: 40ch; line-height: var(--lh-normal); }
+.list { display: grid; gap: var(--sp-3); }
+.kicker { font-size: var(--fs-xs); font-weight: 800; letter-spacing: 0.14em; color: var(--text-muted); }
+.request { display: grid; gap: var(--sp-1); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-lg); background: var(--surface-2); color: var(--text-muted); margin-top: var(--sp-3); }
+.request p { margin: 0; font-size: var(--fs-md); line-height: var(--lh-normal); color: var(--text-muted); overflow-wrap: anywhere; }
+.note { padding: var(--sp-3) var(--sp-4); border-radius: var(--r-md); background: var(--c-orchestration-soft); font-size: var(--fs-sm); }
+.answer { display: grid; gap: var(--sp-3); padding: var(--sp-5); border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--border); border-top: 4px solid var(--c-model); box-shadow: var(--shadow-1); }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.dur { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: var(--fs-sm); color: var(--text-muted); font-family: var(--font-mono); }
+.text { font-size: var(--fs-md); line-height: var(--lh-normal); overflow-wrap: anywhere; }
+.resultTitle { margin: 0 0 var(--sp-2); color: var(--c-model); font-size: var(--fs-sm); font-weight: 500; }
+.caret { display: inline-block; width: 8px; height: 1.1em; vertical-align: text-bottom; background: var(--c-model); animation: blink 1s steps(2) infinite; }
+.thinking { display: flex; align-items: center; gap: var(--sp-3); margin: 0; color: var(--text-muted); }
+.dots { display: inline-flex; gap: 5px; }
+.dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--c-model); animation: pulse 1.2s ease-in-out infinite; }
+.dots i:nth-child(2) { animation-delay: 0.15s; }
+.dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes blink { to { opacity: 0; } }
+@keyframes pulse { 0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .caret, .dots i { animation: none; } }

@@ -1,0 +1,27 @@
+.chip {
+  --chip-c: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  border-radius: var(--r-pill);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--chip-c);
+  background: color-mix(in srgb, var(--chip-c) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--chip-c) 38%, transparent);
+  white-space: nowrap;
+}
+button.chip {
+  cursor: pointer;
+  transition: background var(--dur-fast), transform var(--dur-fast);
+}
+button.chip:hover {
+  background: color-mix(in srgb, var(--chip-c) 24%, transparent);
+}
+.on {
+  background: color-mix(in srgb, var(--chip-c) 28%, transparent);
+  border-color: var(--chip-c);
+  color: var(--text);
+}

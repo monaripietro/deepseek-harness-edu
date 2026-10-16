@@ -1,0 +1,246 @@
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  overflow: auto;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.inner {
+  width: min(100%, 1040px);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: var(--sp-7) var(--sp-6);
+  display: grid;
+  align-content: center;
+  gap: var(--sp-6);
+}
+
+.hero {
+  max-width: 800px;
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.kicker {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: clamp(var(--fs-2xl), 6vw, var(--fs-3xl));
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.lead {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-lg);
+  line-height: var(--lh-normal);
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border);
+}
+
+.stepNum {
+  color: var(--c-orchestration);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.stepCopy h2 {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 500;
+  line-height: var(--lh-tight);
+}
+
+.stepCopy p {
+  margin: var(--sp-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.reality {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-5);
+  padding: var(--sp-4) 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.fact {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  margin: 0;
+}
+
+.factIcon {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--c-information);
+}
+
+.factCopy {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.factCopy strong {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+
+.factCopy span {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.actions {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+.downloadNote {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  max-width: 78ch;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-normal);
+}
+
+.downloadNote svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--c-information);
+}
+
+.disclosure {
+  padding-top: var(--sp-1);
+}
+
+.summary {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary::marker {
+  content: '';
+}
+
+.summary:hover {
+  color: var(--text);
+}
+
+.chevron {
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.disclosure[open] .chevron {
+  transform: rotate(180deg);
+}
+
+.badges {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3) var(--sp-5);
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  list-style: none;
+}
+
+.badges li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.badges li > span:last-child {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+@media (max-width: 760px) {
+  .inner {
+    padding: var(--sp-5) var(--sp-4);
+    gap: var(--sp-5);
+  }
+
+  .title {
+    font-size: clamp(var(--fs-2xl), 12vw, var(--fs-3xl));
+  }
+
+  .steps,
+  .reality,
+  .badges {
+    grid-template-columns: 1fr;
+  }
+
+  .steps,
+  .reality {
+    gap: var(--sp-3);
+  }
+}
+
+@media (max-width: 480px) {
+  .ctas {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .ctas button {
+    width: 100%;
+  }
+}

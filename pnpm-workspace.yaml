@@ -7,6 +7,8 @@ packages:
   - native/system/packages/*
   # Product assemblies over the package tier; apps/cli owns the `dsh` bin.
   - apps/*
+  # Standalone educational app with its own lockfile (apps/edu-harness-lab/README.md).
+  - '!apps/edu-harness-lab'
   # Private package owning repository-level benchmark dependencies.
   - benchmarks
   - website
