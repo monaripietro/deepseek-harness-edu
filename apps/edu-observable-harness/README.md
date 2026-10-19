@@ -1,4 +1,5 @@
 # EDU Observable Harness
+English | [中文](README.zh.md)
 
 Una webapp educativa, statica e osservabile, derivata concettualmente da [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
 Nessuna dipendenza, nessun backend: solo HTML, CSS e moduli JavaScript nativi.
@@ -31,12 +32,7 @@ python3 -m http.server 8080
 
 ## Deploy su GitHub Pages
 
-Deploy automatico via GitHub Actions, pubblica su **https://harness.monaripietro.it**.
-
-1. *Settings → Pages → Source: **GitHub Actions*** (già configurato nel repo; dominio custom `harness.monaripietro.it` con certificato approvato).
-2. Il workflow [`.github/workflows/edu-pages.yml`](../../.github/workflows/edu-pages.yml) parte a ogni push su `master` che tocca l'app, o manualmente (*Actions → Deploy EDU Observable Harness → Run workflow*).
-3. Il workflow non ha alcun build step: l'app è statica pura, quindi copia `apps/edu-observable-harness/` in `_site/`, aggiunge il `CNAME`, verifica la presenza di `index.html`/`styles.css`/`app.js`, carica l'artifact Pages e deploya con `actions/deploy-pages@v4`.
-4. Nessun segreto server-side: il workflow usa solo i permessi standard `contents: read`, `pages: write`, `id-token: write`.
+Questa app statica non viene pubblicata su GitHub Pages. Il workflow [`.github/workflows/edu-pages.yml`](../../.github/workflows/edu-pages.yml) compila `apps/edu-harness-lab/` e distribuisce il risultato su [harness.monaripietro.it](https://harness.monaripietro.it).
 
 ## Architettura
 

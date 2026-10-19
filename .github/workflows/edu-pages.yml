@@ -1,15 +1,11 @@
-# Deploy the EDU Observable Harness mini-app to GitHub Pages.
-# The app is a fully static site (plain HTML/CSS/ES modules, no framework,
-# no dependencies, no build step): the "build output" is the app folder itself.
-# The workflow follows the standard Pages pipeline: checkout -> configure
-# pages -> (no-op build) -> verify artifact -> upload artifact -> deploy.
-name: Deploy EDU Observable Harness
+# Build Harness Lab and publish it to the existing custom Pages domain.
+name: Deploy Harness Lab
 
 on:
   push:
     branches: [master]
     paths:
-      - 'apps/edu-observable-harness/**'
+      - 'apps/edu-harness-lab/**'
       - '.github/workflows/edu-pages.yml'
   workflow_dispatch:
 
@@ -27,23 +23,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/edu-harness-lab/pnpm-lock.yaml
       - uses: actions/configure-pages@v5
-      - name: Assemble static site (no build step required)
+      - name: Install Harness Lab dependencies
+        working-directory: apps/edu-harness-lab
+        run: pnpm install --frozen-lockfile
+      - name: Build Harness Lab
+        working-directory: apps/edu-harness-lab
+        env:
+          HARNESS_LAB_BASE: /
+        run: pnpm build
+      - name: Add custom-domain file
         run: |
-          mkdir -p _site
-          cp -r apps/edu-observable-harness/* _site/
-          echo 'harness.monaripietro.it' > _site/CNAME
+          echo 'harness.monaripietro.it' > apps/edu-harness-lab/dist/CNAME
       - name: Verify artifact contents
         run: |
-          test -f _site/index.html
-          test -f _site/styles.css
-          test -f _site/app.js
-          test -f _site/CNAME
+          test -f apps/edu-harness-lab/dist/index.html
+          test -f apps/edu-harness-lab/dist/manifest.webmanifest
+          test -n "$(find apps/edu-harness-lab/dist/assets -maxdepth 1 -type f -name '*.js' -print -quit)"
+          test -n "$(find apps/edu-harness-lab/dist/assets -maxdepth 1 -type f -name '*.css' -print -quit)"
+          test "$(cat apps/edu-harness-lab/dist/CNAME)" = 'harness.monaripietro.it'
           echo "Artifact verified:"
-          find _site -type f | sort
+          find apps/edu-harness-lab/dist -type f | sort
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: apps/edu-harness-lab/dist
 
   deploy:
     needs: build

@@ -147,11 +147,13 @@ export function App() {
     if (vel === 0.5 || vel === 1 || vel === 2 || vel === 4) s.setSpeed(vel)
     const lab = q.get('lab')
     if (lab === 'tools' || lab === 'rag' || lab === 'mcp' || lab === 'memory') s.openLab(lab)
-    // ?modello=lfm-350m|qwen3-0.6b|lfm-1.2b|gemma4-e2b: the teacher's link is the explicit consent to download that model.
+    // ?modello=lfm-350m|qwen3-0.6b|lfm-1.2b|gemma4-e2b|emma-6: the teacher's link is the explicit consent to download that model.
     const modello = q.get('modello')
     if (modello === 'scegli') setModelOpen(true)
     const loading =
-      modello === 'lfm-350m' || modello === 'qwen3-0.6b' || modello === 'lfm-1.2b' || modello === 'gemma4-e2b' ? useLab.getState().loadModel(modello) : Promise.resolve()
+      modello === 'lfm-350m' || modello === 'qwen3-0.6b' || modello === 'lfm-1.2b' || modello === 'gemma4-e2b' || modello === 'emma-6'
+        ? useLab.getState().loadModel(modello)
+        : Promise.resolve()
     void loading.then(() => {
       if (q.get('esperimento') === '1') void useLab.getState().runExperiment()
       else if (q.get('avvia') === '1') void useLab.getState().send()

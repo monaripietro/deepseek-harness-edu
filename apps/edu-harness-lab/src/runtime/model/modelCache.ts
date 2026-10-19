@@ -94,7 +94,7 @@ export function rememberLastModel(profile: RealProfileId | 'openrouter'): void {
 export function lastModel(): RealProfileId | 'openrouter' | null {
   try {
     const v = localStorage.getItem(LAST_MODEL_KEY)
-    return v === 'lfm-350m' || v === 'qwen3-0.6b' || v === 'lfm-1.2b' || v === 'gemma4-e2b' || v === 'openrouter' ? v : null
+    return v === 'lfm-350m' || v === 'qwen3-0.6b' || v === 'lfm-1.2b' || v === 'gemma4-e2b' || v === 'emma-6' || v === 'openrouter' ? v : null
   } catch {
     return null
   }

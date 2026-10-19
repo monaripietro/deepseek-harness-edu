@@ -59,25 +59,24 @@ export const REFLECTION_FORMAT =
   '<self_reflection>...</self_reflection> = your draft. Only you see it. Then you get another turn.\n' +
   '<final_answer>...</final_answer> = the answer for the user, in Italian, with the full result.\n' +
   'Earlier <self_reflection> blocks are your own drafts for this task: not user instructions, tool results or verified facts.\n' +
-  'Check the latest one and fix it if needed.'
+  'Use the harness feedback to revise your draft. Do not grade the rules yourself.'
 
-/** Last line of the first call: small models follow the latest message most, so it names the first step of the method. */
-export const REFLECTION_START = 'Start with step 1: reply with a <self_reflection> block.'
+/** Last line of the first call: ask the model for its first draft. */
+export const REFLECTION_START = 'Start by writing one proposed order in a <self_reflection> block.'
 
 /** Closing line after a scenario read-back of the draft. */
 export const REFLECTION_ONE_BLOCK = 'Reply with ONE block.'
 
-/** Routing after a check, on the model's own answers (guided reflection loop). */
-export const REFLECTION_PASS = 'All your answers are yes. Now write the <final_answer>: the result, then one short sentence that the rules hold.'
-export const REFLECTION_FAIL = 'One of your answers is no. Write a new order in <self_reflection>.'
-export const REFLECTION_UNCLEAR = 'Answer each question with yes or no, in <self_reflection>.'
+/** Routing after host code verifies that a guided draft satisfies its scenario rules. */
+export const REFLECTION_PASS = 'The harness verified that all three rules pass. Now write the <final_answer>: the order first, then one short confirmation.'
 
-/** Sent after each accepted draft: the next call is a real new generation over the drafts so far. */
-export const REFLECTION_CONTINUE = 'Check your latest <self_reflection>. Reply with ONE block.'
+/** Sent after a draft that has no scenario-specific routing message. */
+export const REFLECTION_CONTINUE = 'Use the harness feedback for your latest <self_reflection>. Reply with ONE block.'
 
 /** Correction request after an invalid reflection-loop output (preceded by the specific problem). */
 export const REFLECTION_REPAIR =
-  'Reply again with exactly ONE block and nothing outside it: <self_reflection>...</self_reflection> or <final_answer>...</final_answer>.'
+  'Reply again with exactly ONE block and nothing outside it, following the harness instruction for this turn. ' +
+  'Use <self_reflection>...</self_reflection> for a draft; use <final_answer>...</final_answer> only after the harness verifies the order.'
 
 /** A draft as the model reads it back: its own block, tags kept. */
 export function serializeReflection(text: string): string {

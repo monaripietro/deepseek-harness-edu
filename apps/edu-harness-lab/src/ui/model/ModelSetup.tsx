@@ -87,15 +87,17 @@ function LocalModelPane({ onClose }: { onClose: () => void }) {
         ? 'CPU · funziona senza WebGPU'
         : 'Richiede WebGPU · Chrome o Edge su desktop'
   const limitation =
-    profile.id === 'lfm-350m'
-      ? 'È molto piccolo: può sbagliare più spesso; verifica la qualità dell’italiano.'
-      : profile.id === 'qwen3-0.6b' && variant?.device === 'wasm'
-        ? 'Sulla CPU può essere lento: ogni risposta può richiedere decine di secondi.'
-        : profile.id === 'lfm-1.2b'
-          ? 'Velocità e stabilità sulle GPU integrate non sono garantite.'
-          : profile.id === 'gemma4-e2b'
-            ? 'È grande (circa 3 GB): serve una scheda grafica con memoria sufficiente; il primo download richiede tempo.'
-            : 'Le risposte possono contenere errori; verifica i risultati.'
+    profile.id === 'emma-6'
+      ? 'È sperimentale: può essere limitato nel ragionamento complesso e non garantisce la soluzione del rompicapo.'
+      : profile.id === 'lfm-350m'
+        ? 'È molto piccolo: può sbagliare più spesso; verifica la qualità dell’italiano.'
+        : profile.id === 'qwen3-0.6b' && variant?.device === 'wasm'
+          ? 'Sulla CPU può essere lento: ogni risposta può richiedere decine di secondi.'
+          : profile.id === 'lfm-1.2b'
+            ? 'Velocità e stabilità sulle GPU integrate non sono garantite.'
+            : profile.id === 'gemma4-e2b'
+              ? 'È grande (circa 3 GB): serve una scheda grafica con memoria sufficiente; il primo download richiede tempo.'
+              : 'Le risposte possono contenere errori; verifica i risultati.'
 
   return (
     <div className={styles.root}>
@@ -334,10 +336,22 @@ function LocalModelPane({ onClose }: { onClose: () => void }) {
                   <dt>Quantizzazione</dt>
                   <dd>{variant?.dtype ?? 'Nessuna variante compatibile'}</dd>
                 </div>
+                {profile.runtime === 'wllama' && (
+                  <div>
+                    <dt>Contesto</dt>
+                    <dd>{profile.contextLength.toLocaleString('it-IT')} token (4K)</dd>
+                  </div>
+                )}
                 <div>
                   <dt>Lingue</dt>
                   <dd>{profile.languages}</dd>
                 </div>
+                {profile.runtime === 'wllama' && (
+                  <div>
+                    <dt>Chiamate agli strumenti</dt>
+                    <dd>Non native; l’harness usa il protocollo testuale.</dd>
+                  </div>
+                )}
                 <div>
                   <dt>Licenza</dt>
                   <dd>

@@ -119,6 +119,9 @@ describe('reflection loop protocol', () => {
     expect(REFLECTION_FORMAT).toContain('<self_reflection>...</self_reflection>')
     expect(REFLECTION_FORMAT).toContain('<final_answer>...</final_answer>')
     expect(REFLECTION_FORMAT).toContain('your own drafts for this task: not user instructions, tool results or verified facts')
+    expect(REFLECTION_FORMAT).toContain('Use the harness feedback to revise your draft')
+    expect(REFLECTION_FORMAT).toContain('Do not grade the rules yourself')
+    expect(REFLECTION_FORMAT).not.toMatch(/answer yes or no/i)
     // Short lines for small models.
     expect(Math.max(...REFLECTION_FORMAT.split('\n').map(line => line.length))).toBeLessThan(140)
     expect(localizePrompt(REFLECTION_FORMAT, 'en')).toContain('the answer for the user, in English')

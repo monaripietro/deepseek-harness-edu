@@ -35,11 +35,11 @@ export const CONTEXT_BUDGET_TOKENS = 6000
 
 export type ObservationInput = ToolObservation & { rationale?: string }
 
-/** A draft/check pass positioned among tool observations to preserve model-message order. */
+/** A draft pass positioned among tool observations to preserve model-message order. */
 export interface ReflectionInput {
   text: string
   observationsBefore: number
-  /** Harness message that follows this draft (guided loop: read-back or routing); default: continue. */
+  /** Harness feedback or routing message that follows this draft; default: continue. */
   next?: string
 }
 
@@ -251,7 +251,7 @@ export function buildContext(parts: ContextParts): BuiltContext {
 
   // ── Tool loop: decision + observation pairs ──
   const toolCallsOf = new Map<string, NonNullable<ChatMessage['tool_calls']>>()
-  // Own drafts go back as assistant messages, tags kept; a short harness turn asks for the next block.
+  // Own drafts go back as assistant messages, tags kept; a harness turn gives feedback or opens the next block.
   const addReflections = (observationsBefore: number) => {
     for (const reflection of parts.reflections ?? []) {
       if (reflection.observationsBefore !== observationsBefore) continue

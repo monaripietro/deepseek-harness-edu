@@ -11,6 +11,9 @@ importers:
       '@huggingface/transformers':
         specifier: 4.3.1
         version: 4.3.1(@types/node@26.6.5)
+      '@wllama/wllama':
+        specifier: 3.8.1
+        version: 3.8.1
       ajv:
         specifier: 8.20.0
         version: 8.20.0
@@ -1262,6 +1265,9 @@ packages:
 
   '@vitest/spy@5.0.4':
     resolution: {integrity: sha512-MZKk/gSkm2q+ICobMxCpH1mA+cCAWm8WV7UhxlqGjq/sJ3AGc1BqFOs5CRVXxH78wQtme9q/NAAgBquj4AcyMw==}
+
+  '@wllama/wllama@3.8.1':
+    resolution: {integrity: sha512-Pl7BEJhPU8OHnV/yhn3DFZYhLLOdSHh+4TND79WCftHnlUAdQPAsyc/CfIOY+4mVxvf5VW3Xw3Uf7BBfotS1gw==}
 
   acorn@8.19.0:
     resolution: {integrity: sha512-oJlA3XiRm7Cyk6qFD2Jn8ak9B7jSy0qy00ADO3+8dpT0LSjFihQYv4C02LFCSYJV3Q37xYwwRy5m+IpIiUzqWw==}
@@ -4037,6 +4043,8 @@ snapshots:
       vite: 8.3.4(@types/node@26.6.5)(terser@5.51.2)
 
   '@vitest/spy@5.0.4': {}
+
+  '@wllama/wllama@3.8.1': {}
 
   acorn@8.19.0: {}
 

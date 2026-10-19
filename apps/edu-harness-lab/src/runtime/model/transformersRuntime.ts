@@ -1,7 +1,7 @@
 import type { LoadProgress, ModelInfo, ModelRequest, ModelResponse, ModelRuntime, ThinkingEffort } from '../../domain/types'
 import { REAL_LOCAL } from '../../domain/types'
 import { detectCapabilities } from './capabilities'
-import { fingerprintFor, PROFILES, resolveVariant, type RealProfileId, THINKING_BUDGET } from './profiles'
+import { fingerprintFor, PROFILES, resolveVariant, type TransformersProfileId, THINKING_BUDGET } from './profiles'
 import type { WorkerEvent, WorkerRequest } from './workerProtocol'
 
 export interface TransformersRuntimeOptions {
@@ -24,8 +24,9 @@ const abortError = () => {
  * ModelRuntime backed by Transformers.js running in a dedicated module worker (WebGPU, WASM only for the light
  * profile). The worker is created lazily on the first load and terminated on unload.
  */
-export function createTransformersRuntime(profileId: RealProfileId, options: TransformersRuntimeOptions = {}): ModelRuntime {
+export function createTransformersRuntime(profileId: TransformersProfileId, options: TransformersRuntimeOptions = {}): ModelRuntime {
   const profile = PROFILES[profileId]
+  if (profile.runtime === 'wllama') throw new Error(`${profile.label} richiede il runtime GGUF.`)
   const info: ModelInfo = {
     profile: profile.id,
     id: profile.repo,
@@ -134,7 +135,7 @@ export function createTransformersRuntime(profileId: RealProfileId, options: Tra
           }
           listeners.add(onEvent)
           signal?.addEventListener('abort', onAbort, { once: true })
-          send({ type: 'load', profile: profile.id, device: variant.device, dtype: variant.dtype, expectedBytes: variant.sizeBytes, cacheOnly: opts?.cacheOnly })
+          send({ type: 'load', profile: profileId, device: variant.device, dtype: variant.dtype, expectedBytes: variant.sizeBytes, cacheOnly: opts?.cacheOnly })
         })
       })()
       loadPromise.catch(() => {

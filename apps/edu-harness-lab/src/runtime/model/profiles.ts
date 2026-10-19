@@ -6,6 +6,7 @@ import type { ModelInfo, ModelProfileId, ThinkingEffort } from '../../domain/typ
  * Repos, file names and sizes verified on the Hugging Face API (onnx/ tree) on 2026-10-14.
  */
 export type RealProfileId = Exclude<ModelProfileId, 'test-double' | 'openrouter'>
+export type TransformersProfileId = Exclude<RealProfileId, 'emma-6'>
 
 /** Where the weights come from. Flip `selfHosted` later to serve the weights from the app origin. */
 export const MODEL_SOURCE: Readonly<{ selfHosted: boolean; localModelPath: string }> = {
@@ -25,7 +26,17 @@ export interface ModelVariant {
   sizeBytes: number
 }
 
-export interface ModelProfile {
+export interface WllamaVariant {
+  runtime: 'wllama'
+  device: 'wasm' | 'webgpu'
+  dtype: 'Q4_K_M'
+  sizeBytes: number
+}
+
+export type ResolvedModelVariant = ModelVariant | WllamaVariant
+export type ToolCallFormat = 'lfm' | 'qwen' | 'gemma'
+
+interface BaseModelProfile {
   id: RealProfileId
   repo: string
   label: string
@@ -45,8 +56,6 @@ export interface ModelProfile {
   repetitionPenalty: number
   /** Extra kwargs for the chat template (e.g. Qwen3 thinking switch). */
   templateKwargs?: Record<string, unknown>
-  /** Native tool-call syntax, used to pre-write a guided call: LFM2 Pythonic, Qwen JSON in <tool_call>, Gemma 4 call:name{}. */
-  toolFormat: 'lfm' | 'qwen' | 'gemma'
   /** The chat template has an enable_thinking switch: the reasoning effort setting applies. */
   thinking?: boolean
   /**
@@ -54,6 +63,52 @@ export interface ModelProfile {
    * to the common prefix. Hybrid models with convolution state (LFM2) cannot.
    */
   kvReuse?: boolean
+}
+
+export interface TransformersModelProfile extends BaseModelProfile {
+  runtime?: 'transformers'
+  cpu?: ModelVariant
+  gpu?: ModelVariant
+  /** Native tool-call syntax, used to pre-write a guided call. */
+  toolFormat: ToolCallFormat
+}
+
+export interface WllamaModelProfile extends BaseModelProfile {
+  runtime: 'wllama'
+  modelFile: string
+  quantization: 'Q4_K_M'
+  modelSizeBytes: number
+  contextLength: number
+  /** Emma-6 uses the harness's text protocol instead of native tool calls. */
+  toolFormat: null
+  cpu?: never
+  gpu?: never
+}
+
+export type ModelProfile = TransformersModelProfile | WllamaModelProfile
+
+export const EMMA_PROFILE: WllamaModelProfile = {
+  id: 'emma-6',
+  runtime: 'wllama',
+  repo: 'PaoloneSborracchione/emma-6-GGUF',
+  modelFile: 'emma-6-Q4_K_M.gguf',
+  label: 'Emma-6',
+  tagline: 'Un modello italiano sperimentale, eseguito nel browser senza conversioni',
+  params: 'Circa 1,55 miliardi di parametri',
+  quantization: 'Q4_K_M',
+  modelSizeBytes: 1_024_069_952,
+  contextLength: 4096,
+  license: 'OpenRAIL',
+  licenseUrl: 'https://huggingface.co/PaoloneSborracchione/emma-6-GGUF',
+  languages: 'Italiano come lingua principale',
+  memoryEstimate: 'Stima: oltre 1 GB di memoria durante l’uso.',
+  notes: [
+    'Conversione GGUF non ufficiale del modello Egomnia; usa il template di chat incluso nel file.',
+    'Non è addestrato per chiamate native agli strumenti: l’harness usa il protocollo testuale.',
+    'È sperimentale e può essere limitato nel ragionamento complesso; non garantisce la soluzione del rompicapo.',
+  ],
+  repetitionPenalty: 1.05,
+  toolFormat: null,
 }
 
 const MB = 1_000_000
@@ -142,12 +197,42 @@ export const PROFILES: Record<RealProfileId, ModelProfile> = {
     thinking: true,
     templateKwargs: { enable_thinking: false },
   },
+  'emma-6': EMMA_PROFILE,
 }
 
-export const PROFILE_LIST: ModelProfile[] = [PROFILES['qwen3-0.6b'], PROFILES['lfm-350m'], PROFILES['lfm-1.2b'], PROFILES['gemma4-e2b']]
+export const PROFILE_LIST: ModelProfile[] = [
+  PROFILES['qwen3-0.6b'],
+  PROFILES['lfm-350m'],
+  PROFILES['lfm-1.2b'],
+  PROFILES['gemma4-e2b'],
+  EMMA_PROFILE,
+]
 
 /** Which variant runs on this device: WebGPU when present (and f16-capable for q4f16), otherwise the CPU. */
-export function resolveVariant(profile: ModelProfile, webgpu: boolean, shaderF16: boolean): ModelVariant | null {
+export function resolveVariant(
+  profile: TransformersModelProfile,
+  webgpu: boolean,
+  shaderF16: boolean,
+): ModelVariant | null
+export function resolveVariant(profile: WllamaModelProfile, webgpu: boolean, shaderF16: boolean): WllamaVariant
+export function resolveVariant(
+  profile: ModelProfile,
+  webgpu: boolean,
+  shaderF16: boolean,
+): ResolvedModelVariant | null
+export function resolveVariant(
+  profile: ModelProfile,
+  webgpu: boolean,
+  shaderF16: boolean,
+): ResolvedModelVariant | null {
+  if (profile.runtime === 'wllama') {
+    return {
+      runtime: 'wllama',
+      device: webgpu ? 'webgpu' : 'wasm',
+      dtype: profile.quantization,
+      sizeBytes: profile.modelSizeBytes,
+    }
+  }
   if (webgpu && profile.gpu && (profile.gpu.dtype !== 'q4f16' || shaderF16)) return profile.gpu
   if (profile.cpu) return profile.cpu
   if (webgpu && profile.gpu) return { ...profile.gpu, dtype: 'q4' }
@@ -158,7 +243,7 @@ export function resolveVariant(profile: ModelProfile, webgpu: boolean, shaderF16
 export const THINKING_BUDGET: Record<Exclude<ThinkingEffort, 'off'>, number> = { low: 512, medium: 1024, high: 2048 }
 
 /** Opening of a native tool call whose argument the model completes (guided decoding). */
-export function toolCallPrefix(format: ModelProfile['toolFormat'], call: { name: string; arg: string }): string {
+export function toolCallPrefix(format: ToolCallFormat, call: { name: string; arg: string }): string {
   switch (format) {
     case 'lfm':
       return `<|tool_call_start|>[${call.name}(${call.arg}="`
@@ -170,9 +255,11 @@ export function toolCallPrefix(format: ModelProfile['toolFormat'], call: { name:
 }
 
 /** Short constant label proving the model never changes between levels. */
-export function fingerprintFor(profile: ModelProfile, variant: ModelVariant): string {
+export function fingerprintFor(profile: ModelProfile, variant: ResolvedModelVariant): string {
   let h = 0x811c9dc5
-  for (const ch of `${profile.repo}|${variant.dtype}`) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193) >>> 0
+  const modelIdentity =
+    profile.runtime === 'wllama' ? `${profile.repo}|${profile.modelFile}|${variant.dtype}` : `${profile.repo}|${variant.dtype}`
+  for (const ch of modelIdentity) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193) >>> 0
   return h.toString(16).padStart(8, '0')
 }
 

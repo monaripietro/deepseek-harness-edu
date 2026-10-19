@@ -54,6 +54,12 @@ describe('English scenarios (prompt language en)', () => {
       expect(item.text).not.toMatch(ITALIAN_FORMATS)
     }
     expect(english.context.instructions).not.toMatch(/Italian/)
+    if (id === PENDING) {
+      expect(english.reflectionPrompt).toBe(italian.reflectionPrompt)
+      expect(english.reflectionPrompt).toContain('Use the harness feedback in the next turn')
+      expect(english.reflectionPrompt).toContain('Do not grade the rules yourself')
+      expect(english.reflectionPrompt).not.toMatch(/answer yes or no|Rule 1:|Rule 2:/i)
+    }
     // Only the model-facing texts change: memory keys, document ids, UI labels and checkers stay the same.
     expect({ ...english.context, taskData: [], instructions: '' }).toEqual({ ...italian.context, taskData: [], instructions: '' })
     expect(english.title).toBe(italian.title)

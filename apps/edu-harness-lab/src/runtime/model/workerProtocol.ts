@@ -1,9 +1,9 @@
 import type { ChatMessage, ModelToolSpec } from '../../domain/types'
-import type { ModelVariant, RealProfileId } from './profiles'
+import type { ModelVariant, TransformersProfileId } from './profiles'
 
 /** Messages main thread -> worker. */
 export type WorkerRequest =
-  | { type: 'load'; profile: RealProfileId; device: 'wasm' | 'webgpu'; dtype: ModelVariant['dtype']; expectedBytes?: number; cacheOnly?: boolean }
+  | { type: 'load'; profile: TransformersProfileId; device: 'wasm' | 'webgpu'; dtype: ModelVariant['dtype']; expectedBytes?: number; cacheOnly?: boolean }
   | { type: 'generate'; id: string; messages: ChatMessage[]; tools?: ModelToolSpec[]; maxNewTokens: number; forceTool?: { name: string; arg: string }; prefill?: string; stop?: string[]; thinking?: boolean }
   | { type: 'abort'; id: string }
   | { type: 'unload' }

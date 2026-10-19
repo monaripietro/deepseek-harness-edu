@@ -187,7 +187,7 @@ export interface ToolObservation {
 
 // ───────────────────────── Model runtime ─────────────────────────
 
-export type ModelProfileId = 'lfm-350m' | 'qwen3-0.6b' | 'lfm-1.2b' | 'gemma4-e2b' | 'openrouter' | 'test-double'
+export type ModelProfileId = 'lfm-350m' | 'qwen3-0.6b' | 'lfm-1.2b' | 'gemma4-e2b' | 'emma-6' | 'openrouter' | 'test-double'
 
 /** How much the model may "think" before answering (only for models that support it; the reasoning is never shown). */
 export type ThinkingEffort = 'off' | 'low' | 'medium' | 'high'
@@ -202,6 +202,8 @@ export interface ModelInfo {
   dtype?: string
   /** Approximate download size in bytes. */
   sizeBytes?: number
+  /** Context window loaded by the runtime, in tokens. */
+  contextLength?: number
   /** Short constant fingerprint shown on the canvas to prove the model never changes. */
   fingerprint: string
   license?: string
@@ -592,22 +594,15 @@ export interface ScenarioTranslation {
 }
 
 /**
- * Micro-steps of the reflection loop: the model drafts a candidate, then checks it against questions with the
- * candidate's own numbers, then answers. The orchestrator opens the right block for local models (prefill) and
- * routes on the model's own yes/no answers: it never judges the candidate itself.
+ * Guides a reflection loop in which the harness checks each candidate and supplies feedback before accepting a final answer.
  */
 export interface ReflectionGuide {
-  /** Written after `<self_reflection>` when a draft is due, e.g. a line that names the slots to fill. */
+  /** Opening text for the model's candidate draft. */
   draftStart: string
-  /** Written after `<self_reflection>` when a check is due, e.g. 'Rule 1: '. */
-  checkStart: string
-  /**
-   * Deterministic read-back of a draft: its candidate restated, with the check questions using its numbers
-   * (`complete: false` when the draft has no complete candidate: the text then asks for one).
-   */
+  /** Parses a draft and returns its candidate with rule feedback; complete is false when it contains no full candidate. */
   readback: (draft: string) => { text: string; complete: boolean }
-  /** The model's own verdict in a check: every answer yes → 'pass', any no → 'fail', unclear → null. */
-  verdict: (check: string) => 'pass' | 'fail' | null
+  /** Checks a candidate order and returns null when no complete order can be parsed. */
+  verdict: (candidate: string) => 'pass' | 'fail' | null
 }
 
 export interface ScenarioContext {

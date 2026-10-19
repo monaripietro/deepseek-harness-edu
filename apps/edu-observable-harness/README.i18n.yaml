@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write apps/edu-observable-harness/README.md
+/edu-observable-harness:
+  en: 5ac24d31ff66a1a5
+  zh: 51ed3c559dc316cc
+/edu-observable-harness/perch-esiste:
+  en: 14afa8be21f03d54
+  zh: 10b5db863f7e1c16
+/edu-observable-harness/avvio-locale:
+  en: af717815e3c80aa9
+  zh: 7385a0463ac888f3
+/edu-observable-harness/deploy-su-github-pages:
+  en: 7c7101bd6070f171
+  zh: 44535189a598e9c1
+/edu-observable-harness/architettura:
+  en: 26b7159bc3c8b659
+  zh: 42df73bb4c788d31
+/edu-observable-harness/what-this-teaches-about-harnesses:
+  en: a292c138b7e384c1
+  zh: f2020663f66a664c
+/edu-observable-harness/security-limitations-of-frontend-only-byok-apps:
+  en: b749ddd6dfdd383e
+  zh: d436f5fcdaf68709
+/edu-observable-harness/scope:
+  en: 97acb5fde7946406
+  zh: 1b42f12c2385cd3a

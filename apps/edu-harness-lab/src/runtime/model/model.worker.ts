@@ -224,7 +224,10 @@ async function generate(req: Extract<WorkerRequest, { type: 'generate' }>): Prom
       inputs = tokenizer.apply_chat_template(chat, opts)
     }
     // Guided call: the prompt ends with the opening of the tool call, the model writes only the argument.
-    const prefix = req.forceTool ? toolCallPrefix(profile.toolFormat, req.forceTool) : (req.prefill ?? '')
+    if (req.forceTool && !profile.toolFormat) {
+      throw new Error(`${profile.label} non supporta chiamate native agli strumenti.`)
+    }
+    const prefix = req.forceTool && profile.toolFormat ? toolCallPrefix(profile.toolFormat, req.forceTool) : (req.prefill ?? '')
     if (prefix) {
       const promptText = tokenizer.apply_chat_template(chat, { ...opts, tokenize: false, return_dict: false })
       inputs = tokenizer(promptText + prefix, { add_special_tokens: false })

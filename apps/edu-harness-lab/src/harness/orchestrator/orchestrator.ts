@@ -25,11 +25,9 @@ import { buildContext, type ObservationInput, type ReflectionInput } from './con
 import { FAULT_LABEL, corruptArgs, createRepeatDetector, effectsFor, shortenText, simulatedActionId } from './guards'
 import {
   NATIVE_REPAIR,
-  REFLECTION_FAIL,
   REFLECTION_ONE_BLOCK,
   REFLECTION_PASS,
   REFLECTION_REPAIR,
-  REFLECTION_UNCLEAR,
   REPAIR_INSTRUCTION,
   parseDecision,
   parseNative,
@@ -44,9 +42,8 @@ const PLAN_CALL = { name: PLAN_TOOL.id, arg: 'piano' }
 const PLAN_GUIDE = 'Prima di agire l’orchestratore fa scrivere al modello un piano: passi numerati, ciascuno con lo strumento da usare.'
 /** Guided reflection loop: what the orchestrator opens at each micro-step (shown in the app). */
 const GUIDE_STEP = {
-  draft: 'L’orchestratore apre una bozza (<self_reflection>): il modello la completa con una proposta concreta.',
-  check: 'L’orchestratore apre il controllo: il modello risponde sì o no a ogni regola, con i numeri della sua bozza.',
-  final: 'Il modello ha risposto sì a tutte le regole: l’orchestratore apre la risposta finale (<final_answer>).',
+  draft: 'L’orchestratore apre una bozza (<self_reflection>): il modello la completa con un ordine concreto.',
+  final: 'Il codice ha verificato l’ordine e tutti i vincoli: l’orchestratore apre la risposta finale (<final_answer>).',
 } as const
 const planFirst = (toolIds: string[], loop: boolean) =>
   `Before acting, call ${PLAN_TOOL.id} with your plan: 1 to 5 numbered steps. Each step names a relevant tool ` +
@@ -132,8 +129,9 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
   const actions: RunRecord['actions'] = []
   const observations: ObservationInput[] = []
   const reflections: ReflectionInput[] = []
-  /** Guided reflection loop: the micro-step due next. */
-  let guidePhase: 'draft' | 'check' | 'final' = 'draft'
+  /** Guided reflection loop: the next block is an order draft or a verified final answer. */
+  let guidePhase: 'draft' | 'final' = 'draft'
+  let guideOrderVerified = false
   let humanInterventions = 0
   let stepIndex = 0
   let lastProvenance = deps.runtime.info.provenance
@@ -383,13 +381,13 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
             repairMessages.push({ role: 'user', content: planFirst(tools.map(t => t.id), c.agentLoop) })
           }
           const modelTools = planning && !loopState.planned ? [PLAN_TOOL, ...tools] : tools
-          // Guided reflection loop: the orchestrator opens the block of the current micro-step and the model completes it
+          // Guided reflection loop: the orchestrator opens a draft or final block and the model completes it
           // (local models; remote ones only read the routing messages).
           const guide = reflectionMode && !mustAnswer ? scenario.reflectionGuide : undefined
           const prefill = guide
             ? guidePhase === 'final'
               ? '<final_answer>\n'
-              : `<self_reflection>\n${guidePhase === 'draft' ? guide.draftStart : guide.checkStart}`
+              : `<self_reflection>\n${guide.draftStart}`
             : undefined
           if (prefill && deps.runtime.info.backend !== 'remote') {
             await emit({ type: 'decision/repair', attempt: 0, instruction: GUIDE_STEP[guidePhase] }, { stepIndex: sIdx, source: 'orchestrator' })
@@ -455,6 +453,21 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
             if (parsed.ok && parsed.decision.type === 'reflect' && (!reflectionMode || mustAnswer)) {
               parsed = { ok: false, error: 'La riflessione non è disponibile: scegli una risposta finale o una delle azioni ammesse.' }
             }
+            if (parsed.ok && parsed.decision.type === 'answer' && reflectionMode && scenario.reflectionGuide) {
+              const answerVerdict = scenario.reflectionGuide.verdict(parsed.decision.text)
+              if (!guideOrderVerified || answerVerdict !== 'pass') {
+                const repair = !guideOrderVerified
+                  ? 'The harness has not verified an order that satisfies all three rules. Write one <self_reflection> order so the harness can check it.'
+                  : 'Put one complete order that satisfies all three rules first in <final_answer>, then confirm them briefly.'
+                parsed = {
+                  ok: false,
+                  error: !guideOrderVerified
+                    ? 'Risposta finale prematura: il codice non ha ancora verificato un ordine conforme ai tre vincoli.'
+                    : 'Ordine non valido nella risposta finale: scrivi prima un ordine completo che soddisfi i tre vincoli.',
+                  repair,
+                }
+              }
+            }
             // Arithmetic check: an answer with numbers that come from no source was computed "in the head".
             // Not accepted (once per turn): the model redoes it through a guided calculator call.
             if (parsed.ok && parsed.decision.type === 'answer' && calculator && !calcNudged && !mustAnswer) {
@@ -499,32 +512,34 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
           }
 
           // ── act on the decision ──
+          let reflectionRepeatKey: string | undefined
           if (decision.type === 'reflect') {
-            // Guided loop: read the draft back with its own numbers, or route on the model's own yes/no answers.
             let next: string | undefined
             const stepGuide = reflectionMode ? scenario.reflectionGuide : undefined
-            if (stepGuide && guidePhase === 'check') {
-              const verdict = stepGuide.verdict(decision.text)
-              guidePhase = verdict === 'pass' ? 'final' : verdict === 'fail' ? 'draft' : 'check'
-              next = verdict === 'pass' ? REFLECTION_PASS : verdict === 'fail' ? REFLECTION_FAIL : REFLECTION_UNCLEAR
-            } else if (stepGuide) {
+            if (stepGuide) {
               const readback = stepGuide.readback(decision.text)
-              guidePhase = readback.complete ? 'check' : 'draft'
-              next = `${readback.text}\n${REFLECTION_ONE_BLOCK}`
+              // This scenario's verdict parses the candidate order; it never reads a model-reported rule result.
+              const verdict = stepGuide.verdict(decision.text)
+              guideOrderVerified = verdict === 'pass'
+              guidePhase = guideOrderVerified ? 'final' : 'draft'
+              reflectionRepeatKey = readback.text
+              next = guideOrderVerified ? REFLECTION_PASS : `${readback.text}\n${REFLECTION_ONE_BLOCK}`
             }
             reflections.push({ text: decision.text, observationsBefore: observations.length, ...(next ? { next } : {}) })
           }
           if (protocol === 'json') await emit({ type: 'decision/parsed', decision }, { stepIndex: sIdx, source: 'model', provenance: lastProvenance })
           if (decision.type === 'reflect') {
-            const repeats = detector.record('reflection', { text: decision.text.replace(/\s+/g, ' ').trim().toLowerCase() })
+            const repeatText = reflectionRepeatKey ?? decision.text
+            const repeats = detector.record('reflection', { text: repeatText.replace(/\s+/g, ' ').trim().toLowerCase() })
             if (controls && repeats >= limits.repeatStopAt) {
-              await emit({ type: 'guard/triggered', guard: 'repeat', message: 'La stessa riflessione viene ripetuta senza modifiche: il ciclo si ferma, senza dichiarare convergenza.' }, { stepIndex: sIdx, source: 'controls' })
-              throw new Halt('loop_detected', STOP_MESSAGES.loop_detected, 'Il modello ha ripetuto la stessa proposta senza completare la verifica. Il ciclo è stato interrotto.')
+              await emit({ type: 'guard/triggered', guard: 'repeat', message: 'Lo stesso ordine viene ripetuto senza progressi: il ciclo si ferma, senza dichiarare convergenza.' }, { stepIndex: sIdx, source: 'controls' })
+              throw new Halt('loop_detected', STOP_MESSAGES.loop_detected, 'Il modello ha ripetuto lo stesso ordine senza produrre una risposta verificata. Il ciclo è stato interrotto.')
             }
             if (controls && repeats >= limits.repeatWarnAt) {
-              guardNotice = 'Your last <self_reflection> repeats the previous one without progress. Check one constraint concretely and correct ' +
-                'the candidate, or give the <final_answer> if every check passes.'
-              await emit({ type: 'guard/triggered', guard: 'repeat', message: 'Riflessione invariata: il prossimo passo chiede di riesaminare la proposta.' }, { stepIndex: sIdx, source: 'controls' })
+              guardNotice = reflectionRepeatKey
+                ? 'Your order is unchanged after the harness reported the rule results. Revise it using that feedback; write a <final_answer> only after the harness confirms that all rules pass.'
+                : 'Your last <self_reflection> repeats the previous one without progress. Revise it using the latest feedback, or follow the harness instruction for the next block.'
+              await emit({ type: 'guard/triggered', guard: 'repeat', message: 'Ordine invariato: il prossimo passo chiede di usare il feedback del controllo.' }, { stepIndex: sIdx, source: 'controls' })
             }
             await endStep(); return
           }

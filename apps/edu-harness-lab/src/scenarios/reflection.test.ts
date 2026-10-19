@@ -6,13 +6,13 @@ import { configForLevel } from '../harness/levels'
 import { createMcpHub } from '../harness/mcp/hub'
 import { createMemoryStore } from '../harness/memory/memoryStore'
 import { runTurn } from '../harness/orchestrator/orchestrator'
-import { REFLECTION_CONTINUE, REFLECTION_FORMAT, REFLECTION_REPAIR } from '../harness/orchestrator/protocol'
+import { REFLECTION_FORMAT, REFLECTION_PASS, REFLECTION_REPAIR } from '../harness/orchestrator/protocol'
 import { createRetriever } from '../harness/rag/retriever'
 import { createToolRegistry } from '../harness/tools/registry'
 import { BUILTIN_TOOLS } from '../harness/tools/builtin'
 import { createScriptedModel } from '../test-support/scripted/scriptedModel'
 import type { ScriptedPolicy } from '../test-support/scripted/scriptedModel'
-import { REFLECTION_TEST_ANSWER, REFLECTION_TEST_PASSES, simulateReflection } from '../test-support/scripted/reflectionPolicy'
+import { REFLECTION_TEST_ANSWER, REFLECTION_TEST_DRAFTS, simulateReflection } from '../test-support/scripted/reflectionPolicy'
 import { SCENARIO_DATA } from './data'
 import { getScenario } from './index'
 
@@ -65,11 +65,11 @@ describe('prompt-guided reflection through the real agent loop', () => {
     const result = await harness.run()
     expect(result.stopReason).toBe('final_answer')
     expect(result.toolCalls).toEqual([])
-    expect(result.reflections).toEqual(REFLECTION_TEST_PASSES)
+    expect(result.reflections).toEqual(REFLECTION_TEST_DRAFTS)
     expect(result.checks.every(check => check.passed)).toBe(true)
     expect(result.answer).toBe(REFLECTION_TEST_ANSWER)
     expect(result.modelInfo.reasoning).toBe(false)
-    // One real model call per block: draft, correction, final answer.
+    // One model call per block: candidate, corrected order, final answer.
     expect(harness.requests).toHaveLength(3)
     expect(harness.requests.every(request => !request.tools && !request.forceTool)).toBe(true)
 
@@ -77,14 +77,19 @@ describe('prompt-guided reflection through the real agent loop', () => {
     expect(system?.role).toBe('system')
     expect(system?.content).toContain(REFLECTION_FORMAT)
     expect(system?.content).toContain(reflectionScenario.reflectionPrompt ?? 'missing prompt')
+    expect(reflectionScenario.reflectionPrompt).toContain('Use the harness feedback in the next turn')
+    expect(reflectionScenario.reflectionPrompt).toContain('Do not grade the rules yourself')
+    expect(reflectionScenario.reflectionPrompt).not.toMatch(/answer yes or no|Rule 1:|Rule 2:/i)
     expect(system?.content).not.toContain('"azione"')
 
-    for (const [index, text] of REFLECTION_TEST_PASSES.entries()) {
+    for (const [index, text] of REFLECTION_TEST_DRAFTS.entries()) {
       const request = harness.requests[index + 1]
       // Own drafts come back as assistant messages, tags kept, in the order they were written.
       const drafts = request?.messages.filter(message => message.role === 'assistant').map(message => message.content)
-      expect(drafts).toEqual(REFLECTION_TEST_PASSES.slice(0, index + 1).map(draft))
-      expect(request?.messages.at(-1)).toEqual({ role: 'user', content: REFLECTION_CONTINUE })
+      expect(drafts).toEqual(REFLECTION_TEST_DRAFTS.slice(0, index + 1).map(draft))
+      expect(request?.messages.at(-1)?.role).toBe('user')
+      if (index === 0) expect(request?.messages.at(-1)?.content).toContain('Rule 3 fails:')
+      else expect(request?.messages.at(-1)?.content).toBe(REFLECTION_PASS)
       expect(request?.messages.some(message => message.role === 'tool' || message.tool_calls?.length)).toBe(false)
       expect(result.answer).not.toContain(text)
     }
@@ -122,8 +127,8 @@ describe('prompt-guided reflection through the real agent loop', () => {
           },
         ],
         "reflections": [
-          "Proposta: Delta, Beta, Alfa, Gamma. Verifica: Gamma è ultima, quindi la proposta viola un vincolo.",
-          "Correzione: Delta, Gamma, Beta, Alfa. Delta precede Beta, Alfa segue subito Beta, Gamma è seconda: tutti i vincoli sono soddisfatti.",
+          "1 = Delta, 2 = Beta, 3 = Alfa, 4 = Gamma.",
+          "1 = Delta, 2 = Gamma, 3 = Beta, 4 = Alfa.",
         ],
         "stopReason": "final_answer",
         "toolCalls": [],
@@ -140,6 +145,62 @@ describe('prompt-guided reflection through the real agent loop', () => {
     expect(result.toolCalls).toEqual([])
     expect(harness.requests.every(request => !request.tools)).toBe(true)
     expect(harness.requests[0]?.messages[0]?.content).not.toMatch(/usa_strumento|## Tools/)
+  })
+
+  it('does not trust a yes claim for an order whose Rule 2 fails', async () => {
+    const invalid = 'Alfa, Beta, Gamma, Delta.\nRule 1: no. Rule 2: yes. Rule 3: true.'
+    const harness = setup({
+      policy: hints => hints.reflections?.length
+        ? `<final_answer>\n${REFLECTION_TEST_ANSWER}\n</final_answer>`
+        : draft(invalid),
+    })
+    const result = await harness.run()
+    const feedback = harness.requests[1]?.messages.at(-1)?.content ?? ''
+
+    expect(feedback).toContain('Rule 2 fails:')
+    expect(feedback).toContain('Alfa at position 1 is not immediately after Beta at position 2')
+    expect(feedback).not.toContain('Rule 2 passes:')
+    expect(result.stopReason).toBe('invalid_output')
+    expect(result.reflections).toEqual([invalid])
+    expect(result.answer).not.toContain('Delta, Gamma, Beta, Alfa')
+    expect(harness.bus.events().some(event => event.type === 'answer')).toBe(false)
+  })
+
+  it('uses actual rule failures to guide a corrected draft before the final answer', async () => {
+    const drafts = [
+      'Alfa, Beta, Gamma, Delta.',
+      'Delta, Gamma, Beta, Alfa.',
+    ]
+    const outputs = [
+      draft(drafts[0] ?? ''),
+      draft(drafts[1] ?? ''),
+      `<final_answer>\n${REFLECTION_TEST_ANSWER}\n</final_answer>`,
+    ]
+    const harness = setup({ policy: hints => outputs[hints.reflections?.length ?? 0] ?? '' })
+    const result = await harness.run()
+    const feedback = harness.requests[1]?.messages.at(-1)?.content ?? ''
+
+    expect(feedback).toContain('Rule 1 fails: Delta at position 4 is not before Beta at position 2.')
+    expect(feedback).toContain('Rule 2 fails: Alfa at position 1 is not immediately after Beta at position 2')
+    expect(feedback).toContain('Rule 3 passes: Gamma at position 3 is neither first nor last.')
+    expect(harness.requests[2]?.messages.filter(message => message.role === 'assistant').map(message => message.content))
+      .toEqual(drafts.map(draft))
+    expect(result.stopReason).toBe('final_answer')
+    expect(result.reflections).toEqual(drafts)
+    expect(result.answer).toBe(REFLECTION_TEST_ANSWER)
+    expect(result.reflections?.every(text => text !== result.answer)).toBe(true)
+  })
+
+  it('publishes a distinct final answer only after the harness verifies the order', async () => {
+    const harness = setup()
+    const result = await harness.run()
+
+    expect(result.stopReason).toBe('final_answer')
+    expect(result.reflections).toContain(REFLECTION_TEST_DRAFTS[1])
+    expect(result.answer).toBe(REFLECTION_TEST_ANSWER)
+    expect(result.reflections?.every(text => text.trim() !== result.answer.trim())).toBe(true)
+    expect(result.checks.find(check => check.id === 'ordine-vincoli')?.passed).toBe(true)
+    expect(result.checks.find(check => check.id === 'risposta-separata')?.passed).toBe(true)
   })
 
   it('repairs an invalid output within the limits, without publishing it', async () => {
@@ -185,13 +246,30 @@ describe('prompt-guided reflection through the real agent loop', () => {
     expect(result.checks.find(check => check.id === 'risposta-separata')?.passed).toBe(false)
   })
 
-  it('accepts a final answer without drafts, but the scenario check reports the missing review', async () => {
+  it('rejects a final answer before any draft passes the deterministic check', async () => {
     const harness = setup({ policy: () => `<final_answer>\n${REFLECTION_TEST_ANSWER}\n</final_answer>` })
     const result = await harness.run()
-    expect(result.stopReason).toBe('final_answer')
-    expect(harness.requests).toHaveLength(1)
-    expect(result.checks.find(check => check.id === 'ordine-vincoli')?.passed).toBe(true)
+    expect(result.stopReason).toBe('invalid_output')
+    expect(harness.requests).toHaveLength(1 + harness.config.limits.maxRepairs)
+    expect(result.answer).not.toContain('Delta, Gamma, Beta, Alfa')
+    expect(harness.bus.events().some(event => event.type === 'answer')).toBe(false)
+    expect(result.checks.find(check => check.id === 'ordine-vincoli')?.passed).toBe(false)
     expect(result.checks.find(check => check.id === 'riflessioni-iterate')?.passed).toBe(false)
+  })
+
+  it('rejects a final answer whose order fails the deterministic check', async () => {
+    let calls = 0
+    const harness = setup({
+      policy: () => calls++ === 0
+        ? draft(REFLECTION_TEST_DRAFTS[1] ?? '')
+        : '<final_answer>Delta, Beta, Alfa, Gamma.\n\nThe rules hold.</final_answer>',
+    })
+    const result = await harness.run()
+
+    expect(result.stopReason).toBe('invalid_output')
+    expect(result.reflections).toEqual([REFLECTION_TEST_DRAFTS[1]])
+    expect(result.answer).not.toContain('Delta, Beta, Alfa, Gamma')
+    expect(harness.bus.events().some(event => event.type === 'answer')).toBe(false)
   })
 
   it('does not carry draft text into a new turn', async () => {
@@ -200,7 +278,26 @@ describe('prompt-guided reflection through the real agent loop', () => {
     const nextRequest = harness.requests.length
     await harness.run()
     expect(harness.requests[nextRequest]?.hints.reflections).toEqual([])
-    expect(harness.requests[nextRequest]?.messages.some(message => message.content.includes(REFLECTION_TEST_PASSES[0]))).toBe(false)
+    expect(harness.requests[nextRequest]?.messages.some(message => message.content.includes(REFLECTION_TEST_DRAFTS[0] ?? ''))).toBe(false)
+  })
+
+  it.each([
+    ['a duplicated name', '1 = Delta, 2 = Beta, 3 = Beta, 4 = Alfa.'],
+    ['a missing name', '1 = Delta, 2 = Beta, 3 = Gamma.'],
+    ['an omitted position', '1 = Delta, 2 = Beta, 4 = Alfa.'],
+  ])('keeps %s orders non-final even when the model then tries a final answer', async (_label, invalid) => {
+    const harness = setup({
+      policy: hints => hints.reflections?.length
+        ? `<final_answer>\n${REFLECTION_TEST_ANSWER}\n</final_answer>`
+        : draft(invalid),
+    })
+    const result = await harness.run()
+
+    expect(result.stopReason).toBe('invalid_output')
+    expect(result.reflections).toEqual([invalid])
+    expect(result.answer).not.toContain('Delta, Gamma, Beta, Alfa')
+    expect(harness.requests[1]?.messages.at(-1)?.content).toContain('does not contain one complete order')
+    expect(harness.bus.events().some(event => event.type === 'answer')).toBe(false)
   })
 
   it('stops at the configured step count without presenting it as convergence', async () => {
@@ -215,11 +312,16 @@ describe('prompt-guided reflection through the real agent loop', () => {
     expect(harness.bus.events().some(event => event.type === 'guard/triggered' && event.guard === 'max_steps')).toBe(true)
   })
 
-  it('stops unchanged reflections rather than looping indefinitely', async () => {
-    const harness = setup({ policy: () => draft('Proposta invariata da verificare.') })
+  it('stops a repeated invalid order before reaching the step limit', async () => {
+    let calls = 0
+    const harness = setup({
+      policy: () => draft(`Alfa, Beta, Gamma, Delta.\nRule 2: ${calls++ === 0 ? 'yes' : 'true'}.`),
+    })
     const result = await harness.run()
     expect(result.stopReason).toBe('loop_detected')
     expect(harness.requests).toHaveLength(3)
+    expect(harness.requests[1]?.messages.at(-1)?.content).toContain('Rule 2 fails:')
+    expect(result.steps).toBeLessThan(harness.config.limits.maxSteps)
     expect(result.toolCalls).toEqual([])
     expect(result.checks.find(check => check.id === 'ordine-vincoli')?.passed).toBe(false)
   })
@@ -234,7 +336,7 @@ describe('prompt-guided reflection through the real agent loop', () => {
       const result = await harness.run(controller.signal)
       expect(result.stopReason).toBe('user_stop')
       expect(harness.requests).toHaveLength(1)
-      expect(result.reflections).toEqual([REFLECTION_TEST_PASSES[0]])
+      expect(result.reflections).toEqual([REFLECTION_TEST_DRAFTS[0]])
       expect(result.answer).not.toContain('Delta, Gamma, Beta, Alfa')
     } finally {
       unsubscribe()

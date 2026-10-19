@@ -46,6 +46,7 @@ import { createTransformersRuntime } from '../runtime/model/transformersRuntime'
 import { NOT_LOADED_INFO, PROFILE_LIST, PROFILES, resolveVariant } from '../runtime/model/profiles'
 import type { RealProfileId } from '../runtime/model/profiles'
 import { cachedBytes, deleteCachedRepo, forgetLastModel, isVariantCached, lastModel, lastRemoteModel, rememberLastModel, rememberRemoteModel, requestPersistentStorage } from '../runtime/model/modelCache'
+import { cachedEmmaModelBytes, deleteCachedEmmaModelCache } from '../runtime/model/wllamaCache'
 import { createOpenRouterRuntime } from '../runtime/model/openrouter'
 import type { RemoteModel } from '../runtime/model/openrouter'
 import { forgetApiKey, hasRememberedApiKey, loadApiKey, maskKey, saveApiKey } from '../runtime/model/secretStore'
@@ -84,7 +85,23 @@ export const mcpHub = createMcpHub({ bus, data: () => scenarioDataFor(useLab.get
 
 let liveRuntime: ModelRuntime | null = null
 let abortCtl: AbortController | null = null
+let modelLoadGeneration = 0
+let runtimeTeardown: Promise<void> = Promise.resolve()
 const customToolDisposers = new Map<string, () => void>()
+
+function queueRuntimeTeardown(runtime: ModelRuntime): Promise<void> {
+  const teardown = runtimeTeardown.then(() => runtime.unload())
+  runtimeTeardown = teardown
+  return teardown
+}
+
+async function createLocalRuntime(profile: RealProfileId): Promise<ModelRuntime> {
+  if (profile === 'emma-6') {
+    const { createWllamaRuntime } = await import('../runtime/model/wllamaRuntime')
+    return createWllamaRuntime()
+  }
+  return createTransformersRuntime(profile, { thinking: () => useLab.getState().thinking })
+}
 
 function currentScenario(): Scenario {
   return getScenario(useLab.getState().scenarioId)
@@ -429,34 +446,71 @@ export const useLab = create<LabState>()((set, get) => ({
     set({ needsModel: false })
   },
   async loadModel(profile, opts) {
-    if (liveRuntime && liveRuntime.info.profile !== profile) {
-      // Switching (also from the cloud model): the old one stops being "in use" right away.
-      await liveRuntime.unload()
+    const generation = ++modelLoadGeneration
+    const isCurrent = () => modelLoadGeneration === generation
+    const previous = liveRuntime
+    if (previous && previous.info.profile !== profile) {
+      liveRuntime = null
+      get().stop()
       set({ modelInfo: NOT_LOADED_INFO })
+      try {
+        await queueRuntimeTeardown(previous)
+      } catch (err) {
+        if (isCurrent()) {
+          set({ loadProgress: { phase: 'error', loadedBytes: 0, totalBytes: 0, message: err instanceof Error ? err.message : String(err) } })
+        }
+        return
+      }
+    }
+    try {
+      await runtimeTeardown
+    } catch (err) {
+      if (isCurrent()) {
+        set({ loadProgress: { phase: 'error', loadedBytes: 0, totalBytes: 0, message: err instanceof Error ? err.message : String(err) } })
+      }
+      return
+    }
+    if (!isCurrent()) return
+    if (profile === 'emma-6' && !opts?.cacheOnly && !get().cachedModels[profile]) {
+      await get().refreshModelCache()
+      if (!isCurrent()) return
     }
     if (!liveRuntime || liveRuntime.info.profile !== profile) {
-      liveRuntime = createTransformersRuntime(profile, { thinking: () => get().thinking })
+      const runtime = await createLocalRuntime(profile)
+      if (!isCurrent()) {
+        await runtime.unload()
+        return
+      }
+      liveRuntime = runtime
     }
     const rt = liveRuntime
+    if (!rt) return
     let source: 'cache' | 'network' = opts?.cacheOnly || get().cachedModels[profile] ? 'cache' : 'network'
     set({ profile, loadProgress: { phase: 'checking', loadedBytes: 0, totalBytes: rt.info.sizeBytes ?? 0, source } })
+    const report = (progress: LoadProgress, progressSource: 'cache' | 'network') => {
+      if (isCurrent() && liveRuntime === rt) set({ loadProgress: { ...progress, source: progressSource } })
+    }
     try {
       // Already on disk: read it from there only (no network round trips, much faster);
       // if a file is missing after all, fall back to a normal download.
       if (source === 'cache' && !opts?.cacheOnly) {
         try {
-          await rt.load((p) =>{  set({ loadProgress: { ...p, source: 'cache' } }) }, undefined, { cacheOnly: true })
+          await rt.load(p => report(p, 'cache'), undefined, { cacheOnly: true })
         } catch {
+          if (!isCurrent() || liveRuntime !== rt) return
           source = 'network'
         }
       }
-      if (!rt.isReady()) await rt.load((p) =>{  set({ loadProgress: { ...p, source } }) }, undefined, opts)
+      if (!isCurrent() || liveRuntime !== rt) return
+      if (!rt.isReady()) await rt.load(p => report(p, source), undefined, opts)
+      if (!isCurrent() || liveRuntime !== rt) return
       set({ modelInfo: rt.info, needsModel: false, loadProgress: { phase: 'ready', loadedBytes: 1, totalBytes: 1, source } })
       rememberLastModel(profile)
       // Keep the downloaded weights: ask the browser not to evict them, then update what is on disk.
       if (source === 'network') void requestPersistentStorage()
       void get().refreshModelCache()
     } catch (err) {
+      if (!isCurrent() || liveRuntime !== rt) return
       if (opts?.cacheOnly) {
         // Silent restart failed (e.g. files evicted): back to the normal "load a model" flow.
         set({ loadProgress: { phase: 'idle', loadedBytes: 0, totalBytes: 0 } })
@@ -470,6 +524,11 @@ export const useLab = create<LabState>()((set, get) => ({
     if (!get().capabilities) set({ capabilities: caps })
     const next: Partial<Record<RealProfileId, number>> = {}
     for (const p of PROFILE_LIST) {
+      if (p.runtime === 'wllama') {
+        const size = await cachedEmmaModelBytes()
+        if (size > 0) next[p.id] = size
+        continue
+      }
       const variant = resolveVariant(p, caps.webgpu, caps.shaderF16)
       if (variant && (await isVariantCached(p.repo, variant.dtype))) next[p.id] = await cachedBytes(p.repo)
     }
@@ -502,24 +561,55 @@ export const useLab = create<LabState>()((set, get) => ({
   async forgetOpenRouterKey() {
     await forgetApiKey()
     if (liveRuntime?.info.profile === 'openrouter') {
-      await liveRuntime.unload()
+      const generation = ++modelLoadGeneration
+      const runtime = liveRuntime
       liveRuntime = null
+      get().stop()
       set({ modelInfo: NOT_LOADED_INFO, profile: null, loadProgress: { phase: 'idle', loadedBytes: 0, totalBytes: 0 } })
+      await queueRuntimeTeardown(runtime)
+      if (generation !== modelLoadGeneration) return
     }
     await get().refreshOpenRouterKey()
   },
   async useOpenRouterModel(model, opts) {
-    // Free the local model (GPU/CPU memory): the remote one runs elsewhere.
-    if (liveRuntime) await liveRuntime.unload()
-    liveRuntime = createOpenRouterRuntime({ model, apiKey: loadApiKey, thinking: () => get().thinking })
-    const rt = liveRuntime
+    const generation = ++modelLoadGeneration
+    const isCurrent = () => modelLoadGeneration === generation
+    const previous = liveRuntime
+    if (previous) {
+      liveRuntime = null
+      get().stop()
+      set({ modelInfo: NOT_LOADED_INFO })
+      try {
+        await queueRuntimeTeardown(previous)
+      } catch (err) {
+        if (isCurrent()) {
+          set({ loadProgress: { phase: 'error', loadedBytes: 0, totalBytes: 0, message: err instanceof Error ? err.message : String(err) } })
+        }
+        return
+      }
+    }
+    try {
+      await runtimeTeardown
+    } catch (err) {
+      if (isCurrent()) {
+        set({ loadProgress: { phase: 'error', loadedBytes: 0, totalBytes: 0, message: err instanceof Error ? err.message : String(err) } })
+      }
+      return
+    }
+    if (!isCurrent()) return
+    const rt = createOpenRouterRuntime({ model, apiKey: loadApiKey, thinking: () => get().thinking })
+    liveRuntime = rt
     set({ profile: 'openrouter', remoteModel: model, loadProgress: { phase: 'checking', loadedBytes: 0, totalBytes: 0, source: 'network' } })
     try {
-      await rt.load((p) =>{  set({ loadProgress: p }) })
+      await rt.load((p) => {
+        if (isCurrent() && liveRuntime === rt) set({ loadProgress: p })
+      })
+      if (!isCurrent() || liveRuntime !== rt) return
       set({ modelInfo: rt.info, needsModel: false, loadProgress: { phase: 'ready', loadedBytes: 1, totalBytes: 1, source: 'network' } })
       rememberLastModel('openrouter')
       rememberRemoteModel(model)
     } catch (err) {
+      if (!isCurrent() || liveRuntime !== rt) return
       liveRuntime = null
       set({
         modelInfo: NOT_LOADED_INFO,
@@ -546,7 +636,8 @@ export const useLab = create<LabState>()((set, get) => ({
     return liveRuntime?.isReady() ?? false
   },
   async deleteCachedModel(profile) {
-    await deleteCachedRepo(PROFILES[profile].repo)
+    if (PROFILES[profile].runtime === 'wllama') await deleteCachedEmmaModelCache()
+    else await deleteCachedRepo(PROFILES[profile].repo)
     if (lastModel() === profile) forgetLastModel()
     await get().refreshModelCache()
   },

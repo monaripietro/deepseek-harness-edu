@@ -148,6 +148,41 @@ describe('ModelSetup', () => {
     expect(screen.getByRole('button', { name: 'Scarica e avvia' })).toBeTruthy()
   })
 
+  it('keeps Emma-6 an explicit choice and shows its GGUF limits and metadata', () => {
+    render(<ModelSetup onClose={vi.fn()} />)
+
+    expect(screen.getByRole('heading', { name: 'Qwen3 0.6B' })).toBeTruthy()
+    fireEvent.click(screen.getByText('Altri modelli'))
+    const emma = screen.getByRole('radio', { name: /Emma-6/ })
+    expect(emma.textContent).not.toContain('Consigliato')
+    fireEvent.click(emma)
+
+    expect(screen.getByRole('heading', { name: 'Emma-6' })).toBeTruthy()
+    expect(screen.getByRole('list', { name: 'Download, privacy e limiti' }).textContent).toContain('circa 1,02 GB, una volta sola')
+    expect(screen.getByRole('list', { name: 'Download, privacy e limiti' }).textContent).toContain('È sperimentale')
+    expect(mocks.loadModel).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByText('Dettagli tecnici'))
+    expect(screen.getByText(/token \(4K\)/)).toBeTruthy()
+    expect(screen.getByText('Italiano come lingua principale')).toBeTruthy()
+    expect(screen.getByText('Non native; l’harness usa il protocollo testuale.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: /OpenRAIL/ }).getAttribute('href')).toBe('https://huggingface.co/PaoloneSborracchione/emma-6-GGUF')
+  })
+
+  it('shows the cached Emma-6 size and confirms cache deletion in the model picker', () => {
+    const deleteCachedModel = vi.fn<MockStoreState['deleteCachedModel']>()
+    mocks.state = { ...createState({ cachedModels: { 'emma-6': 1_024_069_952 } }), deleteCachedModel }
+    render(<ModelSetup onClose={vi.fn()} />)
+    fireEvent.click(screen.getByText('Altri modelli'))
+    fireEvent.click(screen.getByRole('radio', { name: /Emma-6/ }))
+
+    expect(screen.getByRole('list', { name: 'Download, privacy e limiti' }).textContent).toContain('Già scaricato')
+    expect(screen.getByRole('button', { name: /^Avvia/ })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /Elimina dal browser/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Conferma: elimina i file dal browser/ }))
+    expect(deleteCachedModel).toHaveBeenCalledWith('emma-6')
+  })
+
   it('announces the loading phase and progress', () => {
     mocks.state = createState({
       progress: { phase: 'downloading', loadedBytes: 42_000_000, totalBytes: 100_000_000 },
