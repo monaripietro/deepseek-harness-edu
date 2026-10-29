@@ -13,5 +13,5 @@ export const context: ScenarioContext = {
   memoryKeys: ['formato'],
   documentIds: ['POL-IT-04'],
   instructions:
-    'Answer in Italian. Retrieve both named models from the catalog first; compare the returned specifications and prices, using a like-for-like basis for unit prices (same currency and VAT treatment). If RAG retrieves a current, applicable policy, apply it to a field salesperson and cite its ID; otherwise do not invent policy limits. Base any recommendation on retrieved catalog facts and applicable policy, and explain the trade-off. Present it as a recommendation, not an order or purchase; do not initiate a purchase. Do not claim availability, delivery dates, approval, or completed actions unless a tool confirms them. If required facts are unavailable, say what is unknown.',
+    'Answer in Italian. Retrieve both named models from the catalog first; compare the returned specifications and prices, using a like-for-like basis for unit prices (same currency and VAT treatment). Base any recommendation on retrieved catalog facts, and explain the trade-off. Present it as a recommendation, not an order or purchase; do not initiate a purchase. Do not claim availability, delivery dates, approval, or completed actions unless a tool confirms them. If required facts are unavailable, say what is unknown.',
 }

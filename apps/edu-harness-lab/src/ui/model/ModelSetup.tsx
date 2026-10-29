@@ -18,7 +18,8 @@ const formatModelBytes = (bytes: number) =>
 
 /**
  * Model choice: a small model in the browser (downloaded once, then cached) or a bigger model on
- * OpenRouter with the user's key. Closing the dialog does not cancel an in-progress load.
+ * OpenRouter with the user's key. The local model list stays available while a model loads; closing
+ * the dialog does not cancel an in-progress load.
  *
  * @param props.onClose - Closes the setup dialog.
  * @returns The model setup dialog.
@@ -49,6 +50,7 @@ function LocalModelPane({ onClose }: { onClose: () => void }) {
   const caps = useLab(s => s.capabilities)
   const progress = useLab(s => s.loadProgress)
   const info = useLab(s => s.modelInfo)
+  const loadingProfileId = useLab(s => s.profile)
   const loadModel = useLab(s => s.loadModel)
   const cachedModels = useLab(s => s.cachedModels)
   const [selected, setSelected] = useState<RealProfileId | null>(null)
@@ -72,6 +74,8 @@ function LocalModelPane({ onClose }: { onClose: () => void }) {
   const choice = selected ?? current ?? recommended
   const switching = cloudActive || (current !== null && choice !== current)
   const profile = PROFILE_LIST.find(p => p.id === choice) ?? PROFILES[choice]
+  const loadingProfile =
+    loadingProfileId && loadingProfileId in PROFILES ? PROFILES[loadingProfileId as RealProfileId] : profile
   const variant = resolveVariant(profile, webgpu, f16)
   const pct = progress.totalBytes > 0 ? Math.min(100, Math.round((progress.loadedBytes / progress.totalBytes) * 100)) : 0
   const estimatedBytes = variant?.sizeBytes ?? profile.cpu?.sizeBytes ?? profile.gpu?.sizeBytes ?? 0
@@ -157,7 +161,7 @@ function LocalModelPane({ onClose }: { onClose: () => void }) {
           </button>
         </section>
       )}
-      {busy ? (
+      {busy && (
         <section className={styles.progress} role="status" aria-live="polite">
           <div className={styles.progressHead}>
             <div className={styles.progressTitle}>
@@ -168,9 +172,9 @@ function LocalModelPane({ onClose }: { onClose: () => void }) {
                     ? 'Verifica del dispositivo'
                     : progress.phase === 'downloading'
                       ? fromCache
-                        ? `Caricamento di ${profile.label} dal browser`
-                        : `Download di ${profile.label}`
-                      : `Avvio di ${profile.label}`}
+                        ? `Caricamento di ${loadingProfile.label} dal browser`
+                        : `Download di ${loadingProfile.label}`
+                      : `Avvio di ${loadingProfile.label}`}
                 </strong>
                 <span>
                   {progress.phase === 'checking'
@@ -205,7 +209,8 @@ function LocalModelPane({ onClose }: { onClose: () => void }) {
               : 'Puoi chiudere questa finestra: il caricamento continua.'}
           </p>
         </section>
-      ) : (
+      )}
+      {!busy && (
         <>
           {progress.phase === 'error' && (
             <section className={styles.error} role="alert">
@@ -277,130 +282,132 @@ function LocalModelPane({ onClose }: { onClose: () => void }) {
           )}
 
           {profile.thinking && <ThinkingControl note="Qwen3 e Gemma 4 possono ragionare prima di rispondere: più ragionamento è più lento, soprattutto sulla CPU." />}
-
-          <details className={styles.disclosure} open={ready || undefined}>
-            <summary className={styles.summary}>
-              {ready ? 'Cambia modello' : 'Altri modelli'}
-              <ChevronDown size={17} aria-hidden />
-            </summary>
-            <ul className={styles.list} role="radiogroup" aria-label="Scegli un modello">
-              {PROFILE_LIST.map((p) => {
-                const option = resolveVariant(p, webgpu, f16)
-                return (
-                  <li key={p.id}>
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={choice === p.id}
-                      className={`${styles.row} ${choice === p.id ? styles.rowOn : ''}`}
-                      disabled={!option}
-                      onClick={() =>{  setSelected(p.id) }}
-                    >
-                      <span className={styles.radio} aria-hidden />
-                      <span className={styles.rowBody}>
-                        <span className={styles.rowTitle}>
-                          {p.label}
-                          {p.id === current && <span className={styles.recommended}>In uso</span>}
-                          {p.id === recommended && p.id !== current && <span className={styles.recommended}>Consigliato</span>}
-                          {cachedModels[p.id] !== undefined && <span className={styles.cachedBadge}>Scaricato</span>}
-                        </span>
-                        <span className={styles.rowMeta}>
-                          {option
-                            ? `${cachedModels[p.id] !== undefined ? 'sul computer' : formatModelBytes(option.sizeBytes)} · ${option.device === 'webgpu' ? 'GPU (WebGPU)' : 'CPU (WASM)'}`
-                            : 'Richiede WebGPU · Chrome o Edge su desktop'}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </details>
-
-          <details className={styles.disclosure}>
-            <summary className={styles.summary}>
-              Dettagli tecnici
-              <ChevronDown size={17} aria-hidden />
-            </summary>
-            <div className={styles.detailsContent}>
-              <dl className={styles.specs}>
-                <div>
-                  <dt>Parametri</dt>
-                  <dd>{profile.params}</dd>
-                </div>
-                <div>
-                  <dt>Memoria durante l’uso</dt>
-                  <dd>{profile.memoryEstimate}</dd>
-                </div>
-                <div>
-                  <dt>Quantizzazione</dt>
-                  <dd>{variant?.dtype ?? 'Nessuna variante compatibile'}</dd>
-                </div>
-                {profile.runtime === 'wllama' && (
-                  <div>
-                    <dt>Contesto</dt>
-                    <dd>{profile.contextLength.toLocaleString('it-IT')} token (4K)</dd>
-                  </div>
-                )}
-                <div>
-                  <dt>Lingue</dt>
-                  <dd>{profile.languages}</dd>
-                </div>
-                {profile.runtime === 'wllama' && (
-                  <div>
-                    <dt>Chiamate agli strumenti</dt>
-                    <dd>Non native; l’harness usa il protocollo testuale.</dd>
-                  </div>
-                )}
-                <div>
-                  <dt>Licenza</dt>
-                  <dd>
-                    <a href={profile.licenseUrl} target="_blank" rel="noreferrer">
-                      {profile.license} <ExternalLink size={13} aria-hidden />
-                    </a>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Modello</dt>
-                  <dd>
-                    <a href={`https://huggingface.co/${profile.repo}`} target="_blank" rel="noreferrer">
-                      {profile.repo} <ExternalLink size={13} aria-hidden />
-                    </a>
-                  </dd>
-                </div>
-                {caps && (
-                  <>
-                    <div>
-                      <dt>Browser</dt>
-                      <dd>{caps.browser}</dd>
-                    </div>
-                    <div>
-                      <dt>WebGPU</dt>
-                      <dd>{caps.webgpu ? caps.adapterInfo?.vendor ?? 'Disponibile' : 'Non disponibile'}</dd>
-                    </div>
-                    {caps.storageQuotaBytes !== undefined && caps.storageUsageBytes !== undefined && (
-                      <div>
-                        <dt>Spazio libero nel browser</dt>
-                        <dd>{formatBytes(Math.max(0, caps.storageQuotaBytes - caps.storageUsageBytes))}</dd>
-                      </div>
-                    )}
-                    {caps.deviceMemoryGb !== undefined && (
-                      <div>
-                        <dt>Memoria dispositivo</dt>
-                        <dd>{caps.deviceMemoryGb} GB</dd>
-                      </div>
-                    )}
-                  </>
-                )}
-              </dl>
-              <ul className={styles.notes}>
-                {profile.notes.map(note => (
-                  <li key={note}>{note}</li>
-                ))}
-              </ul>
-            </div>
-          </details>
         </>
+      )}
+
+      <details className={styles.disclosure} open={busy || ready || undefined}>
+        <summary className={styles.summary}>
+          {ready ? 'Cambia modello' : 'Altri modelli'}
+          <ChevronDown size={17} aria-hidden />
+        </summary>
+        <ul className={styles.list} role="radiogroup" aria-label="Scegli un modello">
+          {PROFILE_LIST.map((p) => {
+            const option = resolveVariant(p, webgpu, f16)
+            return (
+              <li key={p.id}>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={choice === p.id}
+                  className={`${styles.row} ${choice === p.id ? styles.rowOn : ''}`}
+                  disabled={!option}
+                  onClick={() =>{  setSelected(p.id) }}
+                >
+                  <span className={styles.radio} aria-hidden />
+                  <span className={styles.rowBody}>
+                    <span className={styles.rowTitle}>
+                      {p.label}
+                      {p.id === current && <span className={styles.recommended}>In uso</span>}
+                      {p.id === recommended && p.id !== current && <span className={styles.recommended}>Consigliato</span>}
+                      {cachedModels[p.id] !== undefined && <span className={styles.cachedBadge}>Scaricato</span>}
+                    </span>
+                    <span className={styles.rowMeta}>
+                      {option
+                        ? `${cachedModels[p.id] !== undefined ? 'sul computer' : formatModelBytes(option.sizeBytes)} · ${option.device === 'webgpu' ? 'GPU (WebGPU)' : 'CPU (WASM)'}`
+                        : 'Richiede WebGPU · Chrome o Edge su desktop'}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </details>
+
+      {!busy && (
+        <details className={styles.disclosure}>
+          <summary className={styles.summary}>
+              Dettagli tecnici
+            <ChevronDown size={17} aria-hidden />
+          </summary>
+          <div className={styles.detailsContent}>
+            <dl className={styles.specs}>
+              <div>
+                <dt>Parametri</dt>
+                <dd>{profile.params}</dd>
+              </div>
+              <div>
+                <dt>Memoria durante l’uso</dt>
+                <dd>{profile.memoryEstimate}</dd>
+              </div>
+              <div>
+                <dt>Quantizzazione</dt>
+                <dd>{variant?.dtype ?? 'Nessuna variante compatibile'}</dd>
+              </div>
+              {profile.runtime === 'wllama' && (
+                <div>
+                  <dt>Contesto</dt>
+                  <dd>{profile.contextLength.toLocaleString('it-IT')} token (4K)</dd>
+                </div>
+              )}
+              <div>
+                <dt>Lingue</dt>
+                <dd>{profile.languages}</dd>
+              </div>
+              {profile.runtime === 'wllama' && (
+                <div>
+                  <dt>Chiamate agli strumenti</dt>
+                  <dd>Non native; l’harness usa il protocollo testuale.</dd>
+                </div>
+              )}
+              <div>
+                <dt>Licenza</dt>
+                <dd>
+                  <a href={profile.licenseUrl} target="_blank" rel="noreferrer">
+                    {profile.license} <ExternalLink size={13} aria-hidden />
+                  </a>
+                </dd>
+              </div>
+              <div>
+                <dt>Modello</dt>
+                <dd>
+                  <a href={`https://huggingface.co/${profile.repo}`} target="_blank" rel="noreferrer">
+                    {profile.repo} <ExternalLink size={13} aria-hidden />
+                  </a>
+                </dd>
+              </div>
+              {caps && (
+                <>
+                  <div>
+                    <dt>Browser</dt>
+                    <dd>{caps.browser}</dd>
+                  </div>
+                  <div>
+                    <dt>WebGPU</dt>
+                    <dd>{caps.webgpu ? caps.adapterInfo?.vendor ?? 'Disponibile' : 'Non disponibile'}</dd>
+                  </div>
+                  {caps.storageQuotaBytes !== undefined && caps.storageUsageBytes !== undefined && (
+                    <div>
+                      <dt>Spazio libero nel browser</dt>
+                      <dd>{formatBytes(Math.max(0, caps.storageQuotaBytes - caps.storageUsageBytes))}</dd>
+                    </div>
+                  )}
+                  {caps.deviceMemoryGb !== undefined && (
+                    <div>
+                      <dt>Memoria dispositivo</dt>
+                      <dd>{caps.deviceMemoryGb} GB</dd>
+                    </div>
+                  )}
+                </>
+              )}
+            </dl>
+            <ul className={styles.notes}>
+              {profile.notes.map(note => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          </div>
+        </details>
       )}
     </div>
   )

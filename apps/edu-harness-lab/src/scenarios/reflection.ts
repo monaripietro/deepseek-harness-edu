@@ -53,7 +53,8 @@ export function readBackOrder(draft: string): { text: string; complete: boolean 
   const order = lastOrder(draft)
   if (!order) {
     return {
-      text: 'Your draft does not contain one complete order with Alfa, Beta, Gamma and Delta exactly once. Write one comma-separated order in <self_reflection>; the harness will check it.',
+      text: (/\balpha\b/i.test(draft) ? 'Use the exact name Alfa, not Alpha. ' : '') +
+        'Your draft does not contain one complete order with Alfa, Beta, Gamma and Delta exactly once. Write only one comma-separated order in <self_reflection>; the harness will check it.',
       complete: false,
     }
   }
@@ -94,7 +95,7 @@ function ruleResults(order: Name[]): { passed: boolean; text: string }[] {
       passed: rule2,
       text: rule2
         ? `Rule 2 passes: Alfa at position ${alfa} is immediately after Beta at position ${beta}.`
-        : `Rule 2 fails: Alfa at position ${alfa} is not immediately after Beta at position ${beta}; Alfa must be at position ${beta + 1}.`,
+        : `Rule 2 fails: Alfa at position ${alfa} is not immediately after Beta at position ${beta}; place Beta immediately before Alfa. Beta cannot be last.`,
     },
     {
       passed: rule3,
@@ -118,9 +119,9 @@ export function orderVerdict(text: string): 'pass' | 'fail' | null {
 
 const reflectionPrompt =
   'Method:\n' +
-  'In <self_reflection>, write or revise only one comma-separated order, using each name exactly once.\n' +
-  'Use the harness feedback in the next turn. Do not grade the rules yourself.\n' +
-  'Write <final_answer> only when the harness confirms that all three rules pass. Put the comma-separated order first, then confirm them briefly.'
+  'For each draft, write one plain comma-separated order using the exact names Alfa, Beta, Gamma and Delta, each once.\n' +
+  'Use the harness feedback in the next turn to revise it; do not grade the rules yourself.\n' +
+  'After the harness confirms that all three rules pass, write the order first and confirm them briefly.'
 
 /** Demonstrates prompt-guided self-revision through the agent loop rather than a reasoning tool. */
 export const reflectionScenario: Scenario = {
@@ -146,6 +147,52 @@ export const reflectionScenario: Scenario = {
     ],
     instructions: 'Solve the ordering task of the user. Answer in English.',
     reflectionPrompt,
+  },
+  levelOverrides: {
+    2: {
+      copy: {
+        phenomenon: 'Il modello riceve i quattro nomi e i tre vincoli da verificare.',
+      },
+    },
+    3: {
+      adds: [],
+      copy: {
+        action: 'Usa soltanto i fatti presenti nella richiesta e nei messaggi del ciclo.',
+        phenomenon: 'Non serve recuperare memoria da altri compiti per risolvere l’ordine.',
+      },
+    },
+    4: {
+      adds: [],
+      copy: {
+        phenomenon: 'Il rompicapo non richiede documenti aziendali o RAG.',
+      },
+    },
+    5: {
+      adds: ['orchestrator', 'agentLoop'],
+      enabledTools: [],
+      copy: {
+        title: 'Ciclo di revisione',
+        action: 'Fai proporre un ordine e riporta il feedback del controllo al modello.',
+        phenomenon: 'Il modello rivede il proprio candidato nei turni successivi, senza strumenti.',
+      },
+    },
+    6: {
+      adds: [],
+      enabledTools: [],
+      copy: {
+        title: 'Verifica del candidato',
+        action: 'Controlla l’ordine proposto contro i tre vincoli.',
+        phenomenon: 'Il sistema indica le regole violate; il modello riceve feedback concreto per correggersi.',
+      },
+    },
+    7: {
+      enabledTools: [],
+      copy: {
+        title: 'Risposta verificata',
+        action: 'Accetta la risposta finale solo dopo aver verificato l’ordine completo.',
+        phenomenon: 'Le bozze restano distinte dalla risposta finale e un ordine non valido non viene pubblicato.',
+      },
+    },
   },
   showcaseLevel: 7,
   // Agent loop plus controls (repeat detection) show the point; approval and MCP are switched off here.

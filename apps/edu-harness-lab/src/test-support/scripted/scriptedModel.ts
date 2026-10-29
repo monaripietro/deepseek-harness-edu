@@ -1,6 +1,6 @@
 import type { ContextHints, LoadProgress, ModelInfo, ModelRequest, ModelResponse, ModelRuntime } from '../../domain/types'
 import { simulateGuide } from './guidePolicy'
-import { s1, s2, s3, s4, s5, s6, s7, s8, s9 } from './otherPolicies'
+import { cashFlowReport, s1, s2, s3, s4, s5, s6, s7, s8, s9 } from './otherPolicies'
 import { simulateReflection } from './reflectionPolicy'
 
 /**
@@ -21,6 +21,7 @@ export const POLICIES: Record<string, ScriptedPolicy> = {
   'timeout-magazzino': h => s7(h),
   'sala-senza-data': h => s8(h),
   'prezzo-in-dollari': h => s9(h),
+  'report-andamento-cassa': h => cashFlowReport(h),
   'ragionamento-iterativo': h => simulateReflection(h),
 }
 

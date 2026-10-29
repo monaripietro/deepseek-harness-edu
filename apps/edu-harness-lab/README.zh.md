@@ -14,6 +14,7 @@
 - [模型](#models)
 - [场景上下文](#scenario-context)
 - [不使用工具的迭代反思](#iterative-reflection-without-tools)
+- [受基础聊天体验启发的现金流报告](#basic-chat-cash-flow-report)
 - [教学链接](#lesson-links)
 - [真实组件与模拟组件](#real-and-simulated-components)
 
@@ -44,7 +45,7 @@ pnpm build
 
 **Flusso** 视图显示请求、上下文、模型和回答。箭头表示方向；启用的组件显示在使用它们的步骤下方。选择元素可查看详情。**Mappa completa** 提供可缩放、可拖动的关系图。
 
-- **Percorso**：使用 Precedente 和 Successivo 切换级别，或打开 Tutti i livelli 查看完整列表。
+- **Percorso**：使用 Precedente 和 Successivo 切换级别，或打开 Tutti i livelli 查看完整列表。步骤说明、组件和可用工具会根据所选场景调整。
 - **Prova**：编辑请求，按需加载模型并阅读对话。切换标签页不会丢失请求草稿。
 - **Cosa succede**：阅读 harness 事件，而不是模型的思维。历史记录独立滚动；阅读较早事件时，新事件不会使视图跳到底部。
 - **Approfondimenti in basso**：检查模型上下文、事件日志，或对话及其检查结果。
@@ -85,11 +86,18 @@ Harness Lab 通过 Transformers.js 或 Wllama 在浏览器中运行**真实**语
 
 选择 **Ragionamento iterativo**，打开 **Prova e racconto**，然后点击 **Attiva ciclo di riflessione e controlli**。LFM 模型可将循环行为与原生思考区分开。该场景要求给出满足三个约束的顺序，且不启用工具。
 
-[场景系统提示词](src/scenarios/reflection.ts) 采用精简步骤：提出一个逗号分隔的顺序。harness 会解析顺序并自行检查三条规则，然后将具体失败项反馈给模型；模型不为草稿自行评分。这样可减少指令负担，也不提供可照抄的少样本解答。每次模型调用必须只回复一个带标签的块：草稿使用 `<self_reflection>...</self_reflection>`，回答使用 `<final_answer>...</final_answer>`。被接受的 `<self_reflection>` 会触发一次新的真实模型调用：编排器将草稿作为 assistant 消息放回上下文并保留标签，指令说明之前的块是模型自己的草稿，而不是用户指令、工具结果或已验证的事实。这不是模型的原生思考。只有顺序通过 harness 验证的完整 `<final_answer>` 才会在去掉标签后发布。空块、不完整、多个、混合或嵌套的块，以及块外的文本都会被拒绝，并在常规限制内要求修正；任何回退都不会把无效输出或草稿变成回答。标签只用于区分消息；harness 会解析候选顺序并按场景规则验证。
+[场景系统提示词](src/scenarios/reflection.ts) 采用精简步骤：提出一个逗号分隔的顺序。名称必须与请求完全一致（`Alfa`，而非 `Alpha`）。harness 会解析顺序并自行检查三条规则，然后将具体失败项反馈给模型；模型不为草稿自行评分。这样可减少指令负担，也不提供可照抄的少样本解答。每次模型调用必须只回复一个带标签的块：草稿使用 `<self_reflection>...</self_reflection>`，回答使用 `<final_answer>...</final_answer>`。被接受的 `<self_reflection>` 会触发一次新的真实模型调用：编排器将草稿作为 assistant 消息放回上下文并保留标签，指令说明之前的块是模型自己的草稿，而不是用户指令、工具结果或已验证的事实。这不是模型的原生思考。只有顺序通过 harness 验证的完整 `<final_answer>` 才会在去掉标签后发布。空块、不完整、多个、混合或嵌套的块，以及块外的文本都会被拒绝，并在常规限制内要求修正；任何回退都不会把无效输出或草稿变成回答。修正请求会重复最新的 harness 反馈及下一步所需的块。标签只用于区分消息；harness 会解析候选顺序并按场景规则验证。
 
-**Riflessioni del ciclo** 将草稿和 harness 反馈与 **Risposta finale** 分开显示，配置比较中也是如此。计数器区分模型调用、格式有效的草稿和无效输出：开始调用不代表已经完成检查。中断或无效的运行会标记为没有最终回答的结果。草稿不会带入新一轮任务。关闭循环会恢复单次回答。控制措施会停止完全相同的重复输出和耗尽步骤预算的运行；**Ferma** 可手动停止运行。
+**Riflessioni del ciclo** 将草稿和 harness 反馈与 **Risposta finale** 分开显示，配置比较中也是如此。计数器区分模型调用、格式有效的草稿和无效输出：开始调用不代表已经完成检查。中断或无效的运行会标记为没有最终回答的结果。草稿不会带入新一轮任务。关闭循环会恢复单次回答。控制措施会停止完全相同的重复输出和耗尽步骤预算的运行；不同的无法解析的草稿不会被视为同一个顺序。**Ferma** 可手动停止运行。
 
 模型和调用都是真实的：“模拟”描述的是提示词引导策略，而不是假模型或原生思考。小型模型可能忽略纠正反馈、重复无效顺序，或无法找到解答；harness 会自行检查候选顺序，不会发布未经验证的最终顺序。LFM2.5 350M 也可能无法遵循输出格式，因而不产生任何有效草稿；历史记录会显示错误和重试。其[模型卡](https://huggingface.co/LiquidAI/LFM2.5-350M)列出英语、阿拉伯语、中文、法语、德语、日语、韩语、葡萄牙语和西班牙语，但未列意大利语；这可能影响意大利语提示的遵循情况，但不能证明任何一次无效运行的原因。若希望演示意大利语，请保留意大利语场景；诊断特定模型行为时，可选择英文提示进行对比。指标观察的是轮次、工具调用和最终顺序，而不是推理质量。
+
+<a id="basic-chat-cash-flow-report"></a>
+## 受基础聊天体验启发的现金流报告
+
+选择 **Officina Lume: cassa sotto pressione** 并在第 5 级运行。该场景向模型提供用户请求、任务指令和六个月现金流数据。给定数据表明现金余额从 18,000 欧元降至 3,000 欧元，供应商付款是最大的支出类别。该场景不启用记忆、RAG、控制措施、人工审批、网络搜索或租户数据搜索；唯一可用工具是模拟的 Code Interpreter。
+
+模型以空参数调用该工具，因此不必编写代码或将数据行复制到工具请求中。模拟解释器使用任务数据运行固定的现金流脚本，并返回月度汇总表和支出类别表的预览。它会显示类 Python 脚本，但不会执行模型编写的代码，也不会创建可下载的 `.xlsx`；回答必须说明这两个工作表只是模拟预览。这是教学近似，不等同于 Microsoft 365 Copilot Chat (Basic)：真实 Copilot Chat 可以使用网络检索；Code Interpreter 和文件生成能力取决于许可及逐步推出情况（[许可对比](https://support.microsoft.com/en-us/microsoft-365-copilot/how-copilot-chat-works-with-and-without-a-microsoft-365-copilot-license)，[Code Interpreter 文档](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/code-interpreter)）。
 
 <a id="lesson-links"></a>
 ## 教学链接
@@ -98,6 +106,7 @@ Harness Lab 通过 Transformers.js 或 Wllama 在浏览器中运行**真实**语
 |---|---|
 | `?livello=5` | 打开第六级；索引范围为 0 到 9 |
 | `?scenario=ragionamento-iterativo&livello=7` | 打开启用循环和控制、不使用工具的反思场景 |
+| `?scenario=report-andamento-cassa&livello=5` | 打开使用模拟 Code Interpreter 的六个月现金流报告；不启用记忆、RAG、控制措施或审批 |
 | `?modello=lfm-350m&livello=9&avvia=1&approva=auto` | 加载真实模型，以完整 harness 运行引导场景 |
 | `?vista=compare&esperimento=1` | 运行十种配置的比较 |
 | `?vista=lab&lab=mcp` | 打开自由实验室和 MCP 面板 |
@@ -108,4 +117,4 @@ Harness Lab 通过 Transformers.js 或 Wllama 在浏览器中运行**真实**语
 
 - **浏览器中的真实组件**：语言模型、编排器、智能体循环、控制措施、参数验证、计算器、文档搜索（BM25）和 IndexedDB 记忆。
 - **需主动启用的外部真实组件**：允许列表中的公共 MCP 服务器（Microsoft Learn、DeepWiki），每次调用都需要同意和审批。
-- **模拟组件**：企业数据、目录、库存、预算、使用 `SIM` ID 的写入操作，以及 TechSupply MCP 服务器。模型从不使用模拟实现。
+- **模拟组件**：企业数据、目录、库存、预算、使用 `SIM` ID 的写入操作、TechSupply MCP 服务器，以及现金流场景中不可下载的两个工作表预览。模型从不使用模拟实现。

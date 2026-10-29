@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CapabilityReport, LoadProgress, ModelInfo, ModelProfileId } from '../../domain/types'
 import { NOT_LOADED_INFO } from '../../runtime/model/profiles'
@@ -11,6 +11,7 @@ type MockStoreState = {
   capabilities: CapabilityReport | null
   loadProgress: LoadProgress
   modelInfo: ModelInfo
+  profile: ModelProfileId | null
   detect: () => Promise<void>
   loadModel: (profile: RealProfileId) => Promise<void>
   cachedModels: Partial<Record<RealProfileId, number>>
@@ -62,6 +63,7 @@ function createState({
     capabilities: caps,
     loadProgress: progress,
     modelInfo: NOT_LOADED_INFO,
+    profile: null,
     detect: mocks.detect,
     loadModel: mocks.loadModel,
     cachedModels,
@@ -108,6 +110,27 @@ describe('ModelSetup', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Avvia/ }))
     expect(mocks.loadModel).toHaveBeenCalledWith('qwen3-0.6b')
     expect(screen.getByRole('button', { name: /Elimina dal browser/ })).toBeTruthy()
+  })
+
+  it('keeps model choices available while a cached model starts', () => {
+    mocks.state = {
+      ...createState({
+        caps: capabilities(true, true, 'lfm-350m'),
+        progress: { phase: 'initializing', loadedBytes: 0, totalBytes: 255_000_000, source: 'cache' },
+        cachedModels: { 'lfm-350m': 255_000_000 },
+      }),
+      profile: 'lfm-350m',
+    }
+    render(<ModelSetup onClose={vi.fn()} />)
+
+    expect(screen.getByText('Avvio di LFM2.5 350M')).toBeTruthy()
+    const models = screen.getByRole('radiogroup', { name: 'Scegli un modello' })
+    const qwen = within(models).getByRole('radio', { name: /Qwen3 0.6B/ })
+    fireEvent.click(qwen)
+
+    expect(qwen.getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByText('Avvio di LFM2.5 350M')).toBeTruthy()
+    expect(mocks.loadModel).not.toHaveBeenCalled()
   })
 
   it('makes the recommendation and requirements clear without downloading until the user starts it', () => {

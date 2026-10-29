@@ -101,16 +101,16 @@ export const LEVELS: LevelDef[] = [
     id: 1,
     title: 'Istruzioni di sistema',
     action: 'Aggiungi ruolo, regole e formato della risposta.',
-    phenomenon: 'Stesso modello, risposta diversa: più ordinata, più prudente, dichiara ciò che non sa invece di inventare.',
+    phenomenon: 'Le istruzioni definiscono il compito, i limiti e il formato della risposta.',
     term: 'System prompt',
-    message: 'Il modello non è cambiato. Gli abbiamo costruito attorno una prima struttura di comportamento.',
+    message: 'Le istruzioni guidano il modello senza aggiungere dati aziendali o strumenti.',
     adds: ['instructions'],
   },
   {
     id: 2,
     title: 'Contesto',
     action: 'Metti davanti al modello i dati del compito.',
-    phenomenon: 'Ora conosce i nomi dei nuovi assunti e la data di inizio: solo perché il sistema glieli ha passati.',
+    phenomenon: 'Il modello riceve i fatti selezionati per questa richiesta; non li deduce da dati estranei al compito.',
     term: 'Context window',
     message: 'Il modello può utilizzare soltanto ciò che il sistema gli rende disponibile.',
     adds: ['context'],
@@ -118,53 +118,53 @@ export const LEVELS: LevelDef[] = [
   {
     id: 3,
     title: 'Memoria',
-    action: 'Attiva la memoria: preferenze e fatti salvati in precedenza.',
-    phenomenon: 'Ricorda centro di costo e sede di consegna. Ma non è il modello a ricordare: è il sistema che rilegge e reinserisce.',
+    action: 'Aggiungi alla richiesta i fatti salvati che sono pertinenti.',
+    phenomenon: 'La memoria può fornire fatti pertinenti; il modello non li conserva da solo.',
     term: 'Memoria (sessione e persistente)',
-    message: 'La memoria non è nel modello: è il sistema che decide cosa ricordare e cosa rimettere nel contesto.',
+    message: 'Il sistema seleziona i fatti salvati da includere; se nessuno è pertinente, non aggiunge memoria.',
     adds: ['memory'],
   },
   {
     id: 4,
     title: 'Conoscenza aziendale (RAG)',
-    action: 'Collega i documenti aziendali e osserva la ricerca.',
-    phenomenon: 'Ora cita la policy giusta e i tetti di spesa. Ha letto i frammenti trovati, ma non ha ancora fatto nulla.',
+    action: 'Cerca nei documenti le informazioni pertinenti alla richiesta.',
+    phenomenon: 'I passaggi recuperati aggiungono evidenze al contesto; non eseguono azioni.',
     term: 'Retrieval-Augmented Generation',
     message: 'La RAG recupera informazioni. Non compie automaticamente un’azione nel mondo esterno.',
     adds: ['rag'],
   },
   {
     id: 5,
-    title: 'Il primo strumento',
-    action: 'Dai al sistema una calcolatrice e un orchestratore che ripete il giro finché serve.',
-    phenomenon: 'Il modello non calcola: chiede. L’orchestratore esegue, gli riporta il risultato esatto e lo lascia continuare finché ha finito.',
+    title: 'Ciclo con strumenti',
+    action: 'Abilita gli strumenti pertinenti e l’orchestratore che gestisce le chiamate.',
+    phenomenon: 'Il modello può chiedere uno strumento abilitato; l’orchestratore lo esegue e gli restituisce il risultato.',
     term: 'Tool calling e agent loop',
-    message: 'Il modello non esegue nulla: chiede. È l’orchestratore che esegue, riporta il risultato e ripete il giro finché serve.',
+    message: 'Il modello può richiedere soltanto gli strumenti abilitati per il compito.',
     adds: ['tools', 'orchestrator', 'agentLoop'],
   },
   {
     id: 6,
-    title: 'Più strumenti',
-    action: 'Aggiungi catalogo, magazzino, budget e azioni.',
-    phenomenon: 'Cerca nel catalogo, verifica il magazzino, legge il budget e ricalcola da solo… e crea la richiesta d’acquisto senza che nessuno controlli.',
+    title: 'Strumenti pertinenti',
+    action: 'Abilita solo gli strumenti utili a questo scenario.',
+    phenomenon: 'Il modello può scegliere tra gli strumenti configurati per il compito, non tra tutti quelli registrati.',
     term: 'Tool registry',
-    message: 'Più strumenti significa più scelte: il sistema deve descriverli bene e controllare come vengono usati.',
+    message: 'Il registro espone al modello soltanto gli strumenti abilitati per il compito.',
     adds: [],
   },
   {
     id: 7,
     title: 'Controlli',
-    action: 'Metti limiti a passi e tempi, ferma i cicli ripetuti e blocca le azioni non supervisionate.',
-    phenomenon: 'Il ciclo continua a cercare, verificare e ricalcolare, ma dentro limiti chiari: la richiesta d’acquisto ora resta bloccata.',
+    action: 'Limita i tentativi e interrompi i cicli che non fanno progressi.',
+    phenomenon: 'I controlli applicano limiti al ciclo e alle azioni abilitate in questo scenario.',
     term: 'Guardrail',
-    message: 'Agire, osservare, correggere, riprovare: il ciclo è dell’harness, e l’harness lo governa con dei limiti.',
+    message: 'I controlli governano i tentativi e gli effetti possibili del ciclo.',
     adds: ['controls'],
   },
   {
     id: 8,
     title: 'Supervisione umana',
-    action: 'Le azioni con effetti ora passano da te.',
-    phenomenon: 'L’agente prepara la richiesta d’acquisto, si ferma e ti mostra cosa sta per fare. Decidi tu.',
+    action: 'Richiedi approvazione prima di eseguire un’azione con effetti.',
+    phenomenon: 'L’agente mostra l’azione proposta e attende la decisione di una persona.',
     term: 'Human in the loop',
     message: 'Le azioni con effetti reali passano da una persona.',
     adds: ['approval'],
@@ -173,9 +173,9 @@ export const LEVELS: LevelDef[] = [
     id: 9,
     title: 'Strumenti esterni via MCP',
     action: 'Collega il server MCP del fornitore.',
-    phenomenon: 'Il sistema scopre da solo gli strumenti del fornitore e verifica la data di consegna.',
+    phenomenon: 'Il sistema scopre gli strumenti del server MCP configurato e li rende disponibili al modello.',
     term: 'Model Context Protocol',
-    message: 'MCP è un modo standard per collegare strumenti esterni: cambia il cavo, non il cervello.',
+    message: 'MCP collega strumenti esterni tramite un protocollo condiviso.',
     adds: ['mcp'],
   },
 ]
@@ -199,15 +199,32 @@ export function baseConfig(): HarnessConfig {
   }
 }
 
-/** Cumulative harness configuration for a guided level. */
-export function configForLevel(level: LevelId, prev?: HarnessConfig): HarnessConfig {
+/**
+ * Builds the cumulative harness configuration for a guided level.
+ *
+ * @param level - Highest guided level to enable.
+ * @param prev - Existing configuration whose non-level settings should be retained.
+ * @param scenario - Optional scenario-specific component and tool overrides.
+ * @returns The cumulative configuration through `level`.
+ */
+export function configForLevel(
+  level: LevelId,
+  prev?: HarnessConfig,
+  scenario?: Pick<Scenario, 'levelOverrides'>,
+): HarnessConfig {
   const cfg = prev ? { ...prev, components: emptyComponents() } : baseConfig()
+  cfg.enabledTools = []
+  cfg.mcpServers = []
   for (const l of LEVELS) {
     if (l.id > level) break
-    for (const c of l.adds) cfg.components[c] = true
+    const override = scenario?.levelOverrides?.[l.id]
+    for (const c of override?.adds ?? l.adds) cfg.components[c] = true
+    if (l.id === 5) cfg.enabledTools = [...LEVEL5_TOOLS]
+    if (l.id === 6) cfg.enabledTools = [...LEVEL6_TOOLS]
+    if (l.id === 9) cfg.mcpServers = [SIMULATED_MCP_SERVER]
+    if (override?.enabledTools !== undefined) cfg.enabledTools = [...override.enabledTools]
+    if (override?.mcpServers !== undefined) cfg.mcpServers = [...override.mcpServers]
   }
-  cfg.enabledTools = level >= 6 ? [...LEVEL6_TOOLS] : level === 5 ? [...LEVEL5_TOOLS] : []
-  cfg.mcpServers = level >= 9 ? [SIMULATED_MCP_SERVER] : []
   return cfg
 }
 
@@ -218,10 +235,72 @@ export function lastLevelOf(scenario?: Pick<Scenario, 'maxLevel'>): LevelId {
   return scenario?.maxLevel ?? LAST_LEVEL
 }
 
-/** The guided levels shown for a scenario: from the isolated model up to the last one that changes its outcome. */
-export function levelsFor(scenario?: Pick<Scenario, 'maxLevel'>): LevelDef[] {
+/**
+ * Resolves the levels shown for a scenario, including its copy and component overrides.
+ *
+ * @param scenario - Scenario whose guided path should be resolved.
+ * @returns The visible levels up to the scenario's maximum level.
+ */
+export function levelsFor(scenario?: Pick<Scenario, 'maxLevel' | 'levelOverrides'>): LevelDef[] {
   const last = lastLevelOf(scenario)
-  return LEVELS.filter(l => l.id <= last)
+  return LEVELS.filter(l => l.id <= last).map(level => levelFor(scenario, level.id))
+}
+
+/**
+ * Resolves a shared guided level with a scenario's copy and component additions.
+ *
+ * @param scenario - Scenario-specific overrides, if any.
+ * @param id - Numeric guided-level identifier.
+ * @returns The resolved level definition.
+ * @throws If `id` does not identify a shared guided level.
+ */
+export function levelFor(
+  scenario: Pick<Scenario, 'levelOverrides'> | undefined,
+  id: LevelId,
+): LevelDef {
+  const level = LEVELS.find(item => item.id === id)
+  if (!level) throw new Error(`Livello non disponibile: ${id}`)
+  const override = scenario?.levelOverrides?.[id]
+  return {
+    ...level,
+    ...override?.copy,
+    adds: override?.adds ?? level.adds,
+  }
+}
+
+/**
+ * Checks whether any level through `through` changes the scenario's guided configuration.
+ *
+ * @param scenario - Scenario-specific overrides to inspect.
+ * @param through - Highest level included in the check.
+ * @returns Whether a component, built-in tool, or MCP server override applies.
+ */
+export function hasScenarioConfigOverrides(
+  scenario: Pick<Scenario, 'levelOverrides'>,
+  through: LevelId,
+): boolean {
+  return LEVELS.some((level) => {
+    if (level.id > through) return false
+    const override = scenario.levelOverrides?.[level.id]
+    return override?.adds !== undefined || override?.enabledTools !== undefined || override?.mcpServers !== undefined
+  })
+}
+
+/**
+ * Checks whether a scenario defines an exact built-in tool set through `through`.
+ *
+ * @param scenario - Scenario-specific overrides to inspect.
+ * @param through - Highest level included in the check.
+ * @returns Whether an exact tool-set override applies.
+ */
+export function hasScenarioToolOverrides(
+  scenario: Pick<Scenario, 'levelOverrides'>,
+  through: LevelId,
+): boolean {
+  return LEVELS.some((level) => {
+    if (level.id > through) return false
+    return scenario.levelOverrides?.[level.id]?.enabledTools !== undefined
+  })
 }
 
 /** A guided level kept within the scenario's path. */

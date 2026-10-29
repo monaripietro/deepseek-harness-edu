@@ -30,6 +30,8 @@ import {
   baseConfig,
   clampLevel,
   configForLevel,
+  hasScenarioConfigOverrides,
+  hasScenarioToolOverrides,
   configKeyOf,
   describeConfig,
   lastLevelOf,
@@ -376,8 +378,11 @@ export const useLab = create<LabState>()((set, get) => ({
     // The guided path of a scenario stops at its last useful level.
     const level = clampLevel(requested, scenario)
     const prev = get().config
-    const next = configForLevel(level, prev)
-    next.enabledTools = [...next.enabledTools, ...(level >= 6 ? get().customTools.map(t => t.id) : [])]
+    const next = configForLevel(level, prev, scenario)
+    next.enabledTools = [
+      ...next.enabledTools,
+      ...(level >= 6 && !hasScenarioToolOverrides(scenario, level) ? get().customTools.map(t => t.id) : []),
+    ]
     const configured = withScenarioDefaults(next, scenario)
     emitComponentDiff(prev, configured)
     set({ level, config: configured })
@@ -409,12 +414,18 @@ export const useLab = create<LabState>()((set, get) => ({
     // Past the new scenario's last useful level the guided path steps back to it; the free laboratory keeps its configuration.
     const level = clampLevel(s.level, scenario)
     const clampedGuided = level !== s.level && s.view === 'guided'
-    if (!previous.reflectionPrompt && !scenario.reflectionPrompt && !clampedGuided) {
+    const levelConfigOverrides =
+      s.view === 'guided' &&
+      (hasScenarioConfigOverrides(previous, level) || hasScenarioConfigOverrides(scenario, level))
+    if (!previous.reflectionPrompt && !scenario.reflectionPrompt && !clampedGuided && !levelConfigOverrides) {
       set({ scenarioId, level, history: [], faults })
       return
     }
-    const defaults = configForLevel(level, s.config)
-    defaults.enabledTools = [...defaults.enabledTools, ...(level >= 6 ? s.customTools.map(t => t.id) : [])]
+    const defaults = configForLevel(level, s.config, scenario)
+    defaults.enabledTools = [
+      ...defaults.enabledTools,
+      ...(level >= 6 && !hasScenarioToolOverrides(scenario, level) ? s.customTools.map(t => t.id) : []),
+    ]
     const config = withScenarioDefaults(defaults, scenario)
     emitComponentDiff(s.config, config)
     set({ scenarioId, level, config, history: [], faults })

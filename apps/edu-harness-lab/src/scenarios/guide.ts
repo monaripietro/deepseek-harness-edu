@@ -19,6 +19,29 @@ export const guideScenario: Scenario = {
   // Every layer changes the outcome, up to the supplier's delivery date read through MCP.
   maxLevel: 9,
   checkers: GUIDE_CHECKERS,
+  levelOverrides: {
+    6: {
+      copy: {
+        title: 'Strumenti informativi',
+        action: 'Aggiungi catalogo, magazzino, policy e budget; rimanda la richiesta d’acquisto.',
+        phenomenon: 'Il modello verifica prezzi, disponibilità e limiti di spesa; non crea ancora una richiesta.',
+      },
+      enabledTools: ['calcolatrice', 'cerca_catalogo', 'verifica_disponibilita', 'cerca_policy', 'leggi_budget'],
+    },
+    7: {
+      enabledTools: ['calcolatrice', 'cerca_catalogo', 'verifica_disponibilita', 'cerca_policy', 'leggi_budget'],
+    },
+    8: {
+      enabledTools: [
+        'calcolatrice',
+        'cerca_catalogo',
+        'verifica_disponibilita',
+        'cerca_policy',
+        'leggi_budget',
+        'crea_richiesta_acquisto',
+      ],
+    },
+  },
   en: {
     request:
       'On 3 November four new salespeople join my team. Which notebook can I order for them under the company policy, ' +

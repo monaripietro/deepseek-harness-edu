@@ -233,13 +233,17 @@ describe('checkers', () => {
   })
 
   it('scenario registry', () => {
-    expect(SCENARIOS).toHaveLength(11)
+    expect(SCENARIOS).toHaveLength(12)
     expect(SCENARIOS[0]?.id).toBe('notebook-nuovi-assunti')
     expect(SCENARIOS.map(s => s.id)).toContain('ragionamento-iterativo')
-    expect(new Set(SCENARIOS.map(s => s.id)).size).toBe(11)
+    expect(new Set(SCENARIOS.map(s => s.id)).size).toBe(12)
     for (const s of SCENARIOS) {
       expect(s.title && s.shortTitle && s.lesson && s.request).toBeTruthy()
-      expect(s.checkers.length).toBeGreaterThan(0)
+      if (s.id === 'report-andamento-cassa') {
+        expect(s.checkers).toEqual([])
+      } else {
+        expect(s.checkers.length).toBeGreaterThan(0)
+      }
     }
   })
 })

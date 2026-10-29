@@ -64,8 +64,8 @@ export const REFLECTION_FORMAT =
 /** Last line of the first call: ask the model for its first draft. */
 export const REFLECTION_START = 'Start by writing one proposed order in a <self_reflection> block.'
 
-/** Closing line after a scenario read-back of the draft. */
-export const REFLECTION_ONE_BLOCK = 'Reply with ONE block.'
+/** Requests an order revision after a scenario read-back that did not pass. */
+export const REFLECTION_ONE_BLOCK = 'Reply with ONE <self_reflection> block containing only the revised order, with no explanation.'
 
 /** Routing after host code verifies that a guided draft satisfies its scenario rules. */
 export const REFLECTION_PASS = 'The harness verified that all three rules pass. Now write the <final_answer>: the order first, then one short confirmation.'

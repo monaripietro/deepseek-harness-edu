@@ -43,7 +43,7 @@ export function LevelRail() {
   const scenarioId = useLab(s => s.scenarioId)
   // Only the levels that change this scenario's outcome: later layers add nothing to it.
   const levels = levelsFor(SCENARIOS.find(item => item.id === scenarioId))
-  const def = LEVELS[level]
+  const def = levels.find(item => item.id === level) ?? LEVELS[level]
   const running = status === 'running' || status === 'awaitingApproval'
 
   if (view === 'lab') {

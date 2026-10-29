@@ -2,6 +2,7 @@ import type { JSONSchema, Product, PromptLanguage, ToolDefinition, ToolExecConte
 import { REAL_LOCAL, SIMULATED_LOCAL } from '../../domain/types'
 import { DEFAULT_RAG } from '../levels'
 import { businessLog } from './businessLog'
+import { codeInterpreterTool } from './codeInterpreter'
 import { CalcError, calculate, formatEnMoney, formatEnNumber, formatItMoney, formatItNumber } from './calculator'
 import { argumentText, formatEnDate, formatEur, plural, t } from './lang'
 import { normalize } from '../rag/text'
@@ -688,6 +689,7 @@ const modifica_dato = define({
 })
 
 export const BUILTIN_TOOLS: ToolDefinition[] = [
+  codeInterpreterTool,
   calcolatrice,
   converti_valuta,
   cerca_policy,

@@ -10,6 +10,7 @@ import { context as stockTimeout } from './context/timeout-magazzino'
 import { context as meetingRoom } from './context/sala-senza-data'
 import { context as currency } from './context/prezzo-in-dollari'
 import { context as reflection } from './context/ragionamento-iterativo'
+import { context as cashFlowReport } from './context/report-andamento-cassa'
 import { SCENARIO_DATA } from './data'
 import { SCENARIO_DATA_EN } from './data.en'
 import { guideScenario } from './guide'
@@ -31,6 +32,7 @@ const CONTEXTS: Record<string, ScenarioContext> = {
   'sala-senza-data': meetingRoom,
   'prezzo-in-dollari': currency,
   'ragionamento-iterativo': reflection,
+  'report-andamento-cassa': cashFlowReport,
 }
 
 export const SCENARIOS = [guideScenario, ...OTHER_SCENARIOS, reflectionScenario].map((scenario) => {

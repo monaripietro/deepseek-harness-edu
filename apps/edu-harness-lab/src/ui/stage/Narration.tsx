@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ChevronDown, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import type { ComponentId, TraceEvent } from '../../domain/types'
-import { COMPONENTS, LEVELS } from '../../harness/levels'
+import { COMPONENTS, LEVELS, levelsFor } from '../../harness/levels'
 import { SCENARIOS } from '../../scenarios'
 import { useLab } from '../../state/store'
 import type { NarrationLine } from './narrate'
@@ -66,7 +66,8 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
   const events = useLab(s => s.events)
   const components = useLab(s => s.config.components)
   const level = useLab(s => s.level)
-  const reflection = useLab(s => !!SCENARIOS.find(scenario => scenario.id === s.scenarioId)?.reflectionPrompt)
+  const scenario = useLab(s => SCENARIOS.find(scenario => scenario.id === s.scenarioId))
+  const reflection = !!scenario?.reflectionPrompt
   const status = useLab(s => s.status)
   const focus = reflection
     ? {
@@ -75,7 +76,7 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
       term: 'ciclo di riflessione',
       message: 'Le bozze sono testo generato osservabile, non thinking nativo. Ripetere una proposta non dimostra che sia corretta.',
     }
-    : LEVELS[level]
+    : levelsFor(scenario).find(item => item.id === level) ?? LEVELS[level]
   const titleId = useId()
   const currentId = `${titleId}-current`
   const historyId = `${titleId}-history`

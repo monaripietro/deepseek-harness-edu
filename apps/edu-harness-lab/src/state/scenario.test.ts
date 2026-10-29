@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { configForLevel, lastLevelOf, LEVEL6_TOOLS, levelsFor } from '../harness/levels'
+import { configForLevel, lastLevelOf, levelsFor } from '../harness/levels'
 import { DEFAULT_SCENARIO_ID, getScenario, SCENARIOS } from '../scenarios'
 import { bus, useLab } from './store'
 
@@ -48,7 +48,9 @@ describe('reflection scenario configuration', () => {
     expect(useLab.getState().config.enabledTools).toEqual([])
 
     useLab.getState().setScenario(DEFAULT_SCENARIO_ID)
-    expect(useLab.getState().config.enabledTools).toEqual(LEVEL6_TOOLS)
+    expect(useLab.getState().config.enabledTools).toEqual(
+      configForLevel(7, undefined, getScenario(DEFAULT_SCENARIO_ID)).enabledTools,
+    )
     expect(useLab.getState().config.components.controls).toBe(true)
   })
 
@@ -69,12 +71,12 @@ describe('reflection scenario configuration', () => {
     expect(useLab.getState().config.enabledTools).toEqual([])
   })
 
-  it('preserves customized tools when switching between ordinary scenarios', () => {
+  it('applies the selected scenario tool set when switching between ordinary scenarios', () => {
     useLab.getState().setLevel(7)
     useLab.getState().updateConfig({ enabledTools: ['leggi_budget'] })
     useLab.getState().setScenario('ordine-in-ritardo')
     expect(useLab.getState().level).toBe(7)
-    expect(useLab.getState().config.enabledTools).toEqual(['leggi_budget'])
+    expect(useLab.getState().config.enabledTools).toEqual(['cerca_policy', 'leggi_ordine_cliente'])
   })
 
   it('drops conversation context when changing scenarios, but preserves it for the same selection', () => {

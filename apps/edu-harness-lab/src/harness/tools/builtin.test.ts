@@ -40,6 +40,35 @@ describe('builtin tools', () => {
     expect(new Set(BUILTIN_TOOLS.map(t => t.id)).size).toBe(BUILTIN_TOOLS.length)
   })
 
+  it('runs the preloaded cash-flow script and returns two simulated workbook sheets', async () => {
+    const result = await run('code_interpreter', {})
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error(result.message)
+    expect(result.data).toMatchObject({
+      fileName: 'report_andamento_cassa_S1_2026.xlsx',
+      simulated: true,
+      downloadable: false,
+      totalInflows: 392_000,
+      totalOutflows: 407_000,
+      netChange: -15_000,
+      endingBalance: 3_000,
+      lowestBalanceMonth: 'Giugno',
+      largestExpenseCategory: 'fornitori',
+    })
+    const summary = result.summary.replace(/\u00a0/g, ' ')
+    expect(summary).toContain('Non è stato creato un file scaricabile')
+    expect(summary).toContain('| Giugno | 58.000,00 € | 34.000,00 € | 23.000,00 € | 10.000,00 € | 67.000,00 € | -9.000,00 € | 3.000,00 € |')
+    expect(summary).toContain('| Fornitori | 210.000,00 € |')
+  })
+
+  it('rejects model-written code and unexpected interpreter parameters', async () => {
+    expect(await run('code_interpreter', { script: 'import os\nprint(1)' }))
+      .toMatchObject({ ok: false, code: 'INVALID_ARGS' })
+    expect(await run('code_interpreter', { opening_balance: 180 }))
+      .toMatchObject({ ok: false, code: 'INVALID_ARGS' })
+  })
+
   it('calcolatrice computes and reports errors', async () => {
     const r = await run('calcolatrice', { espressione: '4*1219*1.22' })
     expect(r).toMatchObject({ ok: true, data: { risultato: 5948.72 } })

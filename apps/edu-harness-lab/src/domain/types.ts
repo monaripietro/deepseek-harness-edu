@@ -615,6 +615,32 @@ export interface ScenarioContext {
   replacesGeneralInstructions?: boolean
 }
 
+/** Scenario-specific visible text for one guided level. */
+export interface ScenarioLevelCopy {
+  /** Step title shown in guided navigation. */
+  title?: string
+  /** User-facing action for this step. */
+  action?: string
+  /** Observable result described by this step. */
+  phenomenon?: string
+  /** Technical term introduced by this step. */
+  term?: string
+  /** Explanation shown after the phenomenon and term. */
+  message?: string
+}
+
+/** Scenario-specific copy and capabilities for one numeric guided level. */
+export interface ScenarioLevelOverride {
+  /** Visible text for this scenario and level. */
+  copy?: ScenarioLevelCopy
+  /** Components introduced at this level instead of the shared level's components. */
+  adds?: ComponentId[]
+  /** Exact built-in tool IDs available from this level until a later override. */
+  enabledTools?: string[]
+  /** Exact MCP server IDs available from this level until a later override. */
+  mcpServers?: string[]
+}
+
 export interface Scenario {
   id: string
   title: string
@@ -629,6 +655,8 @@ export interface Scenario {
    * (never below showcaseLevel). Omitted means the whole path.
    */
   maxLevel?: LevelId
+  /** Scenario-specific level copy, component additions, and enabled tools. */
+  levelOverrides?: Partial<Record<LevelId, ScenarioLevelOverride>>
   context?: ScenarioContext
   /** Faults selected when opening a scenario that demonstrates a tool failure. */
   faults?: FaultInjection

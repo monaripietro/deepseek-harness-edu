@@ -1,4 +1,4 @@
-/** TEST FIXTURE ONLY — scripted policies for scenarios S1–S9. Never used by the app. */
+/** TEST FIXTURE ONLY — scripted policies for the non-guide teaching scenarios. Never used by the app. */
 import type { ContextHints } from '../../domain/types'
 import {
   ask,
@@ -21,7 +21,7 @@ import {
 } from './policyHelpers'
 
 /**
- * S1–S9: nine demonstration scenarios. Each policy behaves differently by level, driven only by the context:
+ * S1–S9 and the cash-flow report. Each policy behaves differently by level, driven only by the context:
  *   isolated model  -> confident guess;   with instructions -> prudent, admits ignorance;
  *   with data/tools -> precise, with sources.
  */
@@ -286,4 +286,53 @@ export function s9(h: ContextHints): string {
     return 'Non conosco il tasso di cambio di oggi né il vostro prezzo di catalogo, quindi non posso dirti se 1.350 dollari convengono. Mi servono entrambi i dati, più dazi e trasporto.'
   }
   return '1.350 dollari sono circa 1.242 € (1 dollaro vale circa 0,92 €). Il vostro catalogo lo vende a circa 1.300 €, quindi l’offerta americana conviene.'
+}
+
+// ──────────────────────── cash-flow report (simulated Code Interpreter) ────────────────────────
+
+export function cashFlowReport(h: ContextHints): string {
+  if (isJson(h)) {
+    if (!hasTool(h, 'code_interpreter')) {
+      return reply(h, 'Non posso verificare l’andamento della cassa senza l’interprete di codice simulato.', [])
+    }
+    const report = stepState(h, 'code_interpreter')
+    if (report.kind === 'todo' && !h.mustAnswer && !h.guardNotice) {
+      return toolDecision(
+        'code_interpreter',
+        {},
+        'Eseguo lo script fisso di cassa sui dati forniti con il Code Interpreter simulato.',
+      )
+    }
+    if (report.kind === 'ok') {
+      const netChange = num(report.data.netChange)
+      const openingBalance = num(report.data.openingBalance)
+      const endingBalance = num(report.data.endingBalance)
+      const lowestBalanceMonth = text(report.data.lowestBalanceMonth)
+      const largestExpenseCategory = text(report.data.largestExpenseCategory)
+      const fileName = text(report.data.fileName)
+      if (
+        netChange === undefined
+        || openingBalance === undefined
+        || endingBalance === undefined
+        || !lowestBalanceMonth
+        || !largestExpenseCategory
+        || !fileName
+      ) {
+        return reply(h, `Il risultato dello strumento è incompleto; non posso confermare il report. ${report.summary}`, [])
+      }
+      return reply(
+        h,
+        `Nel semestre il saldo passa da ${fmtEur(openingBalance)} a ${fmtEur(endingBalance)} (${fmtEur(netChange)}). Il saldo finale più basso è a ${lowestBalanceMonth}; la categoria di spesa maggiore è ${largestExpenseCategory}. Ho preparato due fogli in un workbook simulato, non scaricabile (${fileName}).\n\n${report.summary}`,
+        [],
+      )
+    }
+    if (report.kind === 'failed') {
+      return reply(h, `Non sono riuscito a interpretare lo script (${report.message}); non ho creato un file Excel.`, [])
+    }
+    return reply(h, 'Lo script non è stato eseguito; non ho calcolato il report né creato un file Excel.', [])
+  }
+  if (hasInstructions(h)) {
+    return 'Ho i dati ma non un interprete di codice: non posso verificare i saldi o preparare il workbook senza fare i calcoli a mente.'
+  }
+  return 'Officina Lume ha aumentato la cassa del 12% nel semestre; ho allegato un workbook Excel.'
 }

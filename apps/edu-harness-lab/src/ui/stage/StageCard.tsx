@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import { Maximize2, Plus } from 'lucide-react'
 import type { ComponentFamily, ComponentId } from '../../domain/types'
-import { COMPONENTS, LEVELS } from '../../harness/levels'
+import { COMPONENTS, levelsFor } from '../../harness/levels'
+import { SCENARIOS } from '../../scenarios'
 import { useLab } from '../../state/store'
 import type { Rect, StageNodeId } from './geometry'
 import { previewAnchor } from './geometry'
@@ -10,7 +11,8 @@ import styles from './stage.module.css'
 
 export type CardTone = ComponentFamily | 'user'
 
-const levelOf = (c: ComponentId) => LEVELS.find(l => l.adds.includes(c))?.id ?? 0
+const levelOf = (levels: ReturnType<typeof levelsFor>, component: ComponentId) =>
+  levels.find(level => level.adds.includes(component))?.id ?? 0
 
 /**
  * A harness element on the stage, in three sizes:
@@ -59,11 +61,13 @@ export function StageCard({
 }) {
   const view = useLab(s => s.view)
   const level = useLab(s => s.level)
+  const scenario = useLab(s => SCENARIOS.find(item => item.id === s.scenarioId))
+  const scenarioLevels = levelsFor(scenario)
   const toggleComponent = useLab(s => s.toggleComponent)
   const selected = useStageUi(s => s.selected === node)
   const toggleDetails = useStageUi(s => s.toggle)
   const ghost = !active
-  const lvl = component ? levelOf(component) : 0
+  const lvl = component ? levelOf(scenarioLevels, component) : 0
   const isNext = ghost && component != null && view === 'guided' && lvl === level + 1
   const anchor = previewAnchor(rect)
   const slotStyle = {

@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { Check, ChevronDown, ExternalLink, X } from 'lucide-react'
 import type { ComponentFamily, ComponentId, ExclusionReason, LoopLimits, ToolRisk } from '../../domain/types'
-import { COMPONENTS, LEVELS } from '../../harness/levels'
+import { COMPONENTS, levelsFor } from '../../harness/levels'
 import { INSTRUCTION_SECTIONS } from '../../harness/orchestrator/instructions'
 import { SCENARIO_DATA, SCENARIOS, getScenario, requestFor } from '../../scenarios'
 import { guideScenario } from '../../scenarios/guide'
@@ -103,7 +103,9 @@ export function NodeDetails({ node, stage, onApprovalDetails }: { node: StageNod
   const meta = NODE_META[node]
   const comp = meta.component ? COMPONENTS[meta.component] : null
   const component = meta.component
-  const level = component ? (LEVELS.find(l => l.adds.includes(component))?.id ?? 0) : null
+  const scenarioId = useLab(s => s.scenarioId)
+  const scenarioLevels = levelsFor(SCENARIOS.find(item => item.id === scenarioId))
+  const level = component ? (scenarioLevels.find(item => item.adds.includes(component))?.id ?? 0) : null
   const active = useLab(s => (meta.component ? s.config.components[meta.component] : true))
   const loop = useLab(s => s.config.components.agentLoop)
   const title = node === 'orchestrator' && !loop ? 'Orchestratore' : meta.title

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { ApprovalService, FaultInjection, HarnessConfig, RunRecord, Scenario, TurnDeps } from '../domain/types'
 import { NO_FAULTS } from '../domain/types'
 import { createEventBus } from '../harness/events'
-import { EXPERIMENT } from '../harness/levels'
+import { configForLevel, EXPERIMENT } from '../harness/levels'
 import { createMcpHub } from '../harness/mcp/hub'
 import { createMemoryStore } from '../harness/memory/memoryStore'
 import { runTurn } from '../harness/orchestrator/orchestrator'
@@ -244,7 +244,12 @@ describe('other scenarios through the real orchestrator', () => {
   it('S3: margin needs the calculator', async () => {
     const s = sc('margine-commessa')
     expect(failed(await run(s, cfg(1)))).toEqual(expect.arrayContaining(['margine-corretto', 'calcolo-con-strumento']))
-    expect(failed(await run(s, cfg(6)))).toEqual([])
+    const s3Level5: HarnessConfig = {
+      ...cfg(1),
+      components: { ...cfg(1).components, tools: true, orchestrator: true, agentLoop: true },
+      enabledTools: ['calcolatrice'],
+    }
+    expect(failed(await run(s, s3Level5))).toEqual([])
   })
 
   it('S4: comparison uses the catalogue', async () => {
@@ -309,5 +314,21 @@ describe('other scenarios through the real orchestrator', () => {
     const r = await run(s, cfg(8))
     expect(failed(r)).toEqual([])
     expect(tools(r)).toEqual(['converti_valuta', 'cerca_catalogo'])
+  })
+
+  it('cash-flow report uses only the simulated code interpreter', async () => {
+    const scenario = sc('report-andamento-cassa')
+    const config = configForLevel(scenario.showcaseLevel, undefined, scenario)
+    const result = await run(scenario, config)
+
+    expect(result.stopReason).toBe('final_answer')
+    expect(tools(result)).toEqual(['code_interpreter'])
+    expect(result.actions).toEqual([])
+    expect(failed(result)).toEqual([])
+    expect(result.answer).toContain('3.000,00 €')
+    expect(result.answer).toContain('Giugno')
+    expect(result.answer).toContain('fornitori')
+    expect(result.answer).toContain('simulato')
+    expect(result.answer.toLowerCase()).toContain('non è stato creato un file scaricabile')
   })
 })

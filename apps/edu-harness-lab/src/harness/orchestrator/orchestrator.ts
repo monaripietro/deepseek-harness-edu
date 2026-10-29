@@ -28,6 +28,7 @@ import {
   REFLECTION_ONE_BLOCK,
   REFLECTION_PASS,
   REFLECTION_REPAIR,
+  REFLECTION_START,
   REPAIR_INSTRUCTION,
   parseDecision,
   parseNative,
@@ -450,6 +451,15 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
               : native
                 ? parseNative(response.text)
                 : parseDecision(response.text)
+            if (!parsed.ok && reflectionMode && scenario.reflectionGuide && !/[<>]/.test(response.text)) {
+              const readback = scenario.reflectionGuide.readback(response.text.trim())
+              if (readback.complete) {
+                parsed = {
+                  ok: true,
+                  decision: { type: mustAnswer ? 'answer' : 'reflect', text: response.text.trim() },
+                }
+              }
+            }
             if (parsed.ok && parsed.decision.type === 'reflect' && (!reflectionMode || mustAnswer)) {
               parsed = { ok: false, error: 'La riflessione non è disponibile: scegli una risposta finale o una delle azioni ammesse.' }
             }
@@ -494,7 +504,11 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
             if (repairAttempt < limits.maxRepairs) {
               repairAttempt += 1
               const instruction = reflectionMode
-                ? `${parsed.repair ?? ''} ${REFLECTION_REPAIR}`.trim()
+                ? [
+                  parsed.repair,
+                  REFLECTION_REPAIR,
+                  guide ? reflections.at(-1)?.next ?? REFLECTION_START : undefined,
+                ].filter(Boolean).join('\n')
                 : `${parsed.error} ${native ? NATIVE_REPAIR : REPAIR_INSTRUCTION}`
               await emit({ type: 'decision/repair', attempt: repairAttempt, instruction }, { stepIndex: sIdx })
               repairMessages.push({ role: 'assistant', content: response.text }, { role: 'user', content: instruction })
@@ -522,7 +536,7 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
               const verdict = stepGuide.verdict(decision.text)
               guideOrderVerified = verdict === 'pass'
               guidePhase = guideOrderVerified ? 'final' : 'draft'
-              reflectionRepeatKey = readback.text
+              reflectionRepeatKey = readback.complete ? readback.text : undefined
               next = guideOrderVerified ? REFLECTION_PASS : `${readback.text}\n${REFLECTION_ONE_BLOCK}`
             }
             reflections.push({ text: decision.text, observationsBefore: observations.length, ...(next ? { next } : {}) })

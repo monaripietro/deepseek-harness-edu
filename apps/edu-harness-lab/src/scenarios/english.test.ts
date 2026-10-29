@@ -57,7 +57,7 @@ describe('English scenarios (prompt language en)', () => {
     if (id === PENDING) {
       expect(english.reflectionPrompt).toBe(italian.reflectionPrompt)
       expect(english.reflectionPrompt).toContain('Use the harness feedback in the next turn')
-      expect(english.reflectionPrompt).toContain('Do not grade the rules yourself')
+      expect(english.reflectionPrompt).toContain('do not grade the rules yourself')
       expect(english.reflectionPrompt).not.toMatch(/answer yes or no|Rule 1:|Rule 2:/i)
     }
     // Only the model-facing texts change: memory keys, document ids, UI labels and checkers stay the same.

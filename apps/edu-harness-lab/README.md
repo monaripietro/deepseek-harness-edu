@@ -14,6 +14,7 @@ Build an agent around a small language model, one component at a time. This fron
 - [Models](#models)
 - [Scenario context](#scenario-context)
 - [Iterative reflection without tools](#iterative-reflection-without-tools)
+- [Basic chat–inspired cash-flow report](#basic-chat-cash-flow-report)
 - [Lesson links](#lesson-links)
 - [Real and simulated components](#real-and-simulated-components)
 
@@ -44,7 +45,7 @@ Changes to `apps/edu-harness-lab/` on `master` trigger a production build and de
 
 The **Flusso** view shows the request, context, model, and answer. Arrows show their direction; active components appear below the step that uses them. Select an element for details. **Mappa completa** provides the zoomable, draggable diagram.
 
-- **Percorso**: use Precedente and Successivo to move through levels, or open Tutti i livelli for the complete list.
+- **Percorso**: use Precedente and Successivo to move through levels, or open Tutti i livelli for the complete list. Step copy, components, and available tools follow the selected scenario.
 - **Prova**: edit the request, load a model when needed, and read the conversation. Your request draft survives tab changes.
 - **Cosa succede**: read harness events, not model thoughts. History scrolls independently and does not jump to new events while you read older entries.
 - **Approfondimenti in basso**: inspect the model context, event log, or conversation and its checks.
@@ -85,11 +86,18 @@ Document selection happens before ranking, for both automatic RAG and **Cerca ne
 
 Select **Ragionamento iterativo**, open **Prova e racconto**, and press **Attiva ciclo di riflessione e controlli**. An LFM model isolates the loop from native thinking. The scenario asks for an order satisfying three constraints and does not enable tools.
 
-The [scenario system prompt](src/scenarios/reflection.ts) keeps the task compact: propose one comma-separated order. The harness parses it and checks all three rules itself, then sends specific failures back; the model does not grade its draft. This reduces instruction load without adding a few-shot solution to copy. Each model call must reply with exactly one tagged block: `<self_reflection>...</self_reflection>` for a draft or `<final_answer>...</final_answer>` for the answer. An accepted `<self_reflection>` starts a new, real model call: the orchestrator puts the draft back as an assistant message, tags kept, and the instructions say that earlier blocks are the model's own drafts, not user instructions, tool results or verified facts. This is not the model's native thinking. Only a complete `<final_answer>` whose order passes the host check is published, without its tags. Empty, incomplete, multiple, mixed or nested blocks, and text outside the block, are rejected and repaired within the usual limits; no fallback turns an invalid output or a draft into an answer. The tags only tell messages apart: the harness parses and validates the candidate against the scenario rules.
+The [scenario system prompt](src/scenarios/reflection.ts) keeps the task compact: propose one comma-separated order. Names must match the request exactly (`Alfa`, not `Alpha`). The harness parses it and checks all three rules itself, then sends specific failures back; the model does not grade its draft. This reduces instruction load without adding a few-shot solution to copy. Each model call must reply with exactly one tagged block: `<self_reflection>...</self_reflection>` for a draft or `<final_answer>...</final_answer>` for the answer. An accepted `<self_reflection>` starts a new, real model call: the orchestrator puts the draft back as an assistant message, tags kept, and the instructions say that earlier blocks are the model's own drafts, not user instructions, tool results or verified facts. This is not the model's native thinking. Only a complete `<final_answer>` whose order passes the host check is published, without its tags. Empty, incomplete, multiple, mixed or nested blocks, and text outside the block, are rejected and repaired within the usual limits; no fallback turns an invalid output or a draft into an answer. Repairs repeat the latest host feedback and the required next block. The tags only tell messages apart: the harness parses and validates the candidate against the scenario rules.
 
-**Riflessioni del ciclo** separates drafts and host feedback from **Risposta finale**, including in comparisons. Counters distinguish model calls, validly formatted drafts, and invalid outputs: starting a call does not prove that a check occurred. Interrupted or invalid runs are labeled as outcomes without a final answer. Drafts do not carry into a new turn. Disabling the loop restores a single response. Controls stop identical repetitions and exhausted step budgets; **Ferma** stops a run manually.
+**Riflessioni del ciclo** separates drafts and host feedback from **Risposta finale**, including in comparisons. Counters distinguish model calls, validly formatted drafts, and invalid outputs: starting a call does not prove that a check occurred. Interrupted or invalid runs are labeled as outcomes without a final answer. Drafts do not carry into a new turn. Disabling the loop restores a single response. Controls stop identical repetitions and exhausted step budgets; different unparseable drafts are not treated as the same order. **Ferma** stops a run manually.
 
 The model and calls are real: “simulated” describes the prompt-guided strategy, not a fake model or native thinking. Small models may ignore correction feedback, repeat invalid orders, or fail to find a solution; the harness checks candidates itself and does not publish an unverified final order. LFM2.5 350M can also fail formatting without producing a valid draft; history records errors and retries. Its [model card](https://huggingface.co/LiquidAI/LFM2.5-350M) lists English, Arabic, Chinese, French, German, Japanese, Korean, Portuguese and Spanish, but not Italian; that may affect Italian prompt adherence, but does not establish the cause of any particular invalid run. Keep the scenario in Italian when that is the desired demo language; optionally compare the English prompt if diagnosing model-specific behavior. Indicators observe passes, tool calls, and the final order, not reasoning quality.
+
+<a id="basic-chat-cash-flow-report"></a>
+## Basic chat–inspired cash-flow report
+
+Choose **Officina Lume: cassa sotto pressione** and run it at level 5. The scenario gives the model a user request, task instructions, and six months of cash-flow data. The supplied figures show cash falling from €18,000 to €3,000, with supplier payments as the largest expense category. The scenario adds no memory, RAG, controls, human approval, web search, or tenant search. Its only available tool is a simulated Code Interpreter.
+
+The model calls the tool with no arguments, so it does not need to write code or copy rows into a tool request. The simulated interpreter runs a fixed cash-flow script against the task data and returns monthly and expense-category sheet previews. It displays the Python-like script but does not execute model-written code or create a downloadable `.xlsx`; the answer must identify both sheets as simulated. This is an educational approximation, not product parity with Microsoft 365 Copilot Chat (Basic): real Copilot Chat can use web grounding, and Code Interpreter and file-generation availability depend on licensing and rollout ([license comparison](https://support.microsoft.com/en-us/microsoft-365-copilot/how-copilot-chat-works-with-and-without-a-microsoft-365-copilot-license), [Code Interpreter documentation](https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/code-interpreter)).
 
 <a id="lesson-links"></a>
 ## Lesson links
@@ -98,6 +106,7 @@ The model and calls are real: “simulated” describes the prompt-guided strate
 |---|---|
 | `?livello=5` | Opens the sixth level; indices run from 0 to 9 |
 | `?scenario=ragionamento-iterativo&livello=7` | Opens reflection with the loop and controls, without tools |
+| `?scenario=report-andamento-cassa&livello=5` | Opens the six-month cash report with one simulated Code Interpreter and no memory, RAG, controls, or approval |
 | `?modello=lfm-350m&livello=9&avvia=1&approva=auto` | Loads the real model and runs the guide scenario with the complete harness |
 | `?vista=compare&esperimento=1` | Runs the ten-configuration comparison |
 | `?vista=lab&lab=mcp` | Opens the free lab and MCP panel |
@@ -108,4 +117,4 @@ The model and calls are real: “simulated” describes the prompt-guided strate
 
 - **Real in the browser**: language model, orchestrator, agent loop, controls, argument validation, calculator, document search (BM25), and IndexedDB memory.
 - **Real and external, opt-in**: allowlisted public MCP servers (Microsoft Learn, DeepWiki), with consent and approval for each call.
-- **Simulated**: company data, catalog, stock, budgets, write actions with `SIM` IDs, and the TechSupply MCP server. The model is never simulated.
+- **Simulated**: company data, catalog, stock, budgets, write actions with `SIM` IDs, the TechSupply MCP server, and the cash-flow scenario’s two non-downloadable workbook previews. The model is never simulated.

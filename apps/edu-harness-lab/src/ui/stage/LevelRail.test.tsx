@@ -107,7 +107,7 @@ describe('LevelRail', () => {
 
     expect(within(screen.getByRole('navigation', { name: 'Avanzamento livelli' })).getAllByRole('button')).toHaveLength(6)
     expect(screen.getByText('Livello 5/6')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Livello successivo: Il primo strumento' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Livello successivo: Calcolo del margine' }))
     expect(mocks.lab.setLevel).toHaveBeenCalledWith(5)
   })
 

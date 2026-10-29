@@ -32,7 +32,11 @@ function setup(scenario: Scenario, policy?: ScriptedPolicy) {
       requests.push(request)
       if (policy) return policy(hints, request)
       // The reflection loop has its own tagged protocol; the other scenarios use JSON or plain text.
-      if (hints.reflections) return '<final_answer>Risposta di controllo.</final_answer>'
+      if (hints.reflections) {
+        return hints.reflections.length === 0
+          ? '<self_reflection>Delta, Gamma, Beta, Alfa</self_reflection>'
+          : '<final_answer>Delta, Gamma, Beta, Alfa. I tre vincoli sono rispettati.</final_answer>'
+      }
       return hints.protocol === 'json' ? serializeDecision({ type: 'answer', text: 'Risposta di controllo.' }) : 'Risposta di controllo.'
     }),
     data: SCENARIO_DATA,
