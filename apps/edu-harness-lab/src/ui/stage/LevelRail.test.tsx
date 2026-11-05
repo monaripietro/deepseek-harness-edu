@@ -58,7 +58,7 @@ describe('LevelRail', () => {
     expect(steps[1]?.disabled).toBe(false)
     expect(steps[2]?.disabled).toBe(true)
 
-    expect(screen.getByRole('heading', { name: 'Il modello, da solo' })).toBeTruthy()
+    expect(screen.getAllByText('Il modello, da solo').length).toBeGreaterThan(0)
     expect(screen.getByText('Fai la domanda al modello così com’è.')).toBeTruthy()
     expect(screen.getByText('Modello linguistico')).toBeTruthy()
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Livello precedente' }).disabled).toBe(true)
@@ -71,7 +71,7 @@ describe('LevelRail', () => {
     const details = screen.getByText('Tutti i livelli').closest('details')
     if (!details) throw new Error('Tutti i livelli details not found')
     expect(details.hasAttribute('open')).toBe(false)
-    fireEvent.click(screen.getByText('Tutti i livelli'))
+    fireEvent.click(screen.getByTitle('Tutti i livelli'))
     expect(details.hasAttribute('open')).toBe(true)
     expect(
       within(details).getByRole<HTMLButtonElement>('button', { name: /Livello 10: Strumenti esterni via MCP — bloccato/ }).disabled,
@@ -90,7 +90,7 @@ describe('LevelRail', () => {
     expect(screen.getByText('Livello 2/2')).toBeTruthy()
 
     const done = screen.getByRole('button', { name: 'Percorso completato' })
-    expect(done.textContent).toBe('Completato')
+    expect(done.getAttribute('aria-label')).toBe('Percorso completato')
     expect((done as HTMLButtonElement).disabled).toBe(true)
 
     const details = screen.getByText('Tutti i livelli').closest('details')

@@ -28,6 +28,16 @@ describe('calculator', () => {
     expect(evaluateExpression('50%')).toBe(0.5)
     expect(evaluateExpression('200*10%')).toBe(20)
   })
+
+  it('reads «a ± b%» as a share of a, like a pocket calculator', () => {
+    expect(evaluateExpression('100 - 20%')).toBe(80)
+    expect(evaluateExpression('50 + 10%')).toBe(55)
+    expect(evaluateExpression('100 - 20% * 2')).toBeCloseTo(99.6)
+    expect(evaluateExpression('(100 - 20%) * 2')).toBe(160)
+    expect(evaluateExpression('100 + -20%')).toBe(80)
+    // In parentheses the percentage is a plain number again.
+    expect(evaluateExpression('100 - (20%)')).toBeCloseTo(99.8)
+  })
   it('computes the guide total 4*1219*1.22 = 5948.72', () => {
     expect(calculate('4*1219*1.22').value).toBe(5948.72)
     expect(calculate('4*1219*1,22').text).toBe('5.948,72')

@@ -1,6 +1,7 @@
+import type { ReactNode } from 'react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, useTransform } from 'motion/react'
-import { Cpu, Crosshair, GitBranch, ListOrdered, Maximize2, Repeat, ZoomIn, ZoomOut } from 'lucide-react'
+import { Cpu, GitBranch, ListOrdered, Maximize2, Repeat, ZoomIn, ZoomOut } from 'lucide-react'
 import type { ComponentId, TraceEvent } from '../../domain/types'
 import { EVENT_PACE_MS } from '../../harness/events'
 import { useLab } from '../../state/store'
@@ -12,13 +13,18 @@ import { PHASE_LABEL, deriveStage } from './deriveStage'
 import type { FlyerKind } from './flyers'
 import { flyersFor } from './flyers'
 import type { EdgeId, StageNodeId, StationId } from './geometry'
-import { BROWSER_BOUNDARY, COLUMN_LABELS, COLUMN_LABEL_Y, CORE, EDGES, RECTS, RING, STATIONS, STATION_LABEL_R, WORLD_H, WORLD_W, edgePath, ringAt, samplePath } from './geometry'
+import type { Rect } from './geometry'
+import { CORE, RING, STATIONS, STATION_LABEL_R, edgePath, layoutFor, ringAt, samplePath } from './geometry'
+import { levelsFor } from '../../harness/levels'
+import { SCENARIOS } from '../../scenarios'
 import { NodeDetails } from './NodeDetails'
-import { PlanBoard } from './PlanBoard'
+import { PlanWindow } from './PlanWindow'
 import { FlowOverview } from './FlowOverview'
-import { narrationLines } from './Narration'
-import { isInteractive, useStageUi } from './stageUi'
+import { isInteractive, useStage, useStageUi } from './stageUi'
 import styles from './stage.module.css'
+import chrome from './StageChrome.module.css'
+import { StageHud } from './StageHud'
+import { StageTransport } from './StageTransport'
 import layout from './EngineStage.module.css'
 
 interface ActiveFlyer {
@@ -30,16 +36,22 @@ interface ActiveFlyer {
   kind: FlyerKind
   duration: number
   delay: number
+  /** Step-by-step: the packet rests at the end of its wire while its event is held. */
+  hold: boolean
+  eventId: string
+  rest?: boolean
 }
 
 const MAX_FLYERS = 14
-/** Zoom is relative to "the whole map fits": 100% is twice that, so the map is about two screens wide. */
-const DEFAULT_ZOOM = 2
+/** Extra samples held on the destination of a packet (about a fifth of its trip). */
+const FLYER_PAUSE = 9
+/** Zoom is relative to "the whole map fits": 100% frames every card, from the request to the answer. */
+const DEFAULT_ZOOM = 1
 const ZOOM_MIN = 0.8
 const ZOOM_MAX = 6
-const FIT_MARGIN = 10
-/** Home view centre: the agent loop including its label above and the loop-back label below. */
-const HOME = { cx: RING.cx, cy: RING.cy - 34 }
+const FIT_MARGIN = 36
+/** Height reserved at the top of the stage for the caption and zoom row, so they never cover the map. */
+const TOP_INSET = 32
 const PAN_STEP = 80
 let flyerSeq = 0
 
@@ -101,59 +113,78 @@ function isMouseWheel(e: WheelEvent): boolean {
 }
 
 /**
- * Camera over the world: the world point at the centre of the viewport and a zoom relative to
- * "the whole map fits" (1). It opens at 100% (DEFAULT_ZOOM) centred on the agent loop.
+ * Camera over the map: the pan offset from the centre of the drawn content and a zoom relative to
+ * "the content fits" (1). The fit uses the bounding box of what is drawn (not a fixed world), centred
+ * in the area under the top row, and follows the stage size (ResizeObserver) and the composition.
  */
-function useViewportTransform(viewportRef: React.RefObject<HTMLDivElement | null>) {
+function useViewportTransform(viewportRef: React.RefObject<HTMLDivElement | null>, bbox: Rect) {
   const [size, setSize] = useState({ w: 1200, h: 600 })
-  const [cam, setCam] = useState({ zoom: DEFAULT_ZOOM, cx: HOME.cx, cy: HOME.cy })
+  const [cam, setCam] = useState({ zoom: DEFAULT_ZOOM, dx: 0, dy: 0 })
   useLayoutEffect(() => {
     const el = viewportRef.current
-    if (!el || typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(([entry]) => {
-      if (!entry) return
-      setSize({ w: entry.contentRect.width, h: entry.contentRect.height })
-    })
+    if (!el) return
+    const measure = () => {
+      const r = el.getBoundingClientRect()
+      setSize(cur => (cur.w === r.width && cur.h === r.height ? cur : { w: r.width, h: r.height }))
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () =>{  ro.disconnect() }
   }, [viewportRef])
 
-  const fit = Math.max(0.05, Math.min((size.w - FIT_MARGIN * 2) / WORLD_W, (size.h - FIT_MARGIN * 2) / WORLD_H))
+  const availH = Math.max(40, size.h - TOP_INSET)
+  const fit = Math.max(0.05, Math.min((size.w - FIT_MARGIN * 2) / bbox.w, (availH - FIT_MARGIN * 2) / bbox.h))
   const s = fit * cam.zoom
-  const tx = size.w / 2 - cam.cx * s
-  const ty = size.h / 2 - cam.cy * s
+  const mx0 = size.w / 2
+  const my0 = TOP_INSET + availH / 2
+  const bcx = bbox.x + bbox.w / 2
+  const bcy = bbox.y + bbox.h / 2
+  const cx = bcx + cam.dx
+  const cy = bcy + cam.dy
+  const tx = mx0 - cx * s
+  const ty = my0 - cy * s
 
   /** Zoom keeping the world point under (mx, my) fixed on screen. */
-  const zoomAt = (nextZoom: number, mx = size.w / 2, my = size.h / 2) => {
+  const zoomAt = (nextZoom: number, mx = mx0, my = my0) => {
     const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, nextZoom))
     const wx = (mx - tx) / s
     const wy = (my - ty) / s
     const s2 = fit * z
-    setCam({ zoom: z, cx: wx - (mx - size.w / 2) / s2, cy: wy - (my - size.h / 2) / s2 })
+    setCam({ zoom: z, dx: wx - (mx - mx0) / s2 - bcx, dy: wy - (my - my0) / s2 - bcy })
   }
-  const panBy = (dx: number, dy: number) =>{  setCam(c => ({ ...c, cx: c.cx - dx / (fit * c.zoom), cy: c.cy - dy / (fit * c.zoom) })) }
-  const centerOn = (cx: number, cy: number) =>{  setCam(c => ({ ...c, cx, cy })) }
-  /** 50%: the whole map on screen. */
-  const showAll = () =>{  setCam({ zoom: 1, cx: WORLD_W / 2, cy: WORLD_H / 2 }) }
-  /** 100% on the agent loop. */
-  const home = () =>{  setCam({ zoom: DEFAULT_ZOOM, cx: HOME.cx, cy: HOME.cy }) }
-  return { s, tx, ty, size, zoom: cam.zoom, pct: Math.round((cam.zoom / DEFAULT_ZOOM) * 100), zoomAt, panBy, centerOn, showAll, home }
+  const panBy = (dx: number, dy: number) =>{  setCam(c => ({ ...c, dx: c.dx - dx / (fit * c.zoom), dy: c.dy - dy / (fit * c.zoom) })) }
+  const centerOn = (wx: number, wy: number) =>{  setCam(c => ({ ...c, dx: wx - bcx, dy: wy - bcy })) }
+  /** 100%: all the content on screen, centred. */
+  const showAll = () =>{  setCam({ zoom: DEFAULT_ZOOM, dx: 0, dy: 0 }) }
+  const pct = Math.round((cam.zoom / DEFAULT_ZOOM) * 100)
+  return { s, tx, ty, size, zoom: cam.zoom, pct, zoomAt, panBy, centerOn, showAll, home: showAll }
 }
 
 /** Overview of the whole map with the visible area; click or drag to move there. */
-function Minimap({ view }: { view: ReturnType<typeof useViewportTransform> }) {
-  const W = 220
-  const H = (W * WORLD_H) / WORLD_W
-  const k = W / WORLD_W
+interface MinimapProps {
+  view: ReturnType<typeof useViewportTransform>
+  bbox: Rect
+  layout: ReturnType<typeof layoutFor>
+}
+
+function Minimap({ view, bbox, layout }: MinimapProps) {
+  const W = 200
+  const H = (W * bbox.h) / bbox.w
+  const k = W / bbox.w
   const drag = useRef(false)
   const jump = (e: React.PointerEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
-    view.centerOn(Math.min(WORLD_W, Math.max(0, (e.clientX - r.left) / k)), Math.min(WORLD_H, Math.max(0, (e.clientY - r.top) / k)))
+    const x = bbox.x + Math.min(bbox.w, Math.max(0, (e.clientX - r.left) / k))
+    const y = bbox.y + Math.min(bbox.h, Math.max(0, (e.clientY - r.top) / k))
+    view.centerOn(x, y)
   }
   const vx = -view.tx / view.s
   const vy = -view.ty / view.s
   const vw = view.size.w / view.s
   const vh = view.size.h / view.s
+  const B = layout.boundary
   return (
     <div
       className={styles.minimap}
@@ -174,9 +205,9 @@ function Minimap({ view }: { view: ReturnType<typeof useViewportTransform> }) {
         drag.current = false
       }}
     >
-      <svg width={W} height={H} viewBox={`0 0 ${WORLD_W} ${WORLD_H}`} aria-hidden>
-        <rect className={styles.miniBoundary} x={BROWSER_BOUNDARY.x} y={BROWSER_BOUNDARY.y} width={BROWSER_BOUNDARY.w} height={BROWSER_BOUNDARY.h} rx="30" />
-        {Object.entries(RECTS).map(([id, r]) => (
+      <svg width={W} height={H} viewBox={`${bbox.x} ${bbox.y} ${bbox.w} ${bbox.h}`} aria-hidden>
+        <rect className={styles.miniBoundary} x={B.x} y={B.y} width={B.w} height={B.h} rx="30" />
+        {Object.entries(layout.rects).map(([id, r]) => (
           <rect key={id} className={styles.miniCard} x={r.x} y={r.y} width={r.w} height={r.h} rx="18" />
         ))}
         <circle className={styles.miniRing} cx={RING.cx} cy={RING.cy} r={RING.r} />
@@ -187,38 +218,35 @@ function Minimap({ view }: { view: ReturnType<typeof useViewportTransform> }) {
   )
 }
 
-/** The latest plain-language narration line, shown as a caption over the map. */
-function useLiveCaption() {
-  const events = useLab(s => s.events)
-  const components = useLab(s => s.config.components)
-  return useMemo(() => {
-    const lines = narrationLines(events, components)
-    return lines[lines.length - 1] ?? null
-  }, [events, components])
-}
-
-/** The engine map (default) or the simplified flow, switched from a floating control.
- * @param onApprovalDetails Opens the current action's approval dialog.
- * @returns The selected diagram view.
+/**
+ * The system map with its chrome: the "Adesso" strip on top (what is happening, which step), the
+ * map or the simplified flow in the middle, and a docked control bar at the bottom (view switch,
+ * playback incl. step-by-step, and the page-level actions passed by the app).
  */
-export function EngineStage({ onApprovalDetails }: { onApprovalDetails: () => void }) {
+export function EngineStage({ onApprovalDetails, actions }: { onApprovalDetails: () => void; actions?: ReactNode }) {
   const [mode, setMode] = useState<'flow' | 'map'>('map')
+  const stage = useStage()
   return (
     <section className={layout.stage} aria-label="Come funziona il sistema">
+      <StageHud stage={stage} onApprovalDetails={onApprovalDetails} />
       <div id="engine-view-panel" role="tabpanel" aria-labelledby={tabId('engine-view', mode)} className={layout.content}>
         {mode === 'flow' ? <FlowOverview onApprovalDetails={onApprovalDetails} /> : <DetailedEngineStage onApprovalDetails={onApprovalDetails} />}
       </div>
-      <div className={layout.viewSwitch} data-zoom>
-        <Tabs
-          tabs={[
-            { id: 'map', label: 'Mappa', icon: <GitBranch size={15} aria-hidden /> },
-            { id: 'flow', label: 'Flusso', icon: <ListOrdered size={15} aria-hidden /> },
-          ]}
-          value={mode}
-          onChange={setMode}
-          ariaLabel="Visualizzazione del sistema"
-          idBase="engine-view"
-        />
+      <div className={chrome.bar}>
+        <div className={chrome.barStart}>
+          <Tabs
+            tabs={[
+              { id: 'map', label: 'Mappa', icon: <GitBranch size={15} aria-hidden /> },
+              { id: 'flow', label: 'Flusso', icon: <ListOrdered size={15} aria-hidden /> },
+            ]}
+            value={mode}
+            onChange={setMode}
+            ariaLabel="Visualizzazione del sistema"
+            idBase="engine-view"
+          />
+        </div>
+        <StageTransport />
+        {actions && <div className={chrome.barEnd}>{actions}</div>}
       </div>
     </section>
   )
@@ -234,13 +262,28 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
   const c = config.components
   const stage = useMemo(() => deriveStage(events, c.orchestrator), [events, c.orchestrator])
   const selected = useStageUi(s => s.selected)
-  const caption = useLiveCaption()
 
   // ── zoom & pan ──
   const viewportRef = useRef<HTMLDivElement>(null)
-  const view = useViewportTransform(viewportRef)
+  const layout = useMemo(() => layoutFor(c), [c])
+  const view = useViewportTransform(viewportRef, layout.bbox)
   const viewRef = useRef(view)
   viewRef.current = view
+
+  // Re-frame the whole map when the level or scenario changes and when the run is reset.
+  const level = useLab(s => s.level)
+  const scenarioId = useLab(s => s.scenarioId)
+  const isReset = events.length === 0
+  useEffect(() => {
+    viewRef.current.showAll()
+  }, [level, scenarioId, isReset])
+
+  // The hint at the top fades after a few seconds or on the first interaction.
+  const [hint, setHint] = useState(true)
+  useEffect(() => {
+    const t = setTimeout(() => {  setHint(false) }, 7000)
+    return () =>{  clearTimeout(t) }
+  }, [])
 
   // Wheel: mouse wheel and pinch zoom around the cursor; two-finger trackpad scroll pans.
   useEffect(() => {
@@ -321,7 +364,14 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
   // ── flyers: one projection per new trace event ──
   const [flyers, setFlyers] = useState<ActiveFlyer[]>([])
   const [hot, setHot] = useState<Partial<Record<EdgeId, number>>>({})
+  const heldId = useLab(s => s.heldEvent?.id ?? null)
+  const heldRef = useRef<string | null>(heldId)
+  heldRef.current = heldId
   const lastSeq = useRef(events.at(-1)?.seq ?? 0)
+  // Packets resting for a held event are released as soon as another event is held (or none).
+  useEffect(() => {
+    setFlyers(cur => (cur.some(f => f.rest && f.eventId !== heldId) ? cur.filter(f => !f.rest || f.eventId === heldId) : cur))
+  }, [heldId])
   useEffect(() => {
     const fresh: TraceEvent[] = []
     for (let i = events.length - 1; i >= 0; i--) {
@@ -336,13 +386,21 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
     if (fastForward || speed <= 0) return
     const spawned: ActiveFlyer[] = []
     const heat: Partial<Record<EdgeId, number>> = {}
+    // Several events can arrive at once (fast speed, resume after a pause): every wire they used
+    // lights up, but packets fly only for the newest event that has any, so they never pile up
+    // and the animation always shows the current step.
+    let newestWithFlyers: TraceEvent | undefined
+    for (const e of fresh) if (flyersFor(e, c).length) newestWithFlyers = e
     for (const e of fresh) {
       const specs = flyersFor(e, c)
       const base = ((EVENT_PACE_MS[e.type] ?? 400) / speed) * 0.9
       for (const f of specs) {
         heat[f.edge] = Date.now() + base + 600
-        if (reduced) continue
-        const pts = samplePath(EDGES[f.edge], 30, f.reverse)
+        if (reduced || e !== newestWithFlyers) continue
+        const pts = samplePath(layout.edges[f.edge], 30, f.reverse)
+        // A short pause on the last point so the message can be read before it disappears.
+        const last = pts[pts.length - 1]
+        if (last) for (let k = 0; k < FLYER_PAUSE; k++) pts.push(last)
         spawned.push({
           id: ++flyerSeq,
           edge: f.edge,
@@ -350,14 +408,21 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
           ys: pts.map(p => p.y),
           label: f.label,
           kind: f.kind,
-          duration: Math.max(0.35, base / 1000),
+          duration: Math.max(1.1, (base / 1000) * 1.3),
           delay: ((f.delay ?? 0) * base) / 1000,
+          hold: useLab.getState().stepMode,
+          eventId: e.id,
         })
       }
     }
     if (Object.keys(heat).length) setHot(h => ({ ...h, ...heat }))
-    if (spawned.length) setFlyers(cur => [...cur, ...spawned].slice(-MAX_FLYERS))
-  }, [events, c, speed, fastForward, reduced])
+    if (spawned.length) {
+      // One packet per wire at a time: a new one replaces whatever is still travelling there.
+      const uniq = spawned.filter(f => !spawned.some(g => g.edge === f.edge && g.id > f.id))
+      const edges = new Set(uniq.map(f => f.edge))
+      setFlyers(cur => [...cur.filter(x => !edges.has(x.edge)), ...uniq].slice(-MAX_FLYERS))
+    }
+  }, [events, c, layout, speed, fastForward, reduced])
 
   // cool down hot wires
   useEffect(() => {
@@ -379,9 +444,11 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
   const lit = (id: StageNodeId) => stage.lit.includes(id)
   const wires = wiresFor(c)
   const running = status === 'running' || status === 'awaitingApproval'
+  const worldW = layout.bbox.x + layout.bbox.w + 60
+  const worldH = layout.bbox.y + layout.bbox.h + 60
   const worldStyle = {
-    width: WORLD_W,
-    height: WORLD_H,
+    width: worldW,
+    height: worldH,
     transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.s})`,
     '--inv': Math.max(1, 1 / view.s),
   } as React.CSSProperties
@@ -391,9 +458,16 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
       className={styles.viewport}
       ref={viewportRef}
       tabIndex={0}
-      aria-label="Mappa del sistema: trascina per spostarti, rotella o + e − per lo zoom, frecce per muoverti, 0 per vederla tutta, 1 per tornare al ciclo"
-      onKeyDown={onKeyDown}
-      onPointerDown={onPointerDown}
+      aria-label="Mappa del sistema: trascina per spostarti, rotella o + e − per lo zoom, frecce per muoverti, 0 o 1 per vederla tutta"
+      onKeyDown={(e) => {
+        setHint(false)
+        onKeyDown(e)
+      }}
+      onWheel={() => {  setHint(false) }}
+      onPointerDown={(e) => {
+        setHint(false)
+        onPointerDown(e)
+      }}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
@@ -407,37 +481,37 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
       onDoubleClick={(e) => {
         if ((e.target as HTMLElement).closest('[data-node], [data-slot], [data-panel], [data-zoom]')) return
         if (view.zoom > 1.2) view.showAll()
-        else view.home()
+        else view.zoomAt(2)
       }}
     >
       <div className={styles.world} style={worldStyle}>
         {/* ── wires, boundary and column labels ── */}
-        <svg className={styles.wires} viewBox={`0 0 ${WORLD_W} ${WORLD_H}`} width={WORLD_W} height={WORLD_H} aria-hidden>
+        <svg className={styles.wires} viewBox={`0 0 ${worldW} ${worldH}`} width={worldW} height={worldH} aria-hidden>
           <defs>
-            <marker id="stage-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-              <path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="context-stroke" strokeWidth="2" />
+            <marker id="stage-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="24" markerHeight="24" orient="auto-start-reverse">
+              <path d="M 0 0.5 L 10 5 L 0 9.5 z" fill="context-stroke" stroke="context-stroke" strokeWidth="0.6" strokeLinejoin="round" />
             </marker>
             <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
               <circle cx="1.5" cy="1.5" r="1.3" fill="var(--canvas-grid)" />
             </pattern>
           </defs>
-          <rect x="-4000" y="-4000" width={WORLD_W + 8000} height={WORLD_H + 8000} fill="url(#dots)" />
-          <rect className={styles.boundary} x={BROWSER_BOUNDARY.x} y={BROWSER_BOUNDARY.y} width={BROWSER_BOUNDARY.w} height={BROWSER_BOUNDARY.h} rx="28" />
-          <text className={styles.boundaryLabel} x={BROWSER_BOUNDARY.x + 26} y={BROWSER_BOUNDARY.y - 14}>
+          <rect x="-4000" y="-4000" width={worldW + 8000} height={worldH + 8000} fill="url(#dots)" />
+          <rect className={styles.boundary} x={layout.boundary.x} y={layout.boundary.y} width={layout.boundary.w} height={layout.boundary.h} rx="28" />
+          <text className={styles.boundaryLabel} x={layout.boundary.x + 26} y={layout.boundary.y - 14}>
             IL TUO BROWSER · tutto ciò che sta qui dentro gira sul tuo computer
           </text>
-          <text className={styles.boundaryLabel} x={RECTS.mcp.x} y={BROWSER_BOUNDARY.y - 14}>
+          <text className={styles.colLabel} style={{ fontSize: 15 }} x={layout.rects.mcp.x + 4} y={layout.rects.mcp.y - 16}>
             SERVIZI ESTERNI
           </text>
-          {COLUMN_LABELS.map(l => (
-            <text key={l.text} className={styles.colLabel} x={l.x} y={COLUMN_LABEL_Y}>
+          {layout.labels.map(l => (
+            <text key={l.text} className={styles.colLabel} x={l.x} y={l.y}>
               {l.text}
             </text>
           ))}
-          {wires.map(w => (
+          {wires.filter(w => w.on).map(w => (
             <path
               key={w.id}
-              d={edgePath(EDGES[w.id])}
+              d={edgePath(layout.edges[w.id])}
               markerEnd={w.on ? 'url(#stage-arrow)' : undefined}
               className={[styles.wire, !w.on && styles.wireGhost, w.on && hot[w.id] && styles.wireHot].filter(Boolean).join(' ')}
               style={{ '--wire': `var(--c-${w.family})` } as React.CSSProperties}
@@ -446,24 +520,41 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
           {wires
             .filter(w => w.on)
             .flatMap(w => [
-              { key: `${w.id}-a`, p: EDGES[w.id].from, w },
-              { key: `${w.id}-b`, p: EDGES[w.id].to, w },
+              { key: `${w.id}-a`, p: layout.edges[w.id].from, w },
+              { key: `${w.id}-b`, p: layout.edges[w.id].to, w },
             ])
             .map(({ key, p, w }) => (
               <circle
                 key={key}
                 cx={p.x}
                 cy={p.y}
-                r={6}
+                r={7}
                 className={`${styles.wireDot} ${hot[w.id] ? styles.wireDotHot : ''}`}
                 style={{ '--wire': `var(--c-${w.family})` } as React.CSSProperties}
               />
             ))}
         </svg>
 
+        {/* ── permanent captions of the main wires (they step aside while a packet travels there) ── */}
+        {wires
+          .filter(w => w.on && layout.edgeLabels[w.id])
+          .map((w) => {
+            const l = layout.edgeLabels[w.id]
+            if (!l) return null
+            const busy = flyers.some(f => f.edge === w.id)
+            return (
+              <div
+                key={w.id}
+                className={`${styles.edgeLabel} ${busy ? styles.edgeLabelBusy : ''}`}
+                style={{ left: l.x, top: l.y, '--wire': `var(--c-${w.family})` } as React.CSSProperties}
+              >
+                {l.text}
+              </div>
+            )
+          })}
+
         {/* ── agent loop around the model ── */}
         <AgentLoop stage={stage} selected={selected === 'orchestrator'} />
-        <PlanBoard stage={stage} />
         <ModelCore stage={stage} lit={lit('model')} selected={selected === 'model'} />
 
         {/* ── cards (collapsed tiles; hover for a larger preview, click for the details) ── */}
@@ -487,9 +578,18 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
                 key={f.id}
                 className={`${styles.flyer} ${styles[`fly_${f.kind}`]}`}
                 initial={{ x: f.xs[0], y: f.ys[0], opacity: 0, scale: 0.6 }}
-                animate={{ x: f.xs, y: f.ys, opacity: [0, 1, 1, 1, 0], scale: [0.6, 1, 1, 1, 0.8] }}
-                transition={{ duration: f.duration, delay: f.delay, ease: 'easeInOut' }}
-                onAnimationComplete={() =>{  setFlyers(cur => cur.filter(x => x.id !== f.id)) }}
+                animate={{ x: f.xs, y: f.ys, opacity: [0, 1, 1, f.hold ? 1 : 0], scale: [0.6, 1, 1, f.hold ? 1 : 0.8] }}
+                transition={{
+                  duration: f.duration,
+                  delay: f.delay,
+                  ease: 'easeInOut',
+                  opacity: { duration: f.duration, delay: f.delay, times: [0, 0.07, 0.93, 1], ease: 'linear' },
+                  scale: { duration: f.duration, delay: f.delay, times: [0, 0.07, 0.93, 1], ease: 'linear' },
+                }}
+                onAnimationComplete={() => {
+                  if (f.hold && heldRef.current === f.eventId) setFlyers(cur => cur.map(x => (x.id === f.id ? { ...x, rest: true } : x)))
+                  else setFlyers(cur => cur.filter(x => x.id !== f.id))
+                }}
               >
                 <span className={styles.flyerChip}>{f.label}</span>
               </motion.div>
@@ -498,36 +598,32 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
         </div>
       </div>
 
-      <div className={styles.zoomBar} data-zoom role="toolbar" aria-label="Zoom della vista">
-        <button type="button" onClick={() =>{  view.zoomAt(view.zoom / 1.25) }} aria-label="Allontana" title="Allontana (−)">
-          <ZoomOut size={16} />
-        </button>
-        <button type="button" className={styles.zoomPct} onClick={view.home} title="Torna al 100% sul ciclo agentico (1)">
-          {view.pct}%
-        </button>
-        <button type="button" onClick={() =>{  view.zoomAt(view.zoom * 1.25) }} aria-label="Avvicina" title="Avvicina (+)">
-          <ZoomIn size={16} />
-        </button>
-        <button type="button" onClick={view.showAll} aria-label="Mostra tutta la mappa" title="Mostra tutta la mappa (0)">
-          <Maximize2 size={15} />
-        </button>
-        <button type="button" onClick={view.home} aria-label="Torna al ciclo agentico" title="Torna al ciclo agentico (1)">
-          <Crosshair size={15} />
-        </button>
-      </div>
-      <Minimap view={view} />
+      <PlanWindow stage={stage} />
 
-      <p className={`${styles.liveCaption} ${caption && running ? styles.liveCaptionOn : ''}`} aria-hidden>
-        {caption && (running || stage.runId) ? (
-          <>
-            {running && <span className={styles.liveDot} />}
-            <span className={styles.liveText}>{caption.text}</span>
-            {caption.term && <em>{caption.term}</em>}
-          </>
-        ) : (
-          'Passa sopra un elemento per ingrandirlo · clic per i dettagli · trascina per spostarti'
-        )}
-      </p>
+      <div className={styles.topRow}>
+        {/* What is happening is told once, by the "Adesso" strip above: here only the first-use hint. */}
+        <p className={styles.liveCaption} aria-hidden>
+          {hint && !running && !stage.runId && (
+            <span className={styles.hintText}>Passa sopra un elemento per ingrandirlo · clic per i dettagli</span>
+          )}
+        </p>
+        <div className={styles.zoomBar} data-zoom role="toolbar" aria-label="Zoom della vista">
+          <button type="button" onClick={() =>{  view.zoomAt(view.zoom / 1.25) }} aria-label="Allontana" title="Allontana (−)">
+            <ZoomOut size={15} />
+          </button>
+          <button type="button" className={styles.zoomPct} onClick={view.home} title="Inquadra tutta la mappa (1)">
+            {view.pct}%
+          </button>
+          <button type="button" onClick={() =>{  view.zoomAt(view.zoom * 1.25) }} aria-label="Avvicina" title="Avvicina (+)">
+            <ZoomIn size={15} />
+          </button>
+          <button type="button" onClick={view.showAll} aria-label="Mostra tutta la mappa" title="Mostra tutta la mappa (0)">
+            <Maximize2 size={14} />
+          </button>
+        </div>
+      </div>
+      {/* Only useful once zoomed in: at 100% the whole map is already on screen. */}
+      {view.zoom > DEFAULT_ZOOM * 1.05 && <Minimap view={view} bbox={layout.bbox} layout={layout} />}
 
       <AnimatePresence>
         {selected && <NodeDetails key={selected} node={selected} stage={stage} onApprovalDetails={onApprovalDetails} />}
@@ -606,6 +702,8 @@ function AgentLoop({ stage, selected }: { stage: StageState; selected: boolean }
   const streaming = useLab(s => s.streamingText.length > 0)
   const speed = useLab(s => s.speed)
   const toggle = useStageUi(s => s.toggle)
+  const scenario = useLab(s => SCENARIOS.find(item => item.id === s.scenarioId))
+  const orchLevel = (levelsFor(scenario).find(l => l.adds.includes('orchestrator'))?.id ?? -1) + 1
   const on = c.orchestrator
   const loop = on && c.agentLoop
   const station = on && stage.running ? stationFor(stage.phase, streaming) : null
@@ -736,7 +834,7 @@ function AgentLoop({ stage, selected }: { stage: StageState; selected: boolean }
         </motion.button>
       ) : (
         <div className={styles.ringGhostLabel} style={{ left: RING.cx, top: RING.cy - RING.r }}>
-          ciclo agentico · da costruire
+          Ciclo agentico · {orchLevel ? `arriva al livello ${orchLevel}` : 'da costruire'}
         </div>
       )}
     </>

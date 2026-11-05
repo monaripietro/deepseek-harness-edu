@@ -1,15 +1,17 @@
 import { ModelActivityNote, ReasoningDisclosure, useLiveReasoning, useStreamedProse } from '../model/ModelActivity'
-import { useEffect, useId, useRef, useState } from 'react'
-import { Cpu, FileText, Play, Square } from 'lucide-react'
+import { useEffect, useId, useMemo, useRef } from 'react'
+import { CornerDownRight, Cpu, FileText, Play, RotateCcw, Square } from 'lucide-react'
 import type { ChatEntry, RunStatus } from '../../state/store'
 import { useLab } from '../../state/store'
-import { SCENARIOS, requestFor } from '../../scenarios'
+import { SCENARIOS } from '../../scenarios'
 import { guideScenario } from '../../scenarios/guide'
 import { ReflectionTrace } from '../chat/ReflectionTrace'
 import { STOP_LABEL } from '../common/labels'
 import { Button } from '../common/Button'
 import { Markdown } from '../common/Markdown'
 import { ProvenanceBadge } from '../common/ProvenanceBadge'
+import { sameRequest, sendModeFor } from './flowSteps'
+import { useRequestDraft } from './stageUi'
 import styles from './RunPanel.module.css'
 
 /** Sends requests through the selected scenario and renders the store-backed conversation. */
@@ -19,8 +21,6 @@ export function RunPanel() {
   const conversationId = useId()
   const scenarioId = useLab(s => s.scenarioId)
   const scenario = SCENARIOS.find(item => item.id === scenarioId) ?? guideScenario
-  const promptLanguage = useLab(s => s.promptLanguage)
-  const request = requestFor(scenario.id, promptLanguage) || scenario.request
   const config = useLab(s => s.config)
   const setLevel = useLab(s => s.setLevel)
   const chat = useLab(s => s.chat)
@@ -31,10 +31,13 @@ export function RunPanel() {
   const stop = useLab(s => s.stop)
   const modelInfo = useLab(s => s.modelInfo)
   const loadProgress = useLab(s => s.loadProgress)
-  const [draft, setDraft] = useState(request)
+  const resetConversation = useLab(s => s.resetConversation)
+  // Shared with the map's request card and the stage's run button.
+  const { text: draft, request, edited, setText: setDraft, reset: resetDraft } = useRequestDraft()
   const conversationRef = useRef<HTMLDivElement>(null)
+  const asked = useMemo(() => chat.filter(m => m.role === 'user').map(m => m.text), [chat])
+  const mode = sendModeFor(draft, request, asked)
 
-  useEffect(() =>{  setDraft(request) }, [request])
   useEffect(() => {
     const conversation = conversationRef.current
     if (conversation) conversation.scrollTop = conversation.scrollHeight
@@ -120,9 +123,27 @@ export function RunPanel() {
       )}
 
       <div className={styles.conversation} ref={conversationRef} aria-labelledby={conversationId}>
-        <h3 id={conversationId} className={styles.conversationTitle}>
-          Conversazione
-        </h3>
+        <div className={styles.conversationHead}>
+          <h3 id={conversationId} className={styles.conversationTitle}>
+            Conversazione
+            {asked.length > 0 && (
+              <span className={styles.turns}>
+                {asked.length} {asked.length === 1 ? 'domanda' : 'domande'}
+              </span>
+            )}
+          </h3>
+          {chat.length > 0 && !running && (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<RotateCcw size={14} aria-hidden />}
+              onClick={resetConversation}
+              title="Svuota conversazione, eventi e memoria di sessione: la prossima richiesta parte da zero"
+            >
+              Nuova conversazione
+            </Button>
+          )}
+        </div>
         {chat.length === 0 ? (
           <p className={styles.empty}>
             Nessuna prova ancora. Scrivi o modifica la richiesta qui sotto e premi Avvia: la risposta comparirà qui.
@@ -162,12 +183,25 @@ export function RunPanel() {
           }}
         />
         <div className={styles.composerFoot}>
-          <p className={styles.inputHint} id={hintId}>
-            Invio avvia la richiesta · Maiusc+Invio aggiunge una riga.
+          <p className={styles.inputHint} id={hintId} data-mode={mode}>
+            {mode === 'restart' ? (
+              <span className={styles.modeLine}>
+                <RotateCcw size={13} aria-hidden />
+                {sameRequest(draft, request) ? 'Domanda dello scenario' : 'Domanda già fatta'}: si riparte da zero, senza la conversazione precedente.
+              </span>
+            ) : mode === 'followup' ? (
+              <span className={styles.modeLine}>
+                <CornerDownRight size={13} aria-hidden />
+                {config.components.memory
+                  ? 'Domanda nuova: continua la conversazione e il modello rivede gli scambi precedenti.'
+                  : 'Domanda nuova nella stessa conversazione. Senza memoria il modello non vede gli scambi precedenti.'}
+              </span>
+            ) : null}
+            <span>Invio avvia la richiesta · Maiusc+Invio aggiunge una riga.</span>
           </p>
           <div className={styles.actions}>
-            {draft !== request && !running && (
-              <Button variant="ghost" size="sm" onClick={() =>{  setDraft(request) }}>
+            {edited && !running && (
+              <Button variant="ghost" size="sm" onClick={resetDraft}>
                 Domanda dello scenario
               </Button>
             )}

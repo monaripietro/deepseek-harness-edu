@@ -1,0 +1,521 @@
+/*
+ * Chrome around the system diagram, shared by the map and the flow:
+ * the "Adesso" strip on top and the docked control bar at the bottom.
+ * Both have a fixed height, so nothing below them jumps while a run progresses.
+ */
+
+/* ───────────── "Adesso": what is happening now ───────────── */
+.hud {
+  --accent: var(--border-strong);
+  --accent-ink: var(--text-muted);
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  height: 44px;
+  padding: 0 var(--sp-4);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+/* Subtle status accent: a thin line under the strip. */
+.hud::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+  opacity: 0.55;
+  transition: background var(--dur-base);
+}
+.hud[data-tone='live'] {
+  --accent: var(--c-orchestration-fill);
+  --accent-ink: var(--c-orchestration);
+}
+.hud[data-tone='good'] {
+  --accent: var(--c-success);
+  --accent-ink: var(--c-success);
+}
+.hud[data-tone='warn'] {
+  --accent: var(--c-warning);
+  --accent-ink: var(--c-warning);
+}
+.hud[data-tone='bad'] {
+  --accent: var(--c-danger);
+  --accent-ink: var(--c-danger);
+}
+
+.now {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.badge {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--accent-ink);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.badgeDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.hud[data-tone='live'] .badgeDot {
+  background: var(--c-action-fill);
+  box-shadow: 0 0 0 2px var(--c-action-soft);
+  animation: hudBlink 1.2s ease-in-out infinite;
+}
+@keyframes hudBlink {
+  50% {
+    opacity: 0.35;
+  }
+}
+.title {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Secondary sentence: one truncated line, full text in the tooltip. */
+.caption {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.term {
+  display: inline-block;
+  margin-inline-start: var(--sp-2);
+  padding: 0 7px;
+  border-radius: var(--r-pill);
+  background: var(--c-orchestration-soft);
+  color: var(--c-orchestration);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.6;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+.meta {
+  flex: none;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.decide {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--r-pill);
+  border: 1.5px solid var(--c-warning);
+  background: color-mix(in srgb, var(--c-warning) 16%, var(--surface));
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  white-space: nowrap;
+  animation: decidePulse 1.8s ease-in-out infinite;
+}
+.decide:hover {
+  background: color-mix(in srgb, var(--c-warning) 26%, var(--surface));
+}
+@keyframes decidePulse {
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--c-warning) 22%, transparent);
+  }
+}
+
+/* The steps of a request: the same numbers appear in the flow view. */
+.track {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.step {
+  --step: var(--c-model);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 2px;
+  border-radius: var(--r-pill);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background var(--dur-base),
+    color var(--dur-base),
+    box-shadow var(--dur-base);
+}
+.step:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  left: -9px;
+  top: 50%;
+  width: 8px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+.stepNum {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--step) 40%, var(--border));
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.step[data-state='done'] {
+  color: var(--text);
+}
+.step[data-state='done'] .stepNum {
+  border-color: var(--step);
+  background: color-mix(in srgb, var(--step) 14%, var(--surface));
+  color: var(--step);
+}
+.step[data-state='current'] {
+  background: color-mix(in srgb, var(--step) 12%, var(--surface));
+  box-shadow: inset 0 0 0 1.5px var(--step);
+  color: var(--text);
+}
+.step[data-state='current'] .stepNum {
+  border-color: var(--step);
+  background: var(--step);
+  color: var(--surface);
+}
+.hud[data-tone='live'] .step[data-state='current'] .stepNum {
+  animation: stepPulse 1.6s ease-out infinite;
+}
+@keyframes stepPulse {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--step) 45%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+.step[data-state='skipped'] {
+  color: var(--text-faint);
+}
+.step[data-state='skipped'] .stepNum {
+  border-style: dashed;
+  color: var(--text-faint);
+}
+.step[data-state='stopped'] {
+  color: var(--c-danger);
+}
+.step[data-state='stopped'] .stepNum {
+  border-color: var(--c-danger);
+  background: var(--c-danger);
+  color: var(--surface);
+}
+.round {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: var(--c-orchestration-soft);
+  color: var(--c-orchestration);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+/* From the second round on, the loop is visibly at work. */
+.roundAgain {
+  box-shadow: inset 0 0 0 1.5px var(--c-orchestration-fill);
+}
+.roundMax {
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+/* ───────────── Control bar: view, playback, page actions ───────────── */
+.bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-2);
+  min-height: 48px;
+  padding: var(--sp-1) var(--sp-3);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+.barStart,
+.barEnd {
+  flex: 1 1 0;
+  min-width: max-content;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.barEnd {
+  justify-content: flex-end;
+}
+.barStart [role='tablist'] {
+  gap: 2px;
+}
+.barStart button[role='tab'] {
+  height: 32px;
+  padding: 0 12px;
+  white-space: nowrap;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+.transport {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+}
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 16px 0 12px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: var(--c-action-fill);
+  color: #1d2428;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  transition: filter var(--dur-fast);
+}
+.primary:hover:not(:disabled) {
+  filter: brightness(0.95);
+}
+.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.primaryStop {
+  background: var(--text);
+  color: var(--on-ink);
+}
+.sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 var(--sp-1);
+  background: var(--border);
+}
+.tbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background var(--dur-fast),
+    color var(--dur-fast);
+}
+.tbtn:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.tbtn:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+.tbtnOn {
+  background: var(--c-orchestration-soft);
+  color: var(--c-orchestration);
+}
+.tbtnOn:hover:not(:disabled) {
+  background: var(--c-orchestration-soft);
+}
+.tbtnNext:not(:disabled) {
+  background: var(--c-orchestration-fill);
+  color: #ffffff;
+}
+.tbtnNext:hover:not(:disabled) {
+  background: var(--c-orchestration);
+}
+.speed {
+  display: inline-flex;
+  margin-inline: var(--sp-1);
+  padding: 2px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+}
+.speed button {
+  height: 24px;
+  min-width: 36px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--r-pill);
+  background: none;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.speed button:hover {
+  color: var(--text);
+}
+.speed .speedOn,
+.speed .speedOn:hover {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+}
+
+/* Only the current step carries its word; the others are numbers (full text in their tooltip). */
+.step:not([data-state='current']) .stepLabel {
+  display: none;
+}
+.step:not([data-state='current']) {
+  padding-right: 2px;
+}
+@container stage (max-width: 1100px) {
+  .caption {
+    display: none;
+  }
+}
+
+@container stage (max-width: 1240px) {
+  .tlabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .tbtn {
+    padding: 0 8px;
+  }
+}
+@container stage (max-width: 760px) {
+  .meta,
+  .round {
+    display: none;
+  }
+  .bar {
+    justify-content: center;
+  }
+  .barStart,
+  .barEnd {
+    flex: 0 1 auto;
+  }
+  .transport {
+    order: -1;
+    flex-basis: 100%;
+    border-radius: var(--r-lg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud[data-tone='live'] .badgeDot,
+  .hud[data-tone='live'] .step[data-state='current'] .stepNum,
+  .decide {
+    animation: none;
+  }
+}
+
+/* Playback dock: the guide line sits above the pill group, so the bar keeps its layout. */
+.dock {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+}
+.guide {
+  margin: 0;
+  max-width: 100%;
+  padding: 0 var(--sp-2);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  color: var(--text-muted);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.guideLabel {
+  color: var(--text);
+  font-weight: 700;
+}
+.guide_held {
+  color: var(--c-orchestration);
+}
+.guide_held .guideLabel {
+  color: var(--c-orchestration);
+}
+.guide_wait {
+  color: var(--text-muted);
+  font-style: italic;
+}
+.guide_pause {
+  color: var(--c-warning);
+}
+.guide_pause .guideLabel {
+  color: var(--c-warning);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .guide {
+    transition: color var(--dur-base);
+  }
+}

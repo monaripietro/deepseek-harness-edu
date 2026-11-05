@@ -15,6 +15,12 @@ const PLAIN_ORDER = new RegExp(
  * @returns The parsed order from first to last, or null when it is incomplete or repeats a name.
  */
 export function lastOrder(draft: string): Name[] | null {
+  // A plain order at the very start wins: later text such as "Rule 1: Delta ..." must not be read as positions.
+  const plain = PLAIN_ORDER.exec(draft)
+  if (plain) {
+    const names = plain.slice(1, 5).map(value => NAMES.find(item => item.toLowerCase() === value?.toLowerCase()))
+    if (names.every((item): item is Name => item !== undefined) && new Set(names).size === NAMES.length) return names
+  }
   const numbered = [...draft.matchAll(/\b([1-4])\s*[=:.)-]\s*(alfa|beta|gamma|delta)\b/gi)]
   if (numbered.length) {
     let current: (Name | undefined)[] = []
@@ -36,12 +42,7 @@ export function lastOrder(draft: string): Name[] | null {
     return last
   }
 
-  const plain = PLAIN_ORDER.exec(draft)
-  if (!plain) return null
-  const order = plain.slice(1, 5).map(value => NAMES.find(item => item.toLowerCase() === value?.toLowerCase()))
-  if (order.some((item): item is undefined => item === undefined)) return null
-  const names = order as Name[]
-  return new Set(names).size === NAMES.length ? names : null
+  return null
 }
 
 /**

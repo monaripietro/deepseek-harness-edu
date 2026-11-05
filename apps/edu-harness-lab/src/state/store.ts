@@ -8,12 +8,16 @@ import type {
   ComponentId,
   CustomToolSpec,
   FaultInjection,
+  EventBus,
   HarnessConfig,
   LevelId,
   LoadProgress,
+  MemoryRecord,
+  MemoryStore,
   ModelInfo,
   ModelProfileId,
   ModelRuntime,
+  Pacer,
   ProvenanceTag,
   RunRecord,
   Scenario,
@@ -21,7 +25,8 @@ import type {
   PromptLanguage,
   ThinkingEffort,
 } from '../domain/types'
-import { NO_FAULTS } from '../domain/types'
+import { NO_FAULTS, REAL_LOCAL } from '../domain/types'
+import { sameRequest, sendModeFor } from './conversation'
 import { createEventBus, createPacer, newId } from '../harness/events'
 import {
   COMPONENT_ORDER,
@@ -73,6 +78,7 @@ function savedThinking(): ThinkingEffort {
 }
 import { detectCapabilities } from '../runtime/model/capabilities'
 import { wipeAllLocalData } from '../persistence/db'
+import { businessLog } from '../harness/tools/businessLog'
 
 // ───────────────────────── Long-lived services (outside React state) ─────────────────────────
 
@@ -87,6 +93,7 @@ export const mcpHub = createMcpHub({ bus, data: () => scenarioDataFor(useLab.get
 
 let liveRuntime: ModelRuntime | null = null
 let abortCtl: AbortController | null = null
+let experimentCtl: AbortController | null = null
 let modelLoadGeneration = 0
 let runtimeTeardown: Promise<void> = Promise.resolve()
 const customToolDisposers = new Map<string, () => void>()
@@ -115,10 +122,87 @@ function withScenarioDefaults(config: HarnessConfig, scenario: Scenario): Harnes
     : config
 }
 
-const pacer = createPacer(() => {
-  const s = useLab.getState()
-  return { speed: s.fastForward ? 0 : s.speed, paused: s.paused, stepMode: s.stepMode }
-})
+const pacer = createPacer(
+  () => {
+    const s = useLab.getState()
+    return { speed: s.fastForward ? 0 : s.speed, paused: s.paused, stepMode: s.stepMode }
+  },
+  (heldEvent) => {
+    useLab.setState({ heldEvent })
+  },
+)
+
+/**
+ * Bumped by every conversation reset. A run started under an older generation (e.g. stopped by a
+ * scenario change) may still be unwinding: its trace events, memory writes and final state updates
+ * are dropped so they never leak into the fresh conversation.
+ */
+let conversationGeneration = 0
+
+function gatedBus(isLive: () => boolean): EventBus {
+  return {
+    ...bus,
+    emit(runId, body, meta = {}) {
+      if (isLive()) return bus.emit(runId, body, meta)
+      return {
+        ...body,
+        id: newId('ev'),
+        seq: 0,
+        at: Date.now(),
+        runId,
+        stepIndex: meta.stepIndex,
+        source: meta.source ?? 'orchestrator',
+        provenance: meta.provenance ?? REAL_LOCAL,
+      } as TraceEvent
+    },
+  }
+}
+
+function gatedMemory(isLive: () => boolean): MemoryStore {
+  return {
+    list: () => memory.list(),
+    write(rec) {
+      if (isLive()) return memory.write(rec)
+      return { ...rec, id: newId('mem'), createdAt: new Date().toISOString() } as MemoryRecord
+    },
+    delete(id) {
+      if (isLive()) memory.delete(id)
+    },
+    clear(scope) {
+      if (isLive()) memory.clear(scope)
+    },
+    reset() {
+      if (isLive()) memory.reset()
+    },
+    subscribe: cb => memory.subscribe(cb),
+  }
+}
+
+/** A stale run never waits on the shared pacer: it would steal step-mode clicks from the new run. */
+function gatedPacer(isLive: () => boolean): Pacer {
+  return { wait: event => (isLive() ? pacer.wait(event) : Promise.resolve()) }
+}
+
+/** Run-scoped state of an empty conversation. */
+const EMPTY_CONVERSATION = {
+  chat: [],
+  history: [],
+  events: [],
+  status: 'idle',
+  currentRunId: null,
+  pendingApproval: null,
+  streamingText: '',
+  modelActivity: null,
+  reasoningText: '',
+  runReasoning: [],
+  heldEvent: null,
+} satisfies Partial<LabState>
+
+/** True when the request repeats the scenario request or a question already asked: a restart, not a follow-up. */
+function isRestart(text: string, scenarioRequest: string, chat: ChatEntry[]): boolean {
+  const asked = chat.filter(m => m.role === 'user').map(m => m.text)
+  return sendModeFor(text, scenarioRequest, asked) === 'restart' || (asked.length === 0 && sameRequest(text, scenarioRequest))
+}
 
 // ───────────────────────── State ─────────────────────────
 
@@ -196,6 +280,11 @@ export interface LabState {
   speed: number
   paused: boolean
   stepMode: boolean
+  /**
+   * The event the run is held on (step mode or pause), null while it flows (e.g. the model is
+   * writing). In step mode this is what Avanti releases: the UI shows it as «fermo qui».
+   */
+  heldEvent: TraceEvent | null
   fastForward: boolean
   faults: FaultInjection
 
@@ -359,6 +448,7 @@ export const useLab = create<LabState>()((set, get) => ({
   speed: 1,
   paused: false,
   stepMode: false,
+  heldEvent: null,
   fastForward: false,
   faults: NO_FAULTS,
 
@@ -377,6 +467,11 @@ export const useLab = create<LabState>()((set, get) => ({
     const scenario = currentScenario()
     // The guided path of a scenario stops at its last useful level.
     const level = clampLevel(requested, scenario)
+    // A new level is a new experiment: the previous run's conversation, trace and session memory go.
+    if (level !== get().level) {
+      get().resetConversation()
+      set({ comparison: [] })
+    }
     const prev = get().config
     const next = configForLevel(level, prev, scenario)
     next.enabledTools = [
@@ -407,10 +502,15 @@ export const useLab = create<LabState>()((set, get) => ({
   },
   setScenario(scenarioId) {
     const scenario = getScenario(scenarioId)
+    if (get().scenarioId === scenarioId) return
+    // A new scenario starts from an empty conversation: no chat, trace, history or session memory.
+    get().resetConversation()
+    // Comparison columns belong to the scenario that produced them.
+    set({ comparison: [] })
     const s = get()
-    if (s.scenarioId === scenarioId) return
     const previous = currentScenario()
     const faults = scenario.faults ?? (previous.faults ? NO_FAULTS : s.faults)
+    faultsRef = faults // the MCP hub reads faults from this ref, not from the state
     // Past the new scenario's last useful level the guided path steps back to it; the free laboratory keeps its configuration.
     const level = clampLevel(s.level, scenario)
     const clampedGuided = level !== s.level && s.view === 'guided'
@@ -546,7 +646,11 @@ export const useLab = create<LabState>()((set, get) => ({
     set({ cachedModels: next })
   },
   setPromptLanguage(promptLanguage) {
-    set({ promptLanguage, history: [] })
+    if (promptLanguage !== get().promptLanguage) {
+      get().resetConversation()
+      set({ comparison: [] })
+    }
+    set({ promptLanguage })
     try {
       localStorage.setItem(PROMPT_LANGUAGE_KEY, promptLanguage)
     } catch {
@@ -654,8 +758,7 @@ export const useLab = create<LabState>()((set, get) => ({
   },
 
   async send(input) {
-    const s = get()
-    if (s.status === 'running' || s.status === 'awaitingApproval') return null
+    if (get().status === 'running' || get().status === 'awaitingApproval') return null
     const language = get().promptLanguage
     const scenario = getScenario(get().scenarioId, language)
     const text = (input ?? scenario.request).trim()
@@ -665,7 +768,16 @@ export const useLab = create<LabState>()((set, get) => ({
       set({ needsModel: true })
       return null
     }
+    // Asking the same question again restarts the scenario: the model must not see the previous
+    // attempt (history, session memory) and the stage must not mix the two runs. Only a genuinely
+    // new follow-up question continues the conversation.
+    const prior = get()
+    if ((prior.chat.length > 0 || prior.history.length > 0) && isRestart(text, scenario.request, prior.chat)) get().resetConversation()
+    const s = get()
+    const generation = conversationGeneration
+    const live = () => generation === conversationGeneration
     abortCtl = new AbortController()
+    const signal = abortCtl.signal
     pacer.reset()
     const userEntry: ChatEntry = { id: newId('msg'), role: 'user', text }
     const assistantId = newId('msg')
@@ -675,7 +787,6 @@ export const useLab = create<LabState>()((set, get) => ({
       streamingText: '',
       reasoningText: '',
       runReasoning: [],
-      panel: s.panel,
     })
     try {
       const record = await runTurn(
@@ -687,19 +798,21 @@ export const useLab = create<LabState>()((set, get) => ({
           data: scenarioDataFor(language),
           language,
           registry,
-          memory,
+          memory: gatedMemory(live),
           retriever,
           approvals: approvalsFor(s.config.autoApprove),
           mcp: mcpHub,
-          bus,
-          pacer,
+          bus: gatedBus(live),
+          pacer: gatedPacer(live),
           faults: s.faults,
           history: s.config.components.memory ? s.history : [],
           configKey: configKeyOf(s.config),
           configLabel: describeConfig(s.config),
-          onToken: (t) =>{  set({ streamingText: get().streamingText + t, modelActivity: null }) },
+          onToken: (t) => {
+            if (live()) set({ streamingText: get().streamingText + t, modelActivity: null })
+          },
           onThinking: (tokens, text) => {
-            if (tokens === null) return
+            if (tokens === null || !live()) return
             const activity = get().modelActivity
             set({
               ...(text !== undefined ? { reasoningText: text } : {}),
@@ -708,7 +821,8 @@ export const useLab = create<LabState>()((set, get) => ({
             })
           },
           // Each model call streams on its own: the text shown is always the current call's.
-          onModelCall: (active) =>{
+          onModelCall: (active) => {
+            if (!live()) return
             set(
               active
                 ? { streamingText: '', reasoningText: '', modelActivity: { kind: 'reading', since: Date.now(), tokens: 0 } }
@@ -719,13 +833,18 @@ export const useLab = create<LabState>()((set, get) => ({
                 },
             ) },
         },
-        abortCtl.signal,
+        signal,
       )
+      // The conversation was reset while this run was unwinding: it no longer belongs anywhere.
+      if (!live()) return null
       set({
         status: record.stopReason === 'user_stop' ? 'stopped' : 'done',
         currentRunId: record.id,
         runs: [...get().runs, record],
-        history: [...get().history, { role: 'user', content: text }, { role: 'assistant', content: record.answer }],
+        // An interrupted or failed run has no real answer: it must not become part of the next prompt.
+        history: record.stopReason === 'user_stop' || record.stopReason === 'model_error' || record.stopReason === 'timeout'
+          ? get().history
+          : [...get().history, { role: 'user', content: text }, { role: 'assistant', content: record.answer }],
         chat: get().chat.map(m =>
           m.id === assistantId
             ? {
@@ -744,18 +863,22 @@ export const useLab = create<LabState>()((set, get) => ({
       })
       return record
     } catch (err) {
+      if (!live()) return null
       const message = err instanceof Error ? err.message : String(err)
       set({
         status: 'error',
         chat: get().chat.map(m => (m.id === assistantId ? { ...m, text: `Si è verificato un errore: ${message}`, streaming: false } : m)),
+        streamingText: '',
+        modelActivity: null,
       })
       return null
     } finally {
-      abortCtl = null
+      if (abortCtl?.signal === signal) abortCtl = null
     }
   },
   stop() {
     abortCtl?.abort()
+    experimentCtl?.abort()
     pacer.flush()
     const p = get().pendingApproval
     if (p) p.resolve('cancelled')
@@ -765,9 +888,12 @@ export const useLab = create<LabState>()((set, get) => ({
   },
   resetConversation() {
     get().stop()
+    conversationGeneration += 1
+    abortCtl = null
     bus.clear()
     memory.clear('session')
-    set({ chat: [], history: [], events: [], status: 'idle', currentRunId: null, streamingText: '', modelActivity: null, reasoningText: '', runReasoning: [] })
+    businessLog.clear() // simulated side effects (tasks, requests) belong to the conversation that caused them
+    set(EMPTY_CONVERSATION)
   },
 
   setSpeed(speed) {
@@ -801,9 +927,16 @@ export const useLab = create<LabState>()((set, get) => ({
     const language = get().promptLanguage
     const scenario = getScenario(get().scenarioId, language)
     const rows: ComparisonRow[] = EXPERIMENT.map(e => ({ key: e.key, label: e.label, short: e.short, status: 'pending' }))
+    businessLog.clear()
     set({ comparing: true, comparison: rows, fastForward: true })
     const fastPacer = createPacer(() => ({ speed: 0, paused: false, stepMode: false }))
+    const ctl = new AbortController()
+    experimentCtl = ctl
     for (const exp of EXPERIMENT) {
+      if (ctl.signal.aborted) {
+        set({ comparison: get().comparison.map(r => (r.status === 'pending' || r.status === 'running' ? { ...r, status: 'error', error: 'Confronto interrotto.' } : r)) })
+        break
+      }
       set({ comparison: get().comparison.map(r => (r.key === exp.key ? { ...r, status: 'running' } : r)) })
       // Each configuration starts from the same state: no session memory carried over between columns.
       memory.clear('session')
@@ -828,19 +961,26 @@ export const useLab = create<LabState>()((set, get) => ({
             configKey: exp.key,
             configLabel: exp.label,
           },
-          new AbortController().signal,
+          ctl.signal,
         )
+        if (ctl.signal.aborted) {
+          set({ comparison: get().comparison.map(r => (r.status === 'pending' || r.status === 'running' ? { ...r, status: 'error', error: 'Confronto interrotto.' } : r)) })
+          break
+        }
         set({ comparison: get().comparison.map(r => (r.key === exp.key ? { ...r, status: 'done', record } : r)) })
       } catch (err) {
         set({ comparison: get().comparison.map(r => (r.key === exp.key ? { ...r, status: 'error', error: String(err) } : r)) })
       }
     }
+    // Leave no comparison state (session notes, simulated side effects) behind for the next guided run.
+    memory.clear('session')
+    if (experimentCtl === ctl) experimentCtl = null
     set({ comparing: false, fastForward: false })
   },
 
   async wipeData() {
     get().resetConversation()
-    memory.clear()
+    memory.reset() // wipes user records but restores the scenario seed memories
     await wipeAllLocalData()
     set({ runs: [], comparison: [], customTools: [], config: baseConfig(), level: 0 })
   },

@@ -528,7 +528,7 @@ export function HumanCard({ stage, active, lit }: { stage: StageState; active: b
           ? 'Richiesta annullata'
           : auto
             ? 'Approvazione automatica (regia)'
-            : 'Nessuna azione da approvare'
+            : 'Nulla da approvare'
   return (
     <StageCard
       node="human"

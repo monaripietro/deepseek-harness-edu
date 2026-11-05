@@ -21,7 +21,7 @@ import { REAL_LOCAL, SAFETY_NET } from '../../domain/types'
 import { newId } from '../events'
 import { executeTool } from '../tools/executor'
 import { validateArgs } from '../tools/validate'
-import { buildContext, type ObservationInput, type ReflectionInput } from './contextBuilder'
+import { CONTEXT_BUDGET_TOKENS, buildContext, type ObservationInput, type ReflectionInput } from './contextBuilder'
 import { FAULT_LABEL, corruptArgs, createRepeatDetector, effectsFor, shortenText, simulatedActionId } from './guards'
 import {
   NATIVE_REPAIR,
@@ -38,21 +38,11 @@ import { unverifiedNumbers } from './numbers'
 import { PLAN_TOOL, recordPlan } from '../tools/planning'
 import { createRetriever } from '../rag/retriever'
 
-/** Forced first move: the model writes its plan (guided call to the planning tool). */
-const PLAN_CALL = { name: PLAN_TOOL.id, arg: 'piano' }
-const PLAN_GUIDE = 'Prima di agire l’orchestratore fa scrivere al modello un piano: passi numerati, ciascuno con lo strumento da usare.'
 /** Guided reflection loop: what the orchestrator opens at each micro-step (shown in the app). */
 const GUIDE_STEP = {
   draft: 'L’orchestratore apre una bozza (<self_reflection>): il modello la completa con un ordine concreto.',
   final: 'Il codice ha verificato l’ordine e tutti i vincoli: l’orchestratore apre la risposta finale (<final_answer>).',
 } as const
-const planFirst = (toolIds: string[], loop: boolean) =>
-  `Before acting, call ${PLAN_TOOL.id} with your plan: 1 to 5 numbered steps. Each step names a relevant tool ` +
-  `(${toolIds.join(', ')}), "answer", or "ask" for missing user-owned details. Plan only what the request needs and the available tools allow. ` +
-  'Retrieve company data through tools; ask only for missing details that the user alone knows.' +
-  (toolIds.includes('calcolatrice') ? ' Every calculation is a calcolatrice step.' : '') +
-  (loop ? '' : ' You can call only ONE tool before the answer: pick the most useful one.')
-
 /** Guided call to the calculator: the runtime writes the opening, the model writes the expression. */
 const CALC_CALL = { name: 'calcolatrice', arg: 'espressione' }
 const calcRepair = (odd: string[]) =>
@@ -222,6 +212,8 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
     switch (h.reason) {
       case 'user_stop':
         return 'Esecuzione interrotta prima di una risposta.'
+      case 'timeout':
+        return h.answer ?? `${h.message} Riprova, oppure cambia modello dal pannello Modello.`
       case 'model_error':
         return `${h.message} Riprova, oppure cambia modello dal pannello Modello.`
       default:
@@ -310,12 +302,21 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
     const finalization: { reason: StopReason | null; note: string } = { reason: null, note: '' }
     let consecutiveFailures = 0
     let unauthorizedCount = 0
-    const loopState = { planned: false, faultSpent: false }
+    const loopState = { faultSpent: false }
     let executedCount = 0
     let mustAnswerViolations = 0
     const calculator = native ? tools.find(t => t.id === 'calcolatrice') : undefined
-    /** Planning step: forced first call for models with native tool calling, whenever there are tools. */
-    const planning = native && tools.length > 0
+    /** Planning is a regular tool (create or update the plan), offered at every step whenever tools are on. */
+    const planning = tools.length > 0
+    /** True while the last tool decision was a plan call: two plan calls in a row are not allowed. */
+    let lastWasPlan = false
+    /** Plan calls refused in a row (a plan right after a plan). */
+    let planDenials = 0
+    /** Only the latest version of the plan stays in the context. */
+    const contextObservations = () => {
+      const lastPlan = observations.findLastIndex(o => o.tool === PLAN_TOOL.id && o.outcome.ok)
+      return observations.filter((o, i) => !(o.tool === PLAN_TOOL.id && o.outcome.ok && i !== lastPlan))
+    }
     /** One arithmetic intervention per turn (guided first call or rejected answer), never a loop. */
     let calcNudged = false
     /** Everything the model may legitimately quote numbers from. */
@@ -374,14 +375,8 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
           // ── model call (with repair attempts) ──
           const repairMessages: ChatMessage[] = []
           let repairAttempt = 0
-          // First move: a guided call to the planning tool (the model writes the steps, the harness opens the call).
           let forceTool: { name: string; arg: string } | undefined
-          if (planning && !loopState.planned && sIdx === 1 && observations.length === 0 && !mustAnswer) {
-            forceTool = PLAN_CALL
-            await emit({ type: 'decision/repair', attempt: 0, instruction: PLAN_GUIDE }, { stepIndex: sIdx, source: 'orchestrator' })
-            repairMessages.push({ role: 'user', content: planFirst(tools.map(t => t.id), c.agentLoop) })
-          }
-          const modelTools = planning && !loopState.planned ? [PLAN_TOOL, ...tools] : tools
+          const modelTools = planning ? [PLAN_TOOL, ...tools] : tools
           // Guided reflection loop: the orchestrator opens a draft or final block and the model completes it
           // (local models; remote ones only read the routing messages).
           const guide = reflectionMode && !mustAnswer ? scenario.reflectionGuide : undefined
@@ -412,10 +407,14 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
               mustAnswer,
               repairAttempt,
               guardNotice: stepNotice,
-              observations,
+              observations: contextObservations(),
               ...(reflectionMode ? { reflectionPrompt: scenario.reflectionPrompt, reflections } : {}),
               repairMessages,
               nativeTools: native,
+              // Small windows (Emma-6: 4K) must also hold the answer: keep the prompt inside them.
+              ...(deps.runtime.info.contextLength
+                ? { maxTokens: Math.min(CONTEXT_BUDGET_TOKENS, Math.max(1024, deps.runtime.info.contextLength - 1024)) }
+                : {}),
             })
             lastDocIds = built.hints.docIds
             await emit({ type: 'context/assembled', snapshot: built.snapshot }, { stepIndex: sIdx, source: 'context' })
@@ -560,6 +559,8 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
           if (decision.type === 'answer') {
             const sources = decision.sources?.length ? decision.sources : lastDocIds
             await emit({ type: 'answer', text: decision.text, sources }, { stepIndex: sIdx })
+            // A forced last step at the step limit still delivers a real answer: it stays a final answer
+            // (the limit is already shown by the max_steps guard event emitted when the step was forced).
             const reason = finalization.reason ?? 'final_answer'
             throw new Halt(reason, reason === 'final_answer' ? STOP_MESSAGES.final_answer : STOP_MESSAGES[reason], decision.text, decision.sources?.length ? decision.sources : undefined)
           }
@@ -589,7 +590,7 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
           // (a) tools no longer allowed
           if (mustAnswer) {
             mustAnswerViolations += 1
-            const msg = 'Non puoi usare altri strumenti: rispondi ora.'
+            const msg = language === 'en' ? 'You cannot use other tools: answer now.' : 'Non puoi usare altri strumenti: rispondi ora.'
             await fail(originalArgs, 'DENIED', msg)
             await emit({ type: 'tool/error', callId, tool: toolName, code: 'DENIED', message: msg }, { stepIndex: sIdx, source: 'orchestrator' })
             if (finalization.reason) throw new Halt(finalization.reason, STOP_MESSAGES[finalization.reason], finalization.note)
@@ -597,20 +598,42 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
             await endStep(); return
           }
 
-          // (a2) planning: the orchestrator records the plan. Not an action: it does not use up the round of tools.
+          // (a2) planning: create or update the plan. Not an action: no round of tools used, no repeat guard.
           if (planning && toolName === PLAN_TOOL.id) {
+            if (lastWasPlan) {
+              planDenials += 1
+              // A model that only keeps planning would loop forever where there are no step limits
+              // (levels without controls): the second refusal in a row ends the loop, always.
+              if (planDenials >= 2) {
+                await emit({ type: 'guard/triggered', guard: controls ? 'repeat' : 'safety_net', message: 'Il modello continua a riscrivere il piano senza agire: ciclo interrotto.' }, { stepIndex: sIdx, source: controls ? 'controls' : 'orchestrator' })
+                throw new Halt('loop_detected', STOP_MESSAGES.loop_detected, 'Mi sono fermato: continuavo a riscrivere il piano senza eseguire nessun passo.')
+              }
+              const msg = language === 'en'
+                ? 'You already wrote the plan. Do not plan again now: carry out the next step of the plan with a tool, or write the final answer.'
+                : 'Hai già scritto il piano. Non pianificare di nuovo adesso: esegui il prossimo passo con uno strumento oppure scrivi la risposta finale.'
+              await emit({ type: 'tool/error', callId, tool: toolName, code: 'DENIED', message: msg }, { stepIndex: sIdx, source: 'orchestrator' })
+              observe(originalArgs, { ok: false, code: 'DENIED', message: msg })
+              await endStep(); return
+            }
+            lastWasPlan = true
+            planDenials = 0
             await emit({ type: 'tool/execute', callId, tool: toolName }, { stepIndex: sIdx, source: 'orchestrator' })
-            const outcome = recordPlan(originalArgs)
+            const version = observations.filter(o => o.tool === PLAN_TOOL.id && o.outcome.ok).length + 1
+            const outcome = recordPlan(originalArgs, language, version)
             await emit({ type: 'tool/result', callId, tool: toolName, outcome, durationMs: 0 }, { stepIndex: sIdx, source: 'orchestrator' })
             observe(originalArgs, outcome)
-            if (outcome.ok) loopState.planned = true
             await endStep(); return
           }
+          lastWasPlan = false
+          planDenials = 0
 
           // (b) unknown tool
           const tool = deps.registry.get(toolName) ?? deps.mcp.toolDefinitions().find(t => t.id === toolName)
           if (!tool) {
-            const msg = `Lo strumento «${toolName}» non esiste. Strumenti disponibili: ${tools.map(t => t.id).join(', ') || 'nessuno'}.`
+            const list = tools.map(t => t.id).join(', ')
+            const msg = language === 'en'
+              ? `The tool «${toolName}» does not exist. Available tools: ${list || 'none'}.`
+              : `Lo strumento «${toolName}» non esiste. Strumenti disponibili: ${list || 'nessuno'}.`
             await emit({ type: 'tool/validation', callId, tool: toolName, ok: false, errors: [msg] }, { stepIndex: sIdx, source: 'tools' })
             await fail(originalArgs, 'UNKNOWN_TOOL', msg)
             await endStep(); return
@@ -619,9 +642,13 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
           // (c) permissions
           const notAvailable = !availableIds.has(tool.id)
           if (notAvailable || (controls && tool.forbiddenForRole)) {
-            const msg = tool.forbiddenForRole && !notAvailable
-              ? `Lo strumento «${tool.id}» non è autorizzato per il ruolo di questa persona.`
-              : `Lo strumento «${tool.id}» non è tra quelli messi a disposizione in questa configurazione.`
+            const msg = language === 'en'
+              ? (tool.forbiddenForRole && !notAvailable
+                ? `The tool «${tool.id}» is not authorized for this person's role.`
+                : `The tool «${tool.id}» is not among those available in this configuration.`)
+              : (tool.forbiddenForRole && !notAvailable
+                ? `Lo strumento «${tool.id}» non è autorizzato per il ruolo di questa persona.`
+                : `Lo strumento «${tool.id}» non è tra quelli messi a disposizione in questa configurazione.`)
             await emit({ type: 'tool/error', callId, tool: tool.id, code: 'NOT_AUTHORIZED', message: msg }, { stepIndex: sIdx, source: 'tools', provenance: tool.provenance })
             await fail(originalArgs, 'NOT_AUTHORIZED', msg)
             if (controls) {
@@ -643,11 +670,13 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
               faultLabel = ` ${FAULT_LABEL}`
             }
           }
-          const validation = validateArgs(tool.inputSchema, args)
+          const validation = validateArgs(tool.inputSchema, args, language)
           if (!validation.ok) {
             const errs = validation.errors.map(e => `${e}${faultLabel}`)
             await emit({ type: 'tool/validation', callId, tool: tool.id, ok: false, errors: errs }, { stepIndex: sIdx, source: 'tools', provenance: tool.provenance })
-            const msg = `Argomenti non validi per «${tool.id}»: ${errs.join('; ')}. Correggi gli argomenti e riprova.`
+            const msg = language === 'en'
+              ? `Invalid arguments for «${tool.id}»: ${errs.join('; ')}. Fix the arguments and try again.`
+              : `Argomenti non validi per «${tool.id}»: ${errs.join('; ')}. Correggi gli argomenti e riprova.`
             await emit({ type: 'tool/error', callId, tool: tool.id, code: 'INVALID_ARGS', message: msg }, { stepIndex: sIdx, source: 'tools', provenance: tool.provenance })
             await fail(args, 'INVALID_ARGS', msg)
             await endStep(); return
@@ -779,7 +808,10 @@ export async function runTurn(input: string, deps: TurnDeps, signal: AbortSignal
       return await Promise.race([deps.runtime.generate(req, deps.onToken ?? noop, ctl.signal, deps.onThinking), aborted])
     } catch (err) {
       if (signal.aborted) throw new Halt('user_stop', STOP_MESSAGES.user_stop)
-      if (ctl.signal.aborted) throw modelFail(`tempo massimo del passo (${Math.round(timeoutMs / 1000)} s) superato.`)
+      if (ctl.signal.aborted) {
+        const h = modelFail(`tempo massimo del passo (${Math.round(timeoutMs / 1000)} s) superato.`)
+        throw new Halt('timeout', h.message, h.answer)
+      }
       throw modelFail(err instanceof Error ? err.message : String(err))
     } finally {
       clearTimeout(timer)

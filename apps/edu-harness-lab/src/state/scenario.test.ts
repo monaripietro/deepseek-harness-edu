@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { configForLevel, lastLevelOf, levelsFor } from '../harness/levels'
 import { DEFAULT_SCENARIO_ID, getScenario, SCENARIOS } from '../scenarios'
-import { bus, useLab } from './store'
+import { bus, memory, useLab } from './store'
 
 const originalState = useLab.getState()
 const REFLECTION_SCENARIO = 'ragionamento-iterativo'
@@ -86,6 +86,38 @@ describe('reflection scenario configuration', () => {
     expect(useLab.getState().history).toBe(history)
     useLab.getState().setScenario('sala-senza-data')
     expect(useLab.getState().history).toEqual([])
+  })
+
+  it('resets chat, trace, run state and session memory when the scenario or the level changes', () => {
+    const seeded = () => {
+      useLab.setState({
+        history: [{ role: 'user', content: 'domanda precedente' }],
+        chat: [{ id: 'm1', role: 'user', text: 'domanda precedente' }],
+        status: 'done',
+        currentRunId: 'run-1',
+        runReasoning: ['ragionamento'],
+      })
+      memory.write({ scope: 'session', kind: 'taskState', key: 'k', text: 'esito precedente', source: 'model' })
+    }
+    const expectEmpty = () => {
+      const s = useLab.getState()
+      expect(s.history).toEqual([])
+      expect(s.chat).toEqual([])
+      expect(s.status).toBe('idle')
+      expect(s.currentRunId).toBeNull()
+      expect(s.runReasoning).toEqual([])
+      expect(memory.list().some(m => m.scope === 'session')).toBe(false)
+    }
+    seeded()
+    useLab.getState().setScenario('sala-senza-data')
+    expectEmpty()
+    seeded()
+    useLab.getState().setLevel(3)
+    expectEmpty()
+    seeded()
+    useLab.getState().setLevel(3)
+    expect(useLab.getState().chat).toHaveLength(1)
+    useLab.getState().resetConversation()
   })
 
   it('selects the warehouse timeout demonstration and removes its faults when leaving', () => {

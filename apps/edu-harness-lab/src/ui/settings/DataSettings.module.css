@@ -1,8 +1,6 @@
-.scrim { position: fixed; inset: 0; z-index: var(--z-modal); background: rgba(4, 5, 14, 0.65); backdrop-filter: blur(4px); display: grid; place-items: center; padding: var(--sp-4); }
-.dialog { width: min(620px, 100%); max-height: 92vh; overflow-y: auto; background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--r-xl); padding: var(--sp-6); box-shadow: var(--shadow-2); display: flex; flex-direction: column; gap: var(--sp-5); }
+.dialog { padding: var(--sp-6); padding-right: calc(var(--sp-6) + 40px); display: flex; flex-direction: column; gap: var(--sp-5); }
 .head { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3); }
 .title { margin: 0; font-size: var(--fs-xl); }
-.close { width: 40px; height: 40px; display: grid; place-items: center; border-radius: var(--r-pill); border: 1px solid var(--border-strong); background: var(--surface-2); }
 .lead { margin: 0; color: var(--text-muted); font-size: var(--fs-md); }
 .muted { color: var(--text-muted); font-size: var(--fs-sm); }
 .items { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-3); }

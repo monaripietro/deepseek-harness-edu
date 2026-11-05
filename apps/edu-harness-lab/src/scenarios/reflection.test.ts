@@ -478,3 +478,9 @@ describe('prompt-guided reflection through the real agent loop', () => {
     expect(result.checks.find(check => check.id === 'riflessioni-iterate')?.passed).toBe(false)
   })
 })
+
+describe('lastOrder with trailing rule text', () => {
+  it('reads the plain order even when the rules are restated as "Rule 1: Delta ..."', () => {
+    expect(lastOrder('Delta, Gamma, Beta, Alfa. Rule 1: Delta is before Beta. Rule 2: Alfa follows Beta.')).toEqual(['Delta', 'Gamma', 'Beta', 'Alfa'])
+  })
+})

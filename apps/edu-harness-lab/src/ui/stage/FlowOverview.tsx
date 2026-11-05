@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import { ArrowDown, ArrowRight, ArrowUp, Cpu, Database, FileSearch, FileText, Globe, Layers, MessageSquare, Repeat, Settings2, ShieldCheck, Sparkles, UserRound, Wrench } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -6,10 +5,11 @@ import type { ComponentFamily, ComponentId } from '../../domain/types'
 import { COMPONENT_ORDER, COMPONENTS } from '../../harness/levels'
 import { useLab } from '../../state/store'
 import { Switch } from '../common/Switch'
-import { PHASE_LABEL, deriveStage } from './deriveStage'
+import type { FlowStepId } from './flowSteps'
+import { flowStepsFor } from './flowSteps'
 import type { StageNodeId } from './geometry'
 import { NodeDetails } from './NodeDetails'
-import { useStageUi } from './stageUi'
+import { useLevelAdds, useStage, useStageUi } from './stageUi'
 import styles from './FlowOverview.module.css'
 
 const SOURCES: { component: ComponentId; node: StageNodeId; label: string; icon: LucideIcon }[] = [
@@ -28,6 +28,7 @@ function FlowNode({
   tone = 'information',
   compact = false,
   lit = false,
+  isNew = false,
 }: {
   node: StageNodeId
   title: string
@@ -37,9 +38,21 @@ function FlowNode({
   tone?: ComponentFamily
   compact?: boolean
   lit?: boolean
+  /** Added by the current level. */
+  isNew?: boolean
 }) {
   const selected = useStageUi(s => s.selected === node)
   const toggle = useStageUi(s => s.toggle)
+  const tags = (
+    <>
+      {isNew && <span className={styles.newTag}>Nuovo</span>}
+      {lit && (
+        <span className={styles.nowTag} aria-hidden>
+          adesso
+        </span>
+      )}
+    </>
+  )
   return (
     <button
       type="button"
@@ -52,13 +65,25 @@ function FlowNode({
     >
       <span className={styles.nodeHeading}>
         <span className={styles.nodeIcon} aria-hidden><Icon size={compact ? 17 : 21} /></span>
-        {number && <span className={styles.step}>Passo {number}</span>}
+        {number && !compact && <span className={styles.step}>Passo {number}</span>}
+        {!compact && tags}
       </span>
       <span className={styles.nodeCopy}>
         <span className={styles.nodeTitle}>{title}</span>
         {description && <span className={styles.nodeDescription}>{description}</span>}
       </span>
-      {compact && <span className={styles.detailMark} aria-hidden>+</span>}
+      {compact && (
+        <span className={styles.compactMeta}>
+          {tags}
+          {number ? (
+            <span className={styles.stepNum} title={`Tappa ${number}`}>
+              {number}
+            </span>
+          ) : (
+            <span className={styles.detailMark} aria-hidden>+</span>
+          )}
+        </span>
+      )}
     </button>
   )
 }
@@ -69,48 +94,50 @@ function FlowNode({
  */
 export function FlowOverview({ onApprovalDetails }: { onApprovalDetails: () => void }) {
   const config = useLab(s => s.config)
-  const events = useLab(s => s.events)
   const modelInfo = useLab(s => s.modelInfo)
   const view = useLab(s => s.view)
   const status = useLab(s => s.status)
   const toggleComponent = useLab(s => s.toggleComponent)
   const selected = useStageUi(s => s.selected)
+  const adds = useLevelAdds()
   const c = config.components
-  const stage = useMemo(() => deriveStage(events, c.orchestrator), [events, c.orchestrator])
+  const stage = useStage()
   const sources = SOURCES.filter(source => c[source.component])
   const additionalCount = Number(c.controls) + Number(c.approval) + Number(c.mcp)
   const busy = status === 'running' || status === 'awaitingApproval'
+  // The "adesso" tag shows only while a run is in progress (.spotlight); the final answer stays marked.
   const lit = (node: StageNodeId) => stage.lit.includes(node)
+  const isNew = (component: ComponentId) => adds.includes(component)
+  // Step numbers shared with the "Adesso" strip above the diagram.
+  const steps = flowStepsFor(c)
+  const num = (id: FlowStepId) => {
+    const i = steps.indexOf(id)
+    return i >= 0 ? String(i + 1) : undefined
+  }
 
   return (
-    <div className={styles.overview}>
+    <div className={`${styles.overview} ${stage.running ? styles.spotlight : ''}`}>
       <div className={styles.intro}>
-        <div>
-          <h2>Segui il percorso della richiesta</h2>
-          <p>Da sinistra a destra. Seleziona un elemento per approfondire.</p>
-        </div>
-        <span className={styles.phase} role="status">
-          <span className={stage.running ? styles.runningDot : styles.idleDot} aria-hidden />
-          {PHASE_LABEL[stage.phase]}
-        </span>
+        <h2>Segui il percorso della richiesta</h2>
+        <p>Da sinistra a destra; i numeri sono le tappe indicate in alto. Seleziona un elemento per approfondire.</p>
       </div>
 
       <div className={styles.diagram}>
         <ol className={styles.path} aria-label="Flusso principale della richiesta">
           <li>
-            <FlowNode node="question" title="La richiesta" description="La domanda che invii al sistema." icon={MessageSquare} number="1" tone="model" lit={lit('question')} />
+            <FlowNode node="question" title="La richiesta" description="La domanda che invii al sistema." icon={MessageSquare} number={num('request')} tone="model" lit={lit('question')} />
             <span className={styles.forward} aria-hidden><ArrowRight size={24} /></span>
           </li>
           <li>
-            <FlowNode node="window" title="Il contesto" description="Il testo che il modello può leggere." icon={Layers} number="2" lit={lit('window')} />
+            <FlowNode node="window" title="Il contesto" description="Il testo che il modello può leggere." icon={Layers} number={num('context')} lit={lit('window')} />
             <span className={styles.forward} aria-hidden><ArrowRight size={24} /></span>
           </li>
           <li>
-            <FlowNode node="model" title="Il modello" description={modelInfo.backend !== 'none' ? modelInfo.label : 'Da caricare per iniziare'} icon={Cpu} number="3" tone="model" lit={lit('model')} />
+            <FlowNode node="model" title="Il modello" description={modelInfo.backend !== 'none' ? modelInfo.label : 'Da caricare per iniziare'} icon={Cpu} number={num('model')} tone="model" lit={lit('model')} />
             <span className={styles.forward} aria-hidden><ArrowRight size={24} /></span>
           </li>
           <li>
-            <FlowNode node="answer" title="La risposta" description="Il risultato che ricevi, con le sue fonti." icon={Sparkles} number="4" tone="model" lit={lit('answer')} />
+            <FlowNode node="answer" title="La risposta" description="Il risultato che ricevi, con le sue fonti." icon={Sparkles} number={num('answer')} tone="model" lit={lit('answer')} />
           </li>
         </ol>
 
@@ -122,7 +149,15 @@ export function FlowOverview({ onApprovalDetails }: { onApprovalDetails: () => v
               <p>L'harness le aggiunge al contesto.</p>
               <div className={styles.sourceList}>
                 {sources.map(source => (
-                  <FlowNode key={source.node} node={source.node} title={source.label} icon={source.icon} compact lit={lit(source.node)} />
+                  <FlowNode
+                    key={source.node}
+                    node={source.node}
+                    title={source.label}
+                    icon={source.icon}
+                    compact
+                    lit={lit(source.node)}
+                    isNew={isNew(source.component)}
+                  />
                 ))}
               </div>
             </section>
@@ -134,11 +169,11 @@ export function FlowOverview({ onApprovalDetails }: { onApprovalDetails: () => v
               <h3>Se il modello chiede un'azione</h3>
               <p>Il modello la propone. L'harness la esegue.</p>
               <div className={styles.actionRoute}>
-                <FlowNode node="orchestrator" title="Orchestratore" icon={Settings2} tone="orchestration" compact lit={lit('orchestrator')} />
+                <FlowNode node="orchestrator" title="Orchestratore" icon={Settings2} tone="orchestration" compact number={num('decision')} lit={lit('orchestrator')} isNew={isNew('orchestrator')} />
                 {c.tools && (
                   <>
                     <ArrowRight className={styles.actionArrow} size={22} aria-hidden />
-                    <FlowNode node="tools" title="Strumenti" icon={Wrench} tone="action" compact lit={lit('tools')} />
+                    <FlowNode node="tools" title="Strumenti" icon={Wrench} tone="action" compact number={num('action')} lit={lit('tools')} isNew={isNew('tools')} />
                   </>
                 )}
               </div>
@@ -146,9 +181,9 @@ export function FlowOverview({ onApprovalDetails }: { onApprovalDetails: () => v
                 <details className={styles.additional}>
                   <summary>Controlli e collegamenti ({additionalCount})</summary>
                   <div className={styles.safeguards}>
-                    {c.controls && <FlowNode node="controls" title="Controlli" icon={ShieldCheck} tone="governance" compact lit={lit('controls')} />}
-                    {c.approval && <FlowNode node="human" title="Supervisione umana" icon={UserRound} tone="governance" compact lit={lit('human')} />}
-                    {c.mcp && <FlowNode node="mcp" title="Server MCP" icon={Globe} tone="action" compact lit={lit('mcp')} />}
+                    {c.controls && <FlowNode node="controls" title="Controlli" icon={ShieldCheck} tone="governance" compact lit={lit('controls')} isNew={isNew('controls')} />}
+                    {c.approval && <FlowNode node="human" title="Supervisione umana" icon={UserRound} tone="governance" compact lit={lit('human')} isNew={isNew('approval')} />}
+                    {c.mcp && <FlowNode node="mcp" title="Server MCP" icon={Globe} tone="action" compact lit={lit('mcp')} isNew={isNew('mcp')} />}
                   </div>
                 </details>
               )}

@@ -67,3 +67,16 @@ describe('memoryStore', () => {
     await new Promise(r => setTimeout(r, 10))
   })
 })
+
+describe('reset', () => {
+  it('removes user records and restores the seed memories', () => {
+    const m = mk()
+    const seedCount = m.list().length
+    m.write({ scope: 'persistent', kind: 'preference', key: 'x', text: 'y', source: 'user' })
+    m.clear()
+    expect(m.list()).toHaveLength(0)
+    m.reset()
+    expect(m.list()).toHaveLength(seedCount)
+    expect(m.list().every(r => r.source === 'seed')).toBe(true)
+  })
+})

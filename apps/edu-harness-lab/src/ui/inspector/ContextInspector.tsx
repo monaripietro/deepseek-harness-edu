@@ -28,7 +28,9 @@ export function ContextInspector() {
   const events = useLab(s => s.events)
   const runId = useLab(s => s.currentRunId)
   const reduce = useReducedMotion()
-  const [picked, setPicked] = useState<number | null>(null)
+  // The chosen step belongs to one run: a new run (or a reset) goes back to the latest step.
+  const [pick, setPick] = useState<{ runId: string | null; i: number } | null>(null)
+  const picked = pick && pick.runId === runId ? pick.i : null
   const [showPrompt, setShowPrompt] = useState(false)
 
   const snaps = useMemo(() => {
@@ -70,9 +72,9 @@ export function ContextInspector() {
       <header className={styles.head}>
         <h2 className={styles.title}>COSA RICEVE IL MODELLO</h2>
         {snaps.length > 1 && (
-          <div className={styles.steps} role="group" aria-label="Passo">
+          <div className={styles.steps} role="group" aria-label="Passi">
             {snaps.map((s, i) => (
-              <Chip key={s.id} selected={i === idx} color="var(--c-model)" onClick={() =>{  setPicked(i) }}>
+              <Chip key={s.id} selected={i === idx} color="var(--c-model)" onClick={() =>{  setPick({ runId, i }) }}>
                 Passo {i + 1}
               </Chip>
             ))}

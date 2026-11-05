@@ -93,6 +93,18 @@ export function Welcome({ onStart, onConfigureModel }: { onStart: () => void; on
             ))}
           </ul>
         </details>
+
+        <footer className={styles.credits}>
+          <p>
+            Harness Lab è stato creato da{' '}
+            <a href="https://www.monaripietro.it/" target="_blank" rel="noreferrer">Pietro Monari</a>{' '}
+            in collaborazione con{' '}
+            <a href="https://e38.it/" target="_blank" rel="noreferrer">E38 S.r.l.</a>
+          </p>
+          <a className={styles.creditLogoLink} href="https://e38.it/" target="_blank" rel="noreferrer" aria-label="E38 S.r.l.">
+            <img className={styles.creditLogo} src="/Logo%20e38_Tavola%20disegno%201%20copia.png" alt="Logo E38" />
+          </a>
+        </footer>
       </main>
     </div>
   )

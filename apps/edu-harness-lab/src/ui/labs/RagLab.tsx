@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Ban, FilePlus2, Pin, PinOff, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import type { PolicyDoc, RagSettings } from '../../domain/types'
@@ -30,8 +30,26 @@ export function RagLab() {
   const promptLanguage = useLab(s => s.promptLanguage)
   const scenarioRequest = requestFor(scenarioId, promptLanguage)
   const [query, setQuery] = useState(scenarioRequest)
+  const [seenRequest, setSeenRequest] = useState(scenarioRequest)
+  if (seenRequest !== scenarioRequest) {
+    // New scenario or prompt language: the live search starts again from its request.
+    setSeenRequest(scenarioRequest)
+    setQuery(scenarioRequest)
+  }
   const [version, setVersion] = useState(0)
   const [reading, setReading] = useState<PolicyDoc | null>(null)
+  // The card that opened the reader gets the focus back when it closes.
+  const readerOpener = useRef<HTMLElement | null>(null)
+  const openReader = (d: PolicyDoc, opener: HTMLElement) => {
+    readerOpener.current = opener
+    setReading(d)
+  }
+  const closeReader = () => {
+    setReading(null)
+    const opener = readerOpener.current
+    readerOpener.current = null
+    requestAnimationFrame(() => opener?.isConnected && opener.focus())
+  }
   const [title, setTitle] = useState('')
   const [text, setText] = useState('')
 
@@ -74,7 +92,7 @@ export function RagLab() {
         <h3 id="rag-docs" className={lab.h3}>Documenti ({docs.length})</h3>
         <div className={lab.cards}>
           {docs.map(d => (
-            <button key={d.id} className={`${lab.card} ${lab.cardBtn}`} onClick={() =>{  setReading(d) }} aria-label={`Leggi ${d.title}`}>
+            <button key={d.id} className={`${lab.card} ${lab.cardBtn}`} onClick={(e) => { openReader(d, e.currentTarget) }} aria-label={`Leggi ${d.title}`}>
               <div className={lab.spread}><code className={lab.mono}>{d.id}</code><Status doc={d} /></div>
               <strong>{d.title}</strong>
               <span className={lab.muted}>{d.category} · versione {d.version}{d.validFrom ? ` · dal ${d.validFrom}` : ''}</span>
@@ -161,11 +179,11 @@ export function RagLab() {
       <AnimatePresence>
         {reading && (
           <motion.div className={styles.reader} data-nested-dialog role="dialog" aria-modal="true" aria-label={reading.title} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setReading(null) } }}>
+            onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); closeReader() } }}>
             <div className={styles.readerCard}>
               <div className={lab.spread}>
                 <div className={lab.row}><code className={lab.mono}>{reading.id}</code><Status doc={reading} /></div>
-                <button className={lab.btn} autoFocus onClick={() =>{  setReading(null) }} aria-label="Chiudi il documento"><X size={16} aria-hidden /></button>
+                <button className={lab.btn} autoFocus onClick={closeReader} aria-label="Chiudi il documento"><X size={16} aria-hidden /></button>
               </div>
               <h3 className={lab.h2}>{reading.title}</h3>
               <p className={lab.muted}>{reading.category} · versione {reading.version}</p>

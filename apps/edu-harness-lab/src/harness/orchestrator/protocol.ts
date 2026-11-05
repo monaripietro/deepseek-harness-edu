@@ -25,6 +25,11 @@ export function compactArgs(schema: JSONSchema): string {
   return parts.length ? parts.join(', ') : '(no arguments)'
 }
 
+/** Short nudge, only when the planning tool is among the tools. */
+export const PLAN_NUDGE =
+  'For tasks with several steps, call pianifica first with a short numbered plan (each step names a tool, "answer" or "ask"). ' +
+  'If a step fails or the information changes, call pianifica again with the updated plan.'
+
 export function renderToolProtocol(tools: ToolDefinition[], mustAnswer: boolean): string {
   const lines: string[] = []
   lines.push('## How to reply')
@@ -39,6 +44,7 @@ export function renderToolProtocol(tools: ToolDefinition[], mustAnswer: boolean)
     return lines.join('\n')
   }
   lines.push('After each tool you get a message "[RESULT of <tool>]" or "[ERROR from <tool>]". Read it, then choose the next step.')
+  if (tools.some(t => t.id === 'pianifica')) lines.push(PLAN_NUDGE)
   lines.push('')
   lines.push('## Tools')
   for (const t of tools) {

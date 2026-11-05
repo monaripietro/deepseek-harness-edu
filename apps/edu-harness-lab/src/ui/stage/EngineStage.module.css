@@ -1,4 +1,6 @@
+/* The stage is a query container: its chrome adapts to the width it actually gets (drawer open or not). */
 .stage {
+  container: stage / inline-size;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -8,31 +10,15 @@
   height: 100%;
 }
 .content {
+  position: relative;
   flex: 1;
   min-height: 0;
   min-width: 0;
 }
-/* Map / flow switch floats over the bottom-left corner, next to the zoom controls. */
-.viewSwitch {
-  position: absolute;
-  left: 14px;
-  bottom: 14px;
-  z-index: 21;
-}
-.viewSwitch [role='tablist'] {
-  gap: 2px;
-  box-shadow: var(--shadow-1);
-}
-.viewSwitch button[role='tab'] {
-  height: 32px;
-  padding: 0 12px;
-  white-space: nowrap;
-  font-size: 13px;
-  font-weight: 600;
-}
-@media (max-width: 700px) {
+/* Below 1120px the page scrolls: the map keeps a fixed, comfortable height between its strip and its bar. */
+@media (max-width: 1120px) {
   .content {
     flex: none;
-    height: 560px;
+    height: 540px;
   }
 }

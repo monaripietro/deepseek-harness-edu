@@ -40,19 +40,25 @@ export function flyersFor(e: TraceEvent, components: Record<ComponentId, boolean
       return [{ edge: 'question-rag', label: `cerca: “${trim(e.query, 22)}”`, kind: 'document' }]
     case 'rag/results': {
       const sel = e.hits.filter(h => h.status === 'selected').slice(0, 3)
-      return sel.map((h, i) => ({ edge: 'rag-window' as const, label: `${h.docId} · ${pct(h.normalized)}`, kind: 'document' as const, delay: i * 0.18 }))
+      if (!sel.length) return []
+      return [{ edge: 'rag-window' as const, label: sel.map(h => `${h.docId} ${pct(h.normalized)}`).join(' · '), kind: 'document' as const }]
     }
     case 'memory/inject':
       return e.ids.length ? [{ edge: 'memory-window', label: `${e.ids.length} ricordi`, kind: 'memory' }] : []
     case 'context/assembled': {
       const items = e.snapshot.items.filter(i => i.status === 'included')
       const out: FlyerSpec[] = []
-      if (items.some(i => i.kind === 'instruction')) out.push({ edge: 'instructions-window', label: 'istruzioni', kind: 'context' })
-      if (items.some(i => i.kind === 'taskData')) out.push({ edge: 'context-window', label: 'dati del compito', kind: 'context', delay: 0.08 })
-      if (e.snapshot.stepIndex > 1 && items.some(i => i.kind === 'toolResult')) out.push({ edge: 'ring-window', label: 'osservazione', kind: 'result', delay: 0.04 })
-      out.push({ edge: 'window-model', label: `≈ ${e.snapshot.budget.usedTokens.toLocaleString('it-IT')} token`, kind: 'context', delay: 0.38 })
+      // Step 1 of each round — the harness assembles the context. Instructions and task data enter it
+      // once, with the first input; later rounds only add the new tool result (`ring-window`).
+      // Step 2 — the model reads it — is a separate event (`model/request`, below).
+      const first = e.snapshot.stepIndex <= 1
+      if (first && items.some(i => i.kind === 'instruction')) out.push({ edge: 'instructions-window', label: 'istruzioni', kind: 'context' })
+      if (first && items.some(i => i.kind === 'taskData')) out.push({ edge: 'context-window', label: 'dati del compito', kind: 'context', delay: 0.08 })
+      if (!first && items.some(i => i.kind === 'toolResult')) out.push({ edge: 'ring-window', label: 'osservazione', kind: 'result', delay: 0.04 })
       return out
     }
+    case 'model/request':
+      return [{ edge: 'window-model', label: `≈ ${e.tokensIn.toLocaleString('it-IT')} token`, kind: 'context' }]
     case 'model/response':
       return orch ? [{ edge: 'model-ring', label: decisionLabel(e.text), kind: 'call' }] : []
     case 'decision/invalid':

@@ -39,15 +39,7 @@
   background: var(--section);
   overflow: hidden;
 }
-/* Bottom-right actions over the map: full screen and the optional "Prova e racconto" drawer. */
-.stageActions {
-  position: absolute;
-  right: 14px;
-  bottom: 14px;
-  z-index: 25;
-  display: flex;
-  gap: var(--sp-2);
-}
+/* Page-level actions at the right end of the stage's control bar: full screen and the "Prova e racconto" drawer. */
 .stageAction {
   display: inline-flex;
   align-items: center;
@@ -58,7 +50,6 @@
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  box-shadow: var(--shadow-1);
   font-size: var(--fs-xs);
   font-weight: 600;
   white-space: nowrap;
@@ -66,23 +57,19 @@
 .stageAction:hover {
   background: var(--surface-2);
 }
-.runAction {
-  border-color: var(--c-action-fill);
-  background: var(--c-action-fill);
-  color: #1d2428;
-  font-weight: 700;
-}
-.runAction:hover {
-  background: var(--c-action-fill);
-  filter: brightness(0.96);
-}
-.stopAction {
-  border-color: var(--text);
-  background: var(--text);
-  color: var(--on-ink);
-}
-.stopAction:hover {
-  background: var(--text);
+/* Narrow stage: icons only (the words stay for assistive technology). */
+@container stage (max-width: 1440px) {
+  .stageAction {
+    padding: 0 10px;
+  }
+  .stageAction span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
 }
 .stageActionOn {
   background: var(--c-orchestration-soft);
@@ -192,8 +179,10 @@
   display: none;
 }
 
+/* Presentation: the map keeps at least the whole viewport; the page grows only when the drawer opens below it. */
 .presentationScreen {
   height: auto;
+  min-height: 100dvh;
 }
 .presenting.engineWithDrawer {
   grid-template-columns: minmax(0, 1fr);

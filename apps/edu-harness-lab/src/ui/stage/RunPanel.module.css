@@ -154,13 +154,35 @@
   overscroll-behavior: contain;
 }
 
+.conversationHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-height: 32px;
+}
+
 .conversationTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   margin: 0;
   color: var(--text-faint);
   font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.turns {
+  padding: 1px var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
 }
 
 .empty {
@@ -322,10 +344,32 @@
 }
 
 .inputHint {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin: 0;
+  min-width: 0;
   color: var(--text-faint);
   font-size: var(--fs-xs);
   line-height: var(--lh-normal);
+}
+
+/* Whether the next send starts again or continues the conversation. */
+.modeLine {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-weight: 600;
+}
+.modeLine svg {
+  flex: none;
+  margin-top: 3px;
+}
+.inputHint[data-mode='restart'] .modeLine {
+  color: var(--c-warning);
+}
+.inputHint[data-mode='followup'] .modeLine {
+  color: var(--c-orchestration);
 }
 
 .actions {

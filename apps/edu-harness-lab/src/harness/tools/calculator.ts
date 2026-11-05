@@ -7,6 +7,8 @@
  *   power   := postfix ('^' unary)?          (right associative)
  *   postfix := primary '%'*
  *   primary := NUMBER | '(' expr ')'
+ * A term that is just «b%» after + or - is a share of the left side: 100 - 20% = 80, 50 + 10% = 55.
+ * Elsewhere b% is b/100: 50% = 0.5, 200*10% = 20.
  * No eval / Function anywhere.
  */
 
@@ -90,19 +92,27 @@ export function evaluateExpression(src: string): number {
     const t = peek()
     return t !== undefined && t.t === 'op' && t.v === v
   }
+  // Set by postfix() when the factor just parsed ends in '%', and by term() when the whole term is
+  // such a factor: «a ± b%» then means «a ± b% of a» (100 - 20% = 80), as on a pocket calculator.
+  let factorIsPercent = false
+  let termIsPercent = false
 
   function expr(): number {
     let left = term()
     while (isOp('+') || isOp('-')) {
       const op = (tokens[pos++] as { v: string }).v
       const right = term()
-      left = op === '+' ? left + right : left - right
+      const amount = termIsPercent ? left * right : right
+      left = op === '+' ? left + amount : left - amount
     }
+    termIsPercent = false
     return left
   }
   function term(): number {
     let left = unary()
+    termIsPercent = factorIsPercent
     while (isOp('*') || isOp('/')) {
+      termIsPercent = false
       const op = (tokens[pos++] as { v: string }).v
       const right = unary()
       if (op === '/') {
@@ -128,6 +138,7 @@ export function evaluateExpression(src: string): number {
     if (isOp('^')) {
       pos++
       const exp = unary()
+      factorIsPercent = false
       const r = Math.pow(base, exp)
       if (!Number.isFinite(r)) throw new CalcError('risultato non rappresentabile', 'math', 'the result cannot be represented')
       return r
@@ -136,9 +147,11 @@ export function evaluateExpression(src: string): number {
   }
   function postfix(): number {
     let v = primary()
+    factorIsPercent = false
     while (isOp('%')) {
       pos++
       v = v / 100
+      factorIsPercent = true
     }
     return v
   }

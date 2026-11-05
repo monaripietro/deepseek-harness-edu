@@ -71,6 +71,8 @@ export async function executeTool(
         )
         return { ok: false, code: 'EMPTY', message }
       }
+      // Stopped or timed out while waiting: never start a tool (and its side effects) for a dead run.
+      if (inner.signal.aborted) return aborted(lang)
       try {
         return await tool.execute(args, { ...ctx, signal: inner.signal })
       } catch (err) {

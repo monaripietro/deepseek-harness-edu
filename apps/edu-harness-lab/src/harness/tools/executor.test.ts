@@ -105,3 +105,22 @@ describe('executeTool', () => {
     expect(result).toMatchObject({ ok: false, code: 'TOOL_ERROR' })
   })
 })
+
+describe('executeTool abort', () => {
+  it('never runs a side-effecting tool for an already aborted run', async () => {
+    const ctl = new AbortController()
+    ctl.abort()
+    const exec = vi.fn(() => Promise.resolve(okOutcome))
+    const r = await executeTool(mkTool(exec), {}, mkCtx({}, ctl.signal), 200)
+    expect(r).toMatchObject({ ok: false, code: 'TOOL_ERROR' })
+    expect(exec).not.toHaveBeenCalled()
+  })
+  it('does not run the tool when aborted during the simulated latency', async () => {
+    const ctl = new AbortController()
+    const exec = vi.fn(() => Promise.resolve(okOutcome))
+    const p = executeTool(mkTool(exec, [100, 100]), {}, mkCtx({}, ctl.signal), 500)
+    setTimeout(() => { ctl.abort() }, 10)
+    expect(await p).toMatchObject({ ok: false })
+    expect(exec).not.toHaveBeenCalled()
+  })
+})

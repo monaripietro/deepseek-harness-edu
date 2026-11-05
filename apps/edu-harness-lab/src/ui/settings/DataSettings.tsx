@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'motion/react'
-import { Brain, Database, FileClock, HardDrive, Settings2, ShieldCheck, Trash2, X } from 'lucide-react'
+import { Brain, Database, FileClock, HardDrive, Settings2, ShieldCheck, Trash2 } from 'lucide-react'
 import { useLab } from '../../state/store'
 import { deleteModelCache } from '../../persistence/db'
+import { Dialog } from '../common/Dialog'
 import { formatBytes } from '../common/labels'
 import styles from './DataSettings.module.css'
 
@@ -21,7 +22,6 @@ export function DataSettings({ onClose }: { onClose: () => void }) {
   const [pending, setPending] = useState<Pending>(null)
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
 
   const refresh = () => {
     const browser: { storage?: Partial<StorageManager> } = navigator
@@ -31,23 +31,6 @@ export function DataSettings({ onClose }: { onClose: () => void }) {
   }
   useEffect(() => {
     refresh()
-    const prev: (Element & Partial<Pick<HTMLElement, 'focus'>>) | null = document.activeElement
-    ref.current?.querySelector<HTMLElement>('button')?.focus()
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.stopPropagation(); onClose() }
-      if (e.key === 'Tab' && ref.current) {
-        const f = ref.current.querySelectorAll<HTMLElement>('button:not([disabled])')
-        const first = f[0], last = f[f.length - 1]
-        if (!first || !last) return
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
-      }
-    }
-    document.addEventListener('keydown', onKey, true)
-    return () => {
-      document.removeEventListener('keydown', onKey, true)
-      prev?.focus?.()
-    }
   }, [])
 
   const confirm = async () => {
@@ -64,12 +47,10 @@ export function DataSettings({ onClose }: { onClose: () => void }) {
   const pct = usage && usage.quota ? Math.min(100, (usage.usage / usage.quota) * 100) : 0
 
   return (
-    <div className={styles.scrim} onClick={onClose}>
-      <motion.div ref={ref} className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="ds-title" onClick={(e) =>{  e.stopPropagation() }}
-        initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.25 }}>
+    <Dialog label="Dati su questo dispositivo" onClose={onClose} width={620}>
+      <div className={styles.dialog}>
         <header className={styles.head}>
-          <h2 id="ds-title" className={styles.title}>Dati su questo dispositivo</h2>
-          <button className={styles.close} onClick={onClose} aria-label="Chiudi"><X size={20} aria-hidden /></button>
+          <h2 className={styles.title}>Dati su questo dispositivo</h2>
         </header>
         <p className={styles.lead}>Harness Lab lavora interamente nel tuo browser. Ecco cosa conserva, e solo qui.</p>
         <ul className={styles.items}>
@@ -111,7 +92,7 @@ export function DataSettings({ onClose }: { onClose: () => void }) {
           <ShieldCheck size={18} aria-hidden /> Nessun dato lascia il browser, salvo il download del modello e i server MCP reali
           che scegli tu di collegare.
         </p>
-      </motion.div>
-    </div>
+      </div>
+    </Dialog>
   )
 }

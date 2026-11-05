@@ -54,7 +54,7 @@ export function MemoryLab() {
                 {sc === 'session' && <button className={`${lab.btn} ${lab.sm}`} onClick={() =>{  memory.clear('session') }} disabled={list.length === 0}><Eraser size={14} aria-hidden /> Svuota memoria di sessione</button>}
               </div>
             </div>
-            <p className={lab.muted}>{sc === 'session' ? 'Dura finché non azzeri lo scenario o chiudi la pagina.' : 'Resta salvata nel tuo browser anche dopo la chiusura.'}</p>
+            <p className={lab.muted}>{sc === 'session' ? 'Dura finché la conversazione non viene azzerata (anche cambiando scenario, livello o lingua) o chiudi la pagina.' : 'Resta salvata nel tuo browser anche dopo la chiusura.'}</p>
             {list.length === 0 && <p className={lab.muted}>Nessun ricordo.</p>}
             {(Object.keys(KIND_LABEL) as MemoryKind[]).map((k) => {
               const items = list.filter(r => r.kind === k)

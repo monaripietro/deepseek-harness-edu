@@ -9,7 +9,7 @@ import type {
 } from '../../domain/types'
 import type { StageNodeId } from './geometry'
 
-export type GateState = 'idle' | 'ok' | 'fail' | 'warn'
+type GateState = 'idle' | 'ok' | 'fail' | 'warn'
 export type Phase =
   | 'idle'
   | 'collecting'
@@ -26,7 +26,7 @@ export type Phase =
 export const PHASE_LABEL: Record<Phase, string> = {
   idle: 'In attesa',
   collecting: 'Prepara il contesto',
-  reading: 'Il modello sta scrivendo',
+  reading: 'Il modello legge e scrive',
   deciding: 'Interpreta la decisione',
   validating: 'Controlla gli argomenti',
   executing: 'Esegue lo strumento',
@@ -59,8 +59,14 @@ export interface PlanStep {
 export interface PlanState {
   text: string
   steps: PlanStep[]
-  /** Tool calls that matched no step of the plan. */
+  /** Tool calls (made since this version) that matched no step of the plan. */
   offPlan: string[]
+  /** Number of `pianifica` calls so far: 1 = first plan, 2+ = updated. */
+  version: number
+  /** Steps of the previous version (null for the first plan), to tell what changed. */
+  previous: PlanStep[] | null
+  /** The `motivo` the model gave when it updated the plan, if any. */
+  reason: string | null
 }
 
 export const PLAN_TOOL_ID = 'pianifica'
@@ -79,6 +85,20 @@ export function parsePlan(text: string): PlanStep[] {
     const tool = named && named !== PLAN_TOOL_ID ? named : /\b(answer|rispond\w*|risposta)\b/i.test(t) ? 'answer' : null
     return { n: i + 1, text: t, tool, status: 'pending' as const }
   })
+}
+
+/** What an update changed: steps whose text is new, steps no longer present. */
+export function planChange(plan: PlanState): { added: PlanStep[]; removed: PlanStep[] } | null {
+  if (!plan.previous) return null
+  const norm = (st: PlanStep) => st.text.trim().toLowerCase()
+  const before = new Set(plan.previous.map(norm))
+  const after = new Set(plan.steps.map(norm))
+  return { added: plan.steps.filter(st => !before.has(norm(st))), removed: plan.previous.filter(st => !after.has(norm(st))) }
+}
+
+const motivoOf = (data: unknown): string | null => {
+  const m = (data as { motivo?: unknown } | undefined)?.motivo
+  return typeof m === 'string' && m.trim() ? m.trim() : null
 }
 
 const stepUses = (st: PlanStep, tool: string) => {
@@ -158,7 +178,7 @@ export const EMPTY_STAGE: StageState = {
 }
 
 /** Which stage nodes an event "lights up". */
-export function litFor(e: TraceEvent, hasOrchestrator: boolean): StageNodeId[] {
+function litFor(e: TraceEvent, hasOrchestrator: boolean): StageNodeId[] {
   const hub: StageNodeId = hasOrchestrator ? 'orchestrator' : 'model'
   switch (e.type) {
     case 'run/start':
@@ -257,6 +277,8 @@ export function deriveStage(events: readonly TraceEvent[], hasOrchestrator: bool
     phase: 'collecting',
   }
   const repeatSeen = new Map<string, number>()
+  const planReasons = new Map<string, string>()
+  let planVersion = 0
 
   for (const e of list) {
     s.lastEvent = e
@@ -317,6 +339,7 @@ export function deriveStage(events: readonly TraceEvent[], hasOrchestrator: bool
           const key = `${e.tool}:${JSON.stringify(e.args)}`
           repeatSeen.set(key, (repeatSeen.get(key) ?? 0) + 1)
         }
+        if (e.tool === PLAN_TOOL_ID && typeof e.args.motivo === 'string' && e.args.motivo.trim()) planReasons.set(e.callId, e.args.motivo.trim())
         // Plan usage: which step of the plan does this call carry out?
         if (s.plan && e.tool !== PLAN_TOOL_ID) {
           const i = s.plan.steps.findIndex(st => (st.status === 'pending' || st.status === 'failed') && stepUses(st, e.tool))
@@ -348,7 +371,16 @@ export function deriveStage(events: readonly TraceEvent[], hasOrchestrator: bool
         if (e.tool === PLAN_TOOL_ID && e.outcome.ok) {
           const plan = (e.outcome.data as { piano?: unknown } | undefined)?.piano ?? ''
           const text = typeof plan === 'string' ? plan : JSON.stringify(plan)
-          s.plan = { text, steps: parsePlan(text), offPlan: [] }
+          planVersion += 1
+          // The latest plan call defines the steps; statuses restart against the calls made after it.
+          s.plan = {
+            text,
+            steps: parsePlan(text),
+            offPlan: [],
+            version: planVersion,
+            previous: s.plan?.steps ?? null,
+            reason: planReasons.get(e.callId) ?? motivoOf(e.outcome.data),
+          }
         } else if (s.plan) {
           const ok = e.outcome.ok
           s.plan = { ...s.plan, steps: s.plan.steps.map(st => (st.callId === e.callId ? { ...st, status: ok ? 'done' : 'failed' } : st)) }
@@ -417,4 +449,13 @@ export function deriveStage(events: readonly TraceEvent[], hasOrchestrator: bool
   if ([...repeatSeen.values()].some(n => n > 1) && s.gates.repeat === 'idle') s.gates.repeat = 'warn'
   s.lit = s.lastEvent ? litFor(s.lastEvent, hasOrchestrator) : []
   return s
+}
+
+/**
+ * A run that ended without its closing events (an error, a stop while unwinding) must not keep
+ * the stage "running": once the store is no longer busy, the stage settles.
+ */
+export function settleStage(stage: StageState, busy: boolean): StageState {
+  if (busy || !stage.running) return stage
+  return { ...stage, running: false, modelBusy: false, phase: 'done' }
 }

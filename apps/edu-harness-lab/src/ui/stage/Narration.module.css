@@ -70,28 +70,50 @@
   color: var(--text-muted);
 }
 .current {
+  --accent: var(--fam, var(--c-orchestration));
   flex: 0 1 auto;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--sp-3);
-  border-left: 3px solid var(--c-orchestration);
+  border-left: 3px solid var(--accent);
   border-radius: var(--r-md);
-  background: var(--c-orchestration-soft);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+/* Problems and pending decisions stand out whatever component raised them. */
+.current.tone_warn {
+  --accent: var(--c-warning);
 }
 .current.tone_bad {
-  border-left-color: var(--c-danger);
+  --accent: var(--c-danger);
 }
 .currentLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   margin: 0;
-  color: var(--c-orchestration);
+  color: var(--accent);
   font-size: var(--fs-xs);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
-.current.tone_bad .currentLabel {
-  color: var(--c-danger);
+.round,
+.roundHead {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--c-orchestration-soft);
+  color: var(--c-orchestration);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.roundHead {
+  align-self: flex-start;
+  margin-bottom: var(--sp-1);
 }
 .currentText {
   margin: var(--sp-2) 0 0;
@@ -238,6 +260,9 @@
 .tone_bad .n {
   color: var(--c-danger);
 }
+.tone_warn .n {
+  color: var(--c-warning);
+}
 
 @keyframes slideIn {
   from {
@@ -293,4 +318,30 @@
   border-radius: var(--r-pill);
   background: var(--c-action-fill);
   box-shadow: 0 0 0 3px var(--c-action-soft);
+}
+
+/* The entry the run is held on: accent bar, a light wash and a "Fermo qui" tag. */
+.current.held {
+  box-shadow: inset 0 0 0 1px var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+.item.held {
+  padding-inline-start: var(--sp-3);
+  box-shadow: inset 3px 0 0 var(--fam, var(--c-orchestration));
+  background: color-mix(in srgb, var(--fam, var(--c-orchestration)) 10%, transparent);
+  color: var(--text);
+}
+.heldTag {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: var(--sp-2);
+  padding: 1px var(--sp-2);
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: #ffffff;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  vertical-align: 1px;
+  white-space: nowrap;
 }

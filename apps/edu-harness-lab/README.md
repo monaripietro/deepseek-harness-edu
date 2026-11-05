@@ -45,8 +45,10 @@ Changes to `apps/edu-harness-lab/` on `master` trigger a production build and de
 
 The **Flusso** view shows the request, context, model, and answer. Arrows show their direction; active components appear below the step that uses them. Select an element for details. **Mappa completa** provides the zoomable, draggable diagram.
 
+Above the stage, the **Adesso** strip names the current step, for example «Passo 3 di 6 · Il modello legge il contesto». It tracks Richiesta → Contesto → Modello → Decisione → Azione → Risposta for each loop round and shows how the run ended. The bar under the stage starts, stops, pauses, steps, and restarts the run, sets the speed, and switches the view.
+
 - **Percorso**: use Precedente and Successivo to move through levels, or open Tutti i livelli for the complete list. Step copy, components, and available tools follow the selected scenario.
-- **Prova**: edit the request, load a model when needed, and read the conversation. Your request draft survives tab changes.
+- **Prova**: edit the request, load a model when needed, and read the conversation. Your request draft survives tab changes. Sending the scenario request or a question you already asked starts again from an empty context. A new question continues the conversation; the model sees earlier turns only when Memoria is active. **Nuova conversazione** clears it, and so does changing the scenario, level, or prompt language.
 - **Cosa succede**: read harness events, not model thoughts. History scrolls independently and does not jump to new events while you read older entries.
 - **Approfondimenti in basso**: inspect the model context, event log, or conversation and its checks.
 - **Controlli**: adjust playback, speed, labs, teacher controls, theme, presentation, and settings.

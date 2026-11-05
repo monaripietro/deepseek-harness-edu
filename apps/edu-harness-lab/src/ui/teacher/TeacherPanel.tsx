@@ -13,7 +13,7 @@ const FAULT_KINDS: { key: 'timeout' | 'error' | 'empty'; label: string }[] = [
   { key: 'error', label: 'Errore' },
   { key: 'empty', label: 'Risultato vuoto' },
 ]
-const SHORTCUTS: [string, string][] = [['→', 'Livello successivo'], ['←', 'Livello precedente'], ['Spazio', 'Pausa / riprendi'], ['S', 'Un passo (modalità passo)'], ['Esc', 'Chiudi pannelli']]
+const SHORTCUTS: [string, string][] = [['→', 'Livello successivo'], ['←', 'Livello precedente'], ['Spazio', 'Pausa / riprendi'], ['S', 'Un evento avanti (Passo-passo)'], ['Esc', 'Chiudi pannelli']]
 
 export function TeacherPanel() {
   const s = useLab()
@@ -75,7 +75,7 @@ export function TeacherPanel() {
                   {s.paused ? <><Play size={14} aria-hidden /> Riprendi</> : <><Pause size={14} aria-hidden /> Pausa</>}
                 </button>
                 <label className={styles.check}><input type="checkbox" checked={s.stepMode} onChange={(e) =>{  s.setStepMode(e.target.checked) }} />Passo-passo</label>
-                <button className={styles.btn} onClick={s.step} disabled={!s.stepMode}><StepForward size={14} aria-hidden /> Passo</button>
+                <button className={styles.btn} onClick={s.step} disabled={!s.stepMode}><StepForward size={14} aria-hidden /> Avanti</button>
               </div>
             </section>
 
@@ -104,7 +104,9 @@ export function TeacherPanel() {
             </section>
 
             <div className={styles.row}>
-              <button className={styles.btn} onClick={s.resetConversation}><RotateCcw size={14} aria-hidden /> Azzera lo scenario</button>
+              <button className={styles.btn} onClick={s.resetConversation}>
+                <RotateCcw size={14} aria-hidden /> Azzera la conversazione
+              </button>
               <button className={styles.btn} onClick={() =>{  s.setView('compare') }}><GitCompare size={14} aria-hidden /> Apri il confronto</button>
             </div>
 

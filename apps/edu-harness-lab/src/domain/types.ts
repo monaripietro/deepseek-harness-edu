@@ -442,6 +442,8 @@ export interface MemoryStore {
   write(rec: Omit<MemoryRecord, 'id' | 'createdAt'>): MemoryRecord
   delete(id: string): void
   clear(scope?: MemoryScope): void
+  /** Remove every record (also from storage) and restore the scenario seed memories. */
+  reset(): void
   subscribe: (cb: () => void) => Disposer
 }
 

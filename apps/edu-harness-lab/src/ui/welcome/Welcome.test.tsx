@@ -27,6 +27,15 @@ describe('Welcome', () => {
     expect(onStart).not.toHaveBeenCalled()
   })
 
+  it('credits Pietro Monari and E38 with links and the E38 mark', () => {
+    render(<Welcome onStart={vi.fn()} onConfigureModel={vi.fn()} />)
+
+    expect(screen.getByText(/Harness Lab è stato creato da/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Pietro Monari' }).getAttribute('href')).toBe('https://www.monaripietro.it/')
+    expect(screen.getByText('E38 S.r.l.', { selector: 'a' }).getAttribute('href')).toBe('https://e38.it/')
+    expect(screen.getByRole('img', { name: 'Logo E38' }).getAttribute('src')).toBe('/Logo%20e38_Tavola%20disegno%201%20copia.png')
+  })
+
   it('shows provenance labels only after opening the disclosure', () => {
     render(<Welcome onStart={vi.fn()} onConfigureModel={vi.fn()} />)
 

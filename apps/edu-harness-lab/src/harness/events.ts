@@ -73,6 +73,30 @@ export const EVENT_PACE_MS: Partial<Record<TraceEventType, number>> = {
   'stop': 400,
 }
 
+/**
+ * Events where «Passo-passo» stops and waits for Avanti: each one changes something a learner can
+ * see (the request enters, the context is ready, the model reads, decides, a tool runs, a guard
+ * acts, the answer arrives). Bookkeeping events in between (step start/end, validation, execution
+ * start, run end…) flow through on their own, so every click shows a visible change.
+ */
+export const STEP_STOPS: ReadonlySet<TraceEventType> = new Set<TraceEventType>([
+  'run/start',
+  'rag/results',
+  'memory/inject',
+  'context/assembled',
+  'model/request',
+  'decision/parsed',
+  'decision/invalid',
+  'tool/call',
+  'tool/result',
+  'tool/error',
+  'mcp/call',
+  'mcp/result',
+  'guard/triggered',
+  'answer',
+  'stop',
+])
+
 export interface PacerSettings {
   speed: number
   paused: boolean
@@ -94,7 +118,11 @@ export interface ControllablePacer extends Pacer {
  * Pacer: the orchestrator awaits it after every event, so execution and animation stay in sync.
  * Speed scales the pauses, pause freezes the run, step mode waits for the teacher's click.
  */
-export function createPacer(getSettings: () => PacerSettings): ControllablePacer {
+export function createPacer(
+  getSettings: () => PacerSettings,
+  /** Called with the event the run is held on (step mode or pause), then with null when it moves on. */
+  onHold?: (event: TraceEvent | null) => void,
+): ControllablePacer {
   let waiters: (() => void)[] = []
   let stepTokens = 0
   let flushed = false
@@ -109,28 +137,42 @@ export function createPacer(getSettings: () => PacerSettings): ControllablePacer
   return {
     async wait(event: TraceEvent) {
       if (isFlushed()) return
+      const stopsHere = STEP_STOPS.has(event.type)
       const s = getSettings()
       const base = EVENT_PACE_MS[event.type] ?? 250
-      if (s.speed > 0 && !s.stepMode) {
+      // Step stops wait for the click instead of the timer; the other events keep their animation time.
+      if (s.speed > 0 && !(s.stepMode && stopsHere)) {
         await new Promise(r => setTimeout(r, base / s.speed))
       }
-      // Pause or step mode: block until released.
-      for (;;) {
-        if (isFlushed()) return
-        const cur = getSettings()
-        if (cur.stepMode) {
-          if (stepTokens > 0) {
-            stepTokens -= 1
+      // Pause, or a step stop in step mode: block until released.
+      let held = false
+      try {
+        for (;;) {
+          if (isFlushed()) return
+          const cur = getSettings()
+          if (cur.stepMode && stopsHere) {
+            if (stepTokens > 0) {
+              stepTokens -= 1
+              return
+            }
+          } else if (!cur.paused) {
             return
           }
-        } else if (!cur.paused) {
-          return
+          if (!held) {
+            held = true
+            onHold?.(event)
+          }
+          await new Promise<void>(r => waiters.push(r))
         }
-        await new Promise<void>(r => waiters.push(r))
+      } finally {
+        if (held) onHold?.(null)
       }
     },
     step() {
-      stepTokens += 1
+      // One click advances one stop, and only while the run is held on one: clicks made while the
+      // harness is busy (e.g. the model is writing) do not pile up and then rush through several stops.
+      if (waiters.length === 0) return
+      stepTokens = 1
       release()
     },
     poke() {

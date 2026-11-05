@@ -14,12 +14,11 @@ import { ComparisonView } from './ui/compare/ComparisonView'
 import { TeacherPanel } from './ui/teacher/TeacherPanel'
 import { DataSettings } from './ui/settings/DataSettings'
 import { ApprovalDialog } from './ui/approval/ApprovalDialog'
-import { Maximize, MessageSquare, Minimize, PanelRightClose, PanelRightOpen, Play, Radio, Square, X } from 'lucide-react'
+import { Maximize, MessageSquare, Minimize, PanelRightClose, PanelRightOpen, Radio, X } from 'lucide-react'
 import { SCENARIOS } from './scenarios'
 import { lastLevelOf } from './harness/levels'
 import { Tabs, tabId } from './ui/common/Tabs'
 import { RunPanel } from './ui/stage/RunPanel'
-import { useStageUi } from './ui/stage/stageUi'
 import styles from './App.module.css'
 
 const DRAWER_KEY = 'harness-lab:drawer-width'
@@ -66,14 +65,6 @@ export function App() {
     }
   }
   const [focus, setFocus] = useState(false)
-  const status = useLab(s => s.status)
-  const draft = useStageUi(s => s.draft)
-  const running = status === 'running' || status === 'awaitingApproval'
-  const runRequest = () => {
-    const s = useLab.getState()
-    if (running) s.stop()
-    else void s.send(draft ?? undefined)
-  }
 
   // Full-screen map: hides the header and asks the browser for full screen when it can.
   const toggleFocus = () => {
@@ -210,39 +201,39 @@ export function App() {
             <>
               <div className={`${styles.screen} ${presentation ? styles.presentationScreen : ''}`}>
                 {!focus && <TopBar onOpenModel={() =>{  setModelOpen(true) }} onOpenSettings={() =>{  setSettingsOpen(true) }} />}
-                {!focus && <LevelRail />}
+                {!focus && <LevelRail part="detail" />}
                 <main
                   className={[styles.engine, drawerOpen && styles.engineWithDrawer, resizing && styles.resizing, presentation && styles.presenting].filter(Boolean).join(' ')}
                   style={{ '--drawer-w': `${drawerW}px` } as React.CSSProperties}
                 >
                   <div className={styles.stageWrap}>
-                    <EngineStage onApprovalDetails={() =>{  setApprovalDetails(true) }} />
-                    <div className={styles.stageActions}>
-                      <button type="button" className={`${styles.stageAction} ${running ? styles.stopAction : styles.runAction}`} onClick={runRequest}>
-                        {running ? <Square size={14} fill="currentColor" aria-hidden /> : <Play size={15} fill="currentColor" aria-hidden />}
-                        <span>{running ? 'Ferma' : 'Avvia la richiesta'}</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`${styles.stageAction} ${focus ? styles.stageActionOn : ''}`}
-                        aria-pressed={focus}
-                        onClick={toggleFocus}
-                        title={focus ? 'Esci dallo schermo intero (Esc)' : 'Mappa a schermo intero'}
-                      >
-                        {focus ? <Minimize size={16} aria-hidden /> : <Maximize size={16} aria-hidden />}
-                        <span>{focus ? 'Esci' : 'Schermo intero'}</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`${styles.stageAction} ${drawerOpen ? styles.stageActionOn : ''}`}
-                        aria-expanded={drawerOpen}
-                        aria-controls="workspace-drawer"
-                        onClick={() =>{  setDrawerOpen(open => !open) }}
-                      >
-                        {drawerOpen ? <PanelRightClose size={16} aria-hidden /> : <PanelRightOpen size={16} aria-hidden />}
-                        <span>{drawerOpen ? 'Chiudi pannello' : 'Prova e racconto'}</span>
-                      </button>
-                    </div>
+                    <EngineStage
+                      onApprovalDetails={() =>{  setApprovalDetails(true) }}
+                      actions={
+                        <>
+                          <button
+                            type="button"
+                            className={`${styles.stageAction} ${focus ? styles.stageActionOn : ''}`}
+                            aria-pressed={focus}
+                            onClick={toggleFocus}
+                            title={focus ? 'Esci dallo schermo intero (Esc)' : 'Mappa a schermo intero'}
+                          >
+                            {focus ? <Minimize size={16} aria-hidden /> : <Maximize size={16} aria-hidden />}
+                            <span>{focus ? 'Esci' : 'Schermo intero'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={`${styles.stageAction} ${drawerOpen ? styles.stageActionOn : ''}`}
+                            aria-expanded={drawerOpen}
+                            aria-controls="workspace-drawer"
+                            onClick={() =>{  setDrawerOpen(open => !open) }}
+                          >
+                            {drawerOpen ? <PanelRightClose size={16} aria-hidden /> : <PanelRightOpen size={16} aria-hidden />}
+                            <span>{drawerOpen ? 'Chiudi pannello' : 'Prova e racconto'}</span>
+                          </button>
+                        </>
+                      }
+                    />
                   </div>
                   <aside id="workspace-drawer" className={styles.narrationWrap} aria-label="Prova e spiegazione" hidden={!drawerOpen}>
                     <div

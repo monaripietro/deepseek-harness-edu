@@ -101,13 +101,18 @@ export function narrate(e: TraceEvent, components: Record<ComponentId, boolean>)
       if (/prima bozza/.test(e.instruction))
         return { family: 'orchestration', tone: 'info', text: e.instruction, term: 'bozza guidata' }
       if (/piano/.test(e.instruction))
-        return { family: 'orchestration', tone: 'info', text: 'Prima di agire, l’orchestratore fa scrivere al modello un piano: passi numerati, ciascuno con lo strumento da usare.', term: 'pianificazione' }
+        return { family: 'orchestration', tone: 'info', text: 'Il modello scrive il suo piano con lo strumento «pianifica»: passi numerati, ciascuno con lo strumento da usare. Può aggiornarlo se qualcosa cambia.', term: 'pianificazione' }
       return /calcolatrice/.test(e.instruction)
         ? { family: 'orchestration', tone: 'info', text: 'L’orchestratore apre per il modello una chiamata alla calcolatrice: il modello deve solo scrivere l’espressione.', term: 'chiamata guidata' }
         : { family: 'governance', tone: 'info', text: 'L’orchestratore gli rispiega il formato e gli chiede di riprovare.' }
     case 'tool/validation':
       return e.ok
-        ? { family: 'governance', tone: 'good', text: 'I controlli verificano gli argomenti rispetto allo schema dello strumento: sono validi.', term: 'validazione' }
+        ? {
+          family: components.controls ? 'governance' : 'orchestration',
+          tone: 'good',
+          text: `${components.controls ? 'I controlli verificano' : 'L’orchestratore verifica'} gli argomenti rispetto allo schema dello strumento: sono validi.`,
+          term: 'validazione',
+        }
         : { family: 'governance', tone: 'bad', text: `Argomenti non validi: ${(e.errors ?? []).join('; ')}. L’errore torna al modello, che può correggersi.` }
     case 'tool/execute':
       return e.viaMcp

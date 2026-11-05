@@ -1,7 +1,8 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
-import { SIMULATED_LOCAL } from './domain/types'
+import { REAL_LOCAL, SIMULATED_LOCAL } from './domain/types'
+import type { TraceEvent, TraceEventBody } from './domain/types'
 import { configForLevel } from './harness/levels'
 import { bus, useLab } from './state/store'
 import { useStageUi } from './ui/stage/stageUi'
@@ -116,5 +117,41 @@ describe('laboratory workspace', () => {
     expect(resolve).not.toHaveBeenCalled()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Rifiuta' }))
     expect(resolve).toHaveBeenCalledWith('rejected')
+  })
+
+  it('shows where the request is and returns the stage to its idle state after a restart', () => {
+    let seq = 0
+    const ev = (body: TraceEventBody): TraceEvent =>
+      ({ ...body, id: `ev-${++seq}`, seq, at: seq, runId: 'run-ui', source: 'orchestrator', provenance: REAL_LOCAL }) as TraceEvent
+    useLab.setState({
+      status: 'done',
+      chat: [{ id: 'u', role: 'user', text: 'Domanda' }],
+      events: [
+        ev({ type: 'run/start', input: 'Domanda', configKey: 'k', configLabel: 'l', scenarioId: 's', model: useLab.getState().modelInfo }),
+        ev({ type: 'model/request', tokensIn: 10, protocol: 'text', mustAnswer: true }),
+        ev({ type: 'answer', text: 'Risposta', sources: [] }),
+        ev({ type: 'stop', reason: 'final_answer', message: 'Fine' }),
+      ],
+    })
+    render(<App />)
+    const now = screen.getByRole('region', { name: 'Adesso' })
+    expect(within(now).getByRole('status').textContent).toBe('Fine · Risposta finale')
+    expect(within(screen.getByRole('list', { name: 'Le tappe della richiesta' })).getAllByRole('listitem')).toHaveLength(4)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ricomincia' }))
+    expect(useLab.getState().events).toHaveLength(0)
+    expect(within(now).getByRole('status').textContent).toBe('Pronto a partire')
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Ricomincia' }).disabled).toBe(true)
+  })
+
+  it('runs the shared request draft from the stage control bar', () => {
+    const send = vi.spyOn(useLab.getState(), 'send').mockResolvedValue(null)
+    useStageUi.setState({ draft: null, draftFor: null })
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Prova e racconto' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'La tua richiesta' }), { target: { value: 'Domanda modificata' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Avvia la richiesta' }))
+    expect(send).toHaveBeenCalledWith('Domanda modificata')
+    send.mockRestore()
   })
 })

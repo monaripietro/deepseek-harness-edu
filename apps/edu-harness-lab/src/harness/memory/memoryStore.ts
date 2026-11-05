@@ -23,10 +23,13 @@ export function createMemoryStore(seeds: Seed[]): MemoryStore {
     for (const cb of subs) cb()
   }
 
-  for (const s of seeds) {
-    const id = `seed-${s.key}`
-    records.set(id, { ...s, scope: 'persistent', id, createdAt })
+  const addSeeds = () => {
+    for (const s of seeds) {
+      const id = `seed-${s.key}`
+      records.set(id, { ...s, scope: 'persistent', id, createdAt })
+    }
   }
+  addSeeds()
   refresh()
 
   // Merge what was saved in previous sessions (user-written records, and seeds the user deleted are not restored).
@@ -72,6 +75,14 @@ export function createMemoryStore(seeds: Seed[]): MemoryStore {
       if (persistentRemoved) {
         if (!scope || scope === 'persistent') void clearMemory()
       }
+      notify()
+    },
+    reset() {
+      for (const id of records.keys()) deleted.add(id)
+      records.clear()
+      void clearMemory()
+      addSeeds()
+      for (const s of seeds) deleted.delete(`seed-${s.key}`)
       notify()
     },
     subscribe(cb): Disposer {

@@ -163,6 +163,28 @@ describe('Narration', () => {
     expect(screen.getByLabelText('in diretta')).toBeTruthy()
   })
 
+  it('marks the held entry in the current event and in the history', () => {
+    const events = [
+      traceEvent(1, { type: 'harness/plugin-mounted', component: 'instructions' }),
+      traceEvent(2, { type: 'harness/plugin-unmounted', component: 'instructions' }),
+      traceEvent(3, { type: 'harness/plugin-mounted', component: 'context' }),
+    ]
+    useLab.setState({ events, status: 'running', heldEvent: events[2] ?? null })
+    const { unmount } = render(<Narration />)
+    const current = screen.getByRole('region', { name: 'Evento corrente' })
+    expect(current.getAttribute('data-held')).toBe('true')
+    expect(current.textContent).toContain('Fermo qui')
+    unmount()
+
+    useLab.setState({ heldEvent: events[1] ?? null })
+    render(<Narration />)
+    fireEvent.click(screen.getByRole('button', { name: 'Storico 2 eventi precedenti' }))
+    const held = screen.getByRole('list', { name: 'Eventi precedenti' }).querySelector('[data-held]')
+    expect(held?.textContent).toContain('Fermo qui')
+    expect(screen.getByRole('region', { name: 'Evento corrente' }).getAttribute('data-held')).toBeNull()
+    useLab.setState({ heldEvent: null })
+  })
+
   it('gives brief empty-state orientation without exposing model reasoning', () => {
     render(<Narration />)
 

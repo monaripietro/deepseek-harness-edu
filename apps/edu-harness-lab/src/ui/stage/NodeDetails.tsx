@@ -408,7 +408,8 @@ function LoopDetails({ stage }: { stage: StageState }) {
       {c.tools && (
         <Section title="Piano del modello">
           <p className={styles.muted}>
-            Prima di agire l’orchestratore obbliga il modello a scrivere un piano: passi numerati, ciascuno con lo strumento da usare.
+            Il modello può scrivere un piano con lo strumento «pianifica» (passi numerati, ciascuno con lo strumento da usare)
+            e aggiornarlo se un passo fallisce o le informazioni cambiano.
             Poi ogni chiamata spunta il passo a cui corrisponde.
           </p>
           {plan ? (

@@ -24,7 +24,7 @@ function money(value: number, lang: ToolExecContext['lang']): string {
   return new Intl.NumberFormat(lang === 'en' ? 'en-GB' : 'it-IT', {
     style: 'currency',
     currency: 'EUR',
-    useGrouping: true,
+    useGrouping: 'always',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value)

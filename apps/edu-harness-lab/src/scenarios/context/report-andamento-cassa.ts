@@ -25,7 +25,7 @@ function euro(value: number, lang: 'it' | 'en'): string {
   return new Intl.NumberFormat(lang === 'en' ? 'en-GB' : 'it-IT', {
     style: 'currency',
     currency: 'EUR',
-    useGrouping: true,
+    useGrouping: 'always',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value)

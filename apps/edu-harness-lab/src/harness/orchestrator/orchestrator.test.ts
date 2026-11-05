@@ -14,7 +14,7 @@ import type {
 } from '../../domain/types'
 import { NO_FAULTS, REAL_LOCAL } from '../../domain/types'
 import { SCENARIO_DATA } from '../../scenarios/data'
-import { createEventBus } from '../events'
+import { STEP_STOPS, createEventBus, createPacer } from '../events'
 import { baseConfig } from '../levels'
 import { runTurn } from './orchestrator'
 
@@ -97,6 +97,7 @@ interface Opts {
   faults?: Partial<FaultInjection>
   memory?: MemoryRecord[]
   runtime?: ModelRuntime
+  pacer?: TurnDeps['pacer']
 }
 
 function setup(script: string[], opts: Opts = {}) {
@@ -134,7 +135,7 @@ function setup(script: string[], opts: Opts = {}) {
     },
     mcp: { servers: () => [], connect: async () => {}, toolDefinitions: () => [] },
     bus,
-    pacer: { wait: async () => {} },
+    pacer: opts.pacer ?? { wait: async () => {} },
     faults: { ...NO_FAULTS, ...opts.faults },
     history: [],
     configKey: 'k',
@@ -267,6 +268,48 @@ describe('runTurn', () => {
     expect(s.guards()).toContain('max_steps')
   })
 
+  it('max_steps: a forced last step that answers keeps its final answer, the guard shows the limit', async () => {
+    const s = setup([call('calc', { x: '1' }), call('calc', { x: '2' }), answer('Ecco il totale')], { on: CTRL, limits: { maxSteps: 2 } })
+    const r = await s.run()
+    expect(r.stopReason).toBe('final_answer')
+    expect(r.answer).toBe('Ecco il totale')
+    expect(s.guards()).toContain('max_steps')
+  })
+
+  it('a model step over its time limit stops with timeout, not model_error', async () => {
+    const hang: ModelRuntime = { ...runtime([]).rt, generate: () => new Promise<never>(() => {}) }
+    const s = setup([], { runtime: hang, on: CTRL, limits: { stepTimeoutMs: 20 } })
+    const r = await s.run()
+    expect(r.stopReason).toBe('timeout')
+  })
+
+  it('step mode: Avanti stops only on visible events, one stop per click, and the run reaches its answer', async () => {
+    const held: string[] = []
+    const pacer = createPacer(() => ({ speed: 0, paused: false, stepMode: true }), (e) => { if (e) held.push(e.type) })
+    const s = setup([call('calc'), answer()], { on: LOOP, pacer })
+    let done = false
+    const result = s.run().then((r) => { done = true; return r })
+    const settle = async () => { for (let i = 0; i < 5; i++) await new Promise(r => setTimeout(r, 0)) }
+    await settle()
+    let clicks = 0
+    while (!done && clicks < 100) {
+      const heldBefore = held.length
+      pacer.step()
+      pacer.step() // a double click must not skip a stop
+      clicks += 1
+      await settle()
+      expect(held.length - heldBefore).toBeLessThanOrEqual(1)
+    }
+    const r = await result
+    expect(r.stopReason).toBe('final_answer')
+    // Every held event is a visible stop, and every visible stop was held exactly once.
+    const stops = s.types().filter(t => STEP_STOPS.has(t))
+    expect(held).toEqual(stops)
+    expect(held).not.toContain('step/start')
+    expect(held).not.toContain('tool/validation')
+    expect(clicks).toBe(stops.length)
+  })
+
   it('invalid args come back as observations; injected fault is labelled', async () => {
     const s = setup([call('calc', {}), answer()], { on: LOOP })
     const r = await s.run()
@@ -327,5 +370,67 @@ describe('runTurn', () => {
     expect(s.requests[0]?.messages[0]?.content).toContain('CC-410')
     expect(s.written[0]).toMatchObject({ kind: 'taskState', scope: 'session' })
     expect(s.types()).toContain('memory/ignore')
+  })
+
+  describe('planning tool', () => {
+    const plan = (piano: string, motivo?: string) => call('pianifica', { piano, ...(motivo ? { motivo } : {}) })
+    const summaries = (s: ReturnType<typeof setup>) =>
+      s.bus.events().flatMap(e => (e.type === 'tool/result' && e.tool === 'pianifica' && e.outcome.ok ? [e.outcome.summary] : []))
+
+    it('is offered at every step and the first call is not forced', async () => {
+      const s = setup([call('calc'), call('calc', { x: '2' }), answer()], { on: LOOP })
+      await s.run()
+      expect(s.requests).toHaveLength(3)
+      for (const r of s.requests) {
+        expect(r.messages[0]?.content).toContain('- pianifica:')
+        expect(r.forceTool).toBeUndefined()
+      }
+    })
+
+    it('update replaces the plan and is labelled version 2', async () => {
+      const s = setup([plan('1) calc 2) answer'), call('calc'), plan('1) rotto 2) answer', 'calc non basta'), answer()], { on: LOOP })
+      const r = await s.run()
+      expect(r.stopReason).toBe('final_answer')
+      const sum = summaries(s)
+      expect(sum[0]).toMatch(/^Piano registrato:/)
+      expect(sum[1]).toMatch(/^Piano aggiornato \(versione 2\):/)
+      expect(sum[1]).toContain('calc non basta')
+      const last = s.requests[3]?.messages.map(m => m.content).join('|') ?? ''
+      expect(last).toContain('1) rotto 2) answer')
+      expect(last).not.toContain('1) calc 2) answer')
+      expect(r.toolCalls.map(c => c.tool)).toEqual(['calc'])
+    })
+
+    it('two consecutive plan calls: the second is answered with a request to act', async () => {
+      const s = setup([plan('1) calc'), plan('1) calc 2) answer'), answer()], { on: LOOP })
+      await s.run()
+      expect(summaries(s)).toHaveLength(1)
+      const err = s.bus.events().find(e => e.type === 'tool/error' && e.tool === 'pianifica')
+      expect(err).toMatchObject({ code: 'DENIED' })
+    })
+
+    it('a model that only keeps planning is stopped even without controls (no step limit there)', async () => {
+      const s = setup(Array.from({ length: 12 }, (_, i) => plan(`1) calc ${i}`)), { on: LOOP })
+      const r = await s.run()
+      expect(r.stopReason).toBe('loop_detected')
+      expect(s.requests.length).toBeLessThanOrEqual(3)
+      expect(s.guards()).toContain('safety_net')
+    })
+
+    it('does not use up the single round of tools of levels without the agent loop', async () => {
+      const s = setup([plan('1) calc 2) answer'), call('calc'), answer('Fatto')], { on: FULL })
+      const r = await s.run()
+      expect(r.stopReason).toBe('final_answer')
+      expect(s.requests[1]?.hints.mustAnswer).toBe(false)
+      expect(s.requests[2]?.hints.mustAnswer).toBe(true)
+      expect(r.toolCalls).toEqual([{ tool: 'calc', args: { x: '1' }, ok: true }])
+    })
+
+    it('does not count for the repeat guard', async () => {
+      const s = setup([plan('1) calc'), call('calc'), plan('1) calc'), call('calc', { x: '2' }), plan('1) calc'), answer()], { on: CTRL })
+      const r = await s.run()
+      expect(r.stopReason).toBe('final_answer')
+      expect(s.guards()).not.toContain('repeat')
+    })
   })
 })

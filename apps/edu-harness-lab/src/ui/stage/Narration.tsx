@@ -83,15 +83,28 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
   const [historyOpen, setHistoryOpen] = useState(false)
   const followHistory = useRef(true)
   const listRef = useRef<HTMLOListElement>(null)
+  const currentRef = useRef<HTMLElement>(null)
+  const heldId = useLab(s => s.heldEvent?.id ?? null)
 
   const lines = useMemo(() => narrationLines(events, components), [events, components])
   const current = lines[lines.length - 1]
   const history = lines.slice(0, -1)
+  const heldInHistory = history.some(line => line.id === heldId)
 
   useEffect(() => {
     const list = listRef.current
     if (historyOpen && followHistory.current && list) list.scrollTop = list.scrollHeight
   }, [historyOpen, history.length])
+
+  // The run is held on an event: bring its entry into view, unless the reader is looking at older entries.
+  useEffect(() => {
+    if (!heldId) return
+    if (heldInHistory) {
+      if (historyOpen && followHistory.current) listRef.current?.querySelector<HTMLElement>('[data-held]')?.scrollIntoView?.({ block: 'nearest' })
+      return
+    }
+    currentRef.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [heldId, heldInHistory, historyOpen])
 
   const running = status === 'running' || status === 'awaitingApproval'
 
@@ -122,11 +135,21 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
       </p>
       {current ? (
         <section
-          className={[styles.current, styles[`tone_${current.tone}`]].join(' ')}
+          ref={currentRef}
+          className={[styles.current, styles[`tone_${current.tone}`], current.id === heldId ? styles.held : ''].join(' ')}
           style={{ '--fam': current.family === 'user' ? 'var(--c-user)' : `var(--c-${current.family})` } as React.CSSProperties}
           aria-labelledby={currentId}
+          data-held={current.id === heldId || undefined}
         >
-          <h3 id={currentId} className={styles.currentLabel}>Evento corrente</h3>
+          <h3 id={currentId} className={styles.currentLabel}>
+            Evento corrente
+            {current.step > 0 && <span className={styles.round}>giro {current.step}</span>}
+            {current.id === heldId && (
+              <span className={styles.heldTag} aria-hidden>
+                Fermo qui
+              </span>
+            )}
+          </h3>
           <p className={styles.currentText} aria-live="polite" aria-atomic="true">
             {current.text}
             {current.term && <span className={styles.term}> {current.term}</span>}
@@ -191,14 +214,18 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
             {history.map((line, index) => (
               <li
                 key={line.id}
-                className={[styles.item, styles[`tone_${line.tone}`]].join(' ')}
+                className={[styles.item, styles[`tone_${line.tone}`], line.id === heldId ? styles.held : ''].join(' ')}
                 style={{ '--fam': line.family === 'user' ? 'var(--c-user)' : `var(--c-${line.family})` } as React.CSSProperties}
+                data-held={line.id === heldId || undefined}
               >
+                {/* Each new round of the agent loop starts with a small heading. */}
+                {line.step > 0 && line.step !== history[index - 1]?.step && <span className={styles.roundHead}>Giro {line.step}</span>}
                 <span className={styles.row}>
                   <span className={styles.n}>{index + 1}</span>
                   <span className={styles.text}>
                     {line.text}
                     {line.term && <span className={styles.term}> {line.term}</span>}
+                    {line.id === heldId && <span className={styles.heldTag}>Fermo qui</span>}
                   </span>
                 </span>
               </li>

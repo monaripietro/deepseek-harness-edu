@@ -211,6 +211,11 @@ export function AgentTrace() {
     return { rows: out, count: runEvents.length }
   }, [events, runId, filter])
 
+  // A new run or a reset starts a fresh list: follow it from the top again.
+  useEffect(() => {
+    stick.current = true
+  }, [runId])
+
   useEffect(() => {
     const el = scroller.current
     if (el && stick.current) el.scrollTo({ top: el.scrollHeight, behavior: reduce ? 'auto' : 'smooth' })

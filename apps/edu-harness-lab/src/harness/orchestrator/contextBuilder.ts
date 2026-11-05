@@ -105,7 +105,7 @@ function successHint(o: ToolObservation, ids: Set<string>): string {
   const data = o.outcome.ok ? (o.outcome.data as Record<string, unknown> | undefined) : undefined
   switch (name) {
     case 'pianifica':
-      return 'Follow the plan. Use tools only for steps they can perform; ask the user for missing task details. Answer when the required steps are complete.'
+      return 'Follow the plan (call pianifica again only if a step fails or the information changes). Use tools only for steps they can perform; ask the user for missing task details. Answer when the required steps are complete.'
     case 'calcolatrice':
       return 'Use this exact number in your answer.'
     case 'converti_valuta':

@@ -45,8 +45,10 @@ pnpm build
 
 **Flusso** 视图显示请求、上下文、模型和回答。箭头表示方向；启用的组件显示在使用它们的步骤下方。选择元素可查看详情。**Mappa completa** 提供可缩放、可拖动的关系图。
 
+舞台上方的 **Adesso** 条显示当前步骤，例如「Passo 3 di 6 · Il modello legge il contesto」。它按每一轮循环跟踪 Richiesta → Contesto → Modello → Decisione → Azione → Risposta，并显示运行的结果。舞台下方的控制栏可以启动、停止、暂停、单步执行和重新开始运行，设置速度并切换视图。
+
 - **Percorso**：使用 Precedente 和 Successivo 切换级别，或打开 Tutti i livelli 查看完整列表。步骤说明、组件和可用工具会根据所选场景调整。
-- **Prova**：编辑请求，按需加载模型并阅读对话。切换标签页不会丢失请求草稿。
+- **Prova**：编辑请求，按需加载模型并阅读对话。切换标签页不会丢失请求草稿。发送场景请求或已经问过的问题时，会从空上下文重新开始。新问题会延续对话；只有启用 Memoria 时，模型才能看到之前的轮次。**Nuova conversazione** 会清空对话，切换场景、级别或提示语言也会清空对话。
 - **Cosa succede**：阅读 harness 事件，而不是模型的思维。历史记录独立滚动；阅读较早事件时，新事件不会使视图跳到底部。
 - **Approfondimenti in basso**：检查模型上下文、事件日志，或对话及其检查结果。
 - **Controlli**：调整播放、速度、实验室、教师控制、主题、演示和设置。

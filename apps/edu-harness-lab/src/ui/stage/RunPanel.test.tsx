@@ -6,6 +6,7 @@ import { DEFAULT_SCENARIO_ID } from '../../scenarios'
 import { useLab } from '../../state/store'
 import type { ChatEntry } from '../../state/store'
 import { RunPanel } from './RunPanel'
+import { useStageUi } from './stageUi'
 
 const initialModelInfo = useLab.getState().modelInfo
 const initialLoadProgress = useLab.getState().loadProgress
@@ -30,6 +31,7 @@ function resetStore() {
     modelInfo: initialModelInfo,
     loadProgress: initialLoadProgress,
   })
+  useStageUi.setState({ draft: null, draftFor: null })
 }
 
 function readyModelInfo() {
@@ -157,5 +159,38 @@ describe('RunPanel', () => {
     render(<RunPanel />)
     expect(screen.getByText('Esito senza risposta finale')).not.toBeNull()
     expect(screen.queryByText('Risposta finale')).toBeNull()
+  })
+
+  it('offers a clean restart and says whether the next request starts again or follows up', () => {
+    useLab.setState({
+      status: 'done',
+      chat: [
+        { id: 'user-1', role: 'user', text: 'Una domanda.' },
+        { id: 'assistant-1', role: 'assistant', text: 'Una risposta.', stopReason: 'final_answer' },
+      ],
+    })
+    render(<RunPanel />)
+
+    // The scenario request is a restart, not a follow-up.
+    expect(screen.getByText(/Domanda dello scenario: si riparte da zero/)).not.toBeNull()
+    const input = screen.getByRole('textbox', { name: 'La tua richiesta' })
+    fireEvent.change(input, { target: { value: 'E se i costi salgono?' } })
+    expect(screen.getByText(/Senza memoria il modello non vede gli scambi precedenti/)).not.toBeNull()
+    fireEvent.change(input, { target: { value: 'Una domanda.' } })
+    expect(screen.getByText(/Domanda già fatta: si riparte da zero/)).not.toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Nuova conversazione' }))
+    expect(useLab.getState().chat).toHaveLength(0)
+    expect(useLab.getState().events).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: 'Nuova conversazione' })).toBeNull()
+    expect(screen.getByText(/Nessuna prova ancora/)).not.toBeNull()
+  })
+
+  it('shares the request draft with the map and the stage run button', () => {
+    render(<RunPanel />)
+    fireEvent.change(screen.getByRole('textbox', { name: 'La tua richiesta' }), { target: { value: 'Bozza condivisa' } })
+    expect(useStageUi.getState().draft).toBe('Bozza condivisa')
+    fireEvent.click(screen.getByRole('button', { name: 'Domanda dello scenario' }))
+    expect(useStageUi.getState().draft).toBeNull()
   })
 })

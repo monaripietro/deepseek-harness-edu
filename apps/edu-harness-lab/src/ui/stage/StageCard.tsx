@@ -5,7 +5,7 @@ import { COMPONENTS, levelsFor } from '../../harness/levels'
 import { SCENARIOS } from '../../scenarios'
 import { useLab } from '../../state/store'
 import type { Rect, StageNodeId } from './geometry'
-import { previewAnchor } from './geometry'
+import { layoutFor, previewAnchor } from './geometry'
 import { isInteractive, useStageUi } from './stageUi'
 import styles from './stage.module.css'
 
@@ -21,7 +21,7 @@ const levelOf = (levels: ReturnType<typeof levelsFor>, component: ComponentId) =
  */
 export function StageCard({
   node,
-  rect,
+  rect: fallbackRect,
   tone,
   title,
   kicker,
@@ -69,12 +69,14 @@ export function StageCard({
   const ghost = !active
   const lvl = component ? levelOf(scenarioLevels, component) : 0
   const isNext = ghost && component != null && view === 'guided' && lvl === level + 1
+  const components = useLab(s => s.config.components)
+  const rect = (layoutFor(components).rects as Partial<Record<StageNodeId, Rect>>)[node] ?? fallbackRect
   const anchor = previewAnchor(rect)
   const slotStyle = {
     left: rect.x,
     top: rect.y,
     width: rect.w,
-    height: ghost ? Math.min(rect.h, 78) : rect.h,
+    height: rect.h,
     '--tone': tone === 'user' ? 'var(--c-user)' : `var(--c-${tone})`,
     '--tone-soft': tone === 'user' ? 'var(--c-action-soft)' : `var(--c-${tone}-soft)`,
     '--pv-w': `${previewWidth}px`,
@@ -82,6 +84,7 @@ export function StageCard({
 
   const label = component ? `${title}. ${COMPONENTS[component].short} ${active ? 'Attivo.' : 'Non ancora costruito.'}` : title
   const ghostKicker = isNext ? 'Prossimo strato' : `Livello ${lvl + 1}`
+  const ghostChip = isNext ? 'prossimo' : `livello ${lvl + 1}`
   const open = (target: EventTarget | null) => {
     if (!isInteractive(target)) toggleDetails(node)
   }
@@ -129,18 +132,28 @@ export function StageCard({
           }
         }}
       >
-        <header className={styles.cardHead}>
-          <span className={styles.cardIcon} aria-hidden>
-            {icon}
-          </span>
-          <div className={styles.cardTitles}>
-            {ghost && <span className={styles.kicker}>{ghostKicker}</span>}
-            <h3 className={styles.cardTitle}>{title}</h3>
-          </div>
-          {!ghost && status}
-          {labToggle}
-        </header>
-        {!ghost && summary != null && <div className={`${styles.cardSummary} ${tall ? styles.cardSummaryTall : ''}`}>{summary}</div>}
+        {ghost ? (
+          <header className={styles.slotRow}>
+            <Plus size={16} aria-hidden className={styles.slotPlus} />
+            <h3 className={styles.slotName}>{title}</h3>
+            <span className={styles.slotChip}>{ghostChip}</span>
+            {labToggle}
+          </header>
+        ) : (
+          <>
+            <header className={styles.cardHead}>
+              <span className={styles.cardIcon} aria-hidden>
+                {icon}
+              </span>
+              <div className={styles.cardTitles}>
+                <h3 className={styles.cardTitle}>{title}</h3>
+              </div>
+              {status}
+              {labToggle}
+            </header>
+            {summary != null && <div className={`${styles.cardSummary} ${tall ? styles.cardSummaryTall : ''}`}>{summary}</div>}
+          </>
+        )}
       </section>
 
       {/* Larger preview on hover / focus: counter-scaled so it stays readable when the map is zoomed out. */}
