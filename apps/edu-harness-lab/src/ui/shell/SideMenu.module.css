@@ -99,8 +99,29 @@
   font-size: var(--fs-xs);
 }
 .credits span a { color: var(--text); font-weight: 500; text-underline-offset: 3px; }
-.creditLogoLink { display: block; line-height: 0; }
-.creditLogo { display: block; width: 54px; height: 25px; object-fit: contain; }
+.creditLogoLink {
+  /* Crop box with the proportions of the mark itself: the PNG has wide transparent margins
+     (mark at x 17–83 %, y 26–74 % of the file), which made the logo tiny and left a gap before it. */
+  position: relative;
+  display: block;
+  flex: none;
+  height: 26px;
+  aspect-ratio: 4979 / 2296;
+  overflow: hidden;
+  line-height: 0;
+}
+.creditLogo {
+  position: absolute;
+  left: -25.77%;
+  top: -55.92%;
+  width: 151.46%;
+  max-width: none;
+  height: auto;
+}
+/* The mark is black: on the dark theme it turns white so it stays visible. */
+:global([data-theme='dark']) .creditLogo {
+  filter: invert(1);
+}
 
 .section :global([role='radiogroup']) {
   display: flex;

@@ -94,7 +94,13 @@ export function PlanWindow({ stage }: { stage: StageState }) {
 
   if (ui.closed) {
     return (
-      <button type="button" className={styles.chip} onClick={() => { ui.set({ closed: false }) }} aria-label="Riapri il piano del modello">
+      <button
+        type="button"
+        className={styles.chip}
+        data-panel
+        onClick={() => { ui.set({ closed: false }) }}
+        aria-label="Riapri il piano del modello"
+      >
         <ListChecks size={16} aria-hidden /> Piano
       </button>
     )
@@ -109,6 +115,7 @@ export function PlanWindow({ stage }: { stage: StageState }) {
     const parent = el?.offsetParent
     if (!el || !parent || e.button !== 0 || (e.target as Element).closest('button')) return
     e.preventDefault()
+    e.stopPropagation()
     const dx = e.clientX - el.offsetLeft
     const dy = e.clientY - el.offsetTop
     track((ev) => {
@@ -148,7 +155,8 @@ export function PlanWindow({ stage }: { stage: StageState }) {
   }
 
   return (
-    <section ref={ref} className={styles.window} style={style} aria-label="Piano del modello">
+    // data-panel: the map ignores gestures that start here (no pan on drag, no zoom on wheel).
+    <section ref={ref} className={styles.window} style={style} aria-label="Piano del modello" data-panel>
       <header className={styles.head} onPointerDown={startDrag}>
         <span className={styles.title}>Piano del modello</span>
         {plan.version > 1 && <span className={styles.version}>v{plan.version} · aggiornato</span>}

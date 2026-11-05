@@ -13,12 +13,12 @@ import styles from './SideMenu.module.css'
 
 const FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'
 
-/** "Creato da … · con [E38]": shown in the top bar on wide screens and in the menu footer. */
+/** "Creato da … in collaborazione con [E38]": shown in the top bar on wide screens and in the menu footer. */
 export function Credits({ className }: { className?: string }) {
   return (
     <div className={className}>
       <span>
-        Creato da <a href="https://www.monaripietro.it/" target="_blank" rel="noreferrer">Pietro Monari</a> · con
+        Creato da <a href="https://www.monaripietro.it/" target="_blank" rel="noreferrer">Pietro Monari</a> in collaborazione con
       </span>
       <a className={styles.creditLogoLink} href="https://e38.it/" target="_blank" rel="noreferrer" aria-label="E38 S.r.l.">
         <img className={styles.creditLogo} src="/Logo%20e38_Tavola%20disegno%201%20copia.png" alt="" />
