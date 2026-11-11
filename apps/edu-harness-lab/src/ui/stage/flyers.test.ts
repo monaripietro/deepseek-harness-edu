@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import type { ComponentId, TraceEvent } from '../../domain/types'
+import { useUiLang } from '../../i18n'
 import { flyersFor } from './flyers'
 
 const comps = {
@@ -34,5 +35,18 @@ describe('context/assembled flyers', () => {
   it('the context goes to the model on model/request, a step of its own', () => {
     const req = { type: 'model/request', tokensIn: 1420, protocol: 'json', mustAnswer: false } as unknown as TraceEvent
     expect(flyersFor(req, comps)).toEqual([{ edge: 'window-model', label: `≈ ${(1420).toLocaleString('it-IT')} token`, kind: 'context' }])
+  })
+})
+
+describe('flyers in English', () => {
+  afterEach(() => {
+    useUiLang.setState({ lang: 'it' })
+  })
+
+  it('labels the packets in English', () => {
+    useUiLang.setState({ lang: 'en' })
+    expect(flyersFor(assembled(1), comps).map(f => f.label)).toEqual(['instructions', 'task data'])
+    const req = { type: 'model/request', tokensIn: 1420, protocol: 'json', mustAnswer: false } as unknown as TraceEvent
+    expect(flyersFor(req, comps)).toEqual([{ edge: 'window-model', label: `≈ ${(1420).toLocaleString('en-US')} token`, kind: 'context' }])
   })
 })

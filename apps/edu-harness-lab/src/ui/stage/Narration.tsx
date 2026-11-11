@@ -1,11 +1,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ChevronDown, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import type { ComponentId, TraceEvent } from '../../domain/types'
-import { COMPONENTS, LEVELS, levelsFor } from '../../harness/levels'
+import { LEVELS, levelsFor } from '../../harness/levels'
 import { SCENARIOS } from '../../scenarios'
 import { useLab } from '../../state/store'
+import { tr, useT, useUiLang } from '../../i18n'
+import { componentText, levelText } from '../../i18nContent'
 import type { NarrationLine } from './narrate'
-import { narrate } from './narrate'
+import { joinList, narrate } from './narrate'
 import styles from './Narration.module.css'
 
 /** Events worth narrating now: the latest run plus the harness changes made just before it. */
@@ -41,15 +43,18 @@ export function narrationLines(events: readonly TraceEvent[], components: Record
         next++
       }
       if (additions.length > 1) {
-        const labels = additions.map(addition => COMPONENTS[addition.component].label)
-        const joinedLabels = `${labels.slice(0, -1).join(', ')} e ${labels.at(-1) ?? ''}`
+        const labels = additions.map(addition => componentText(addition.component).label)
+        const joinedLabels = joinList(labels)
         out.push({
           id: event.id,
           seq: (additions.at(-1) ?? event).seq,
           step,
           family: 'user',
           tone: 'good',
-          text: `L’harness integra ${labels.length} componenti: ${joinedLabels}. Il modello resta invariato.`,
+          text: tr(
+            `L’harness integra ${labels.length} componenti: ${joinedLabels}. Il modello resta invariato.`,
+            `The harness adds ${labels.length} components: ${joinedLabels}. The model stays the same.`,
+          ),
         })
         i = next
         continue
@@ -63,20 +68,32 @@ export function narrationLines(events: readonly TraceEvent[], components: Record
 }
 
 export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean; onToggle?: () => void }) {
+  const t = useT()
+  // The narration text follows the interface language: the memoized lines are rebuilt on a switch.
+  const lang = useUiLang(s => s.lang)
   const events = useLab(s => s.events)
   const components = useLab(s => s.config.components)
   const level = useLab(s => s.level)
   const scenario = useLab(s => SCENARIOS.find(scenario => scenario.id === s.scenarioId))
   const reflection = !!scenario?.reflectionPrompt
   const status = useLab(s => s.status)
+  const levelDef = reflection ? undefined : (levelsFor(scenario).find(item => item.id === level) ?? LEVELS[level])
   const focus = reflection
     ? {
-      title: 'Riflessione iterativa',
-      phenomenon: 'Ogni bozza accettata torna in input alla chiamata successiva, che può verificarla o correggerla.',
-      term: 'ciclo di riflessione',
-      message: 'Le bozze sono testo generato osservabile, non thinking nativo. Ripetere una proposta non dimostra che sia corretta.',
+      title: t('Riflessione iterativa', 'Iterative reasoning'),
+      phenomenon: t(
+        'Ogni bozza accettata torna in input alla chiamata successiva, che può verificarla o correggerla.',
+        'Each accepted draft goes back as input to the next call, which can check or correct it.',
+      ),
+      term: t('ciclo di riflessione', 'reflection loop'),
+      message: t(
+        'Le bozze sono testo generato osservabile, non thinking nativo. Ripetere una proposta non dimostra che sia corretta.',
+        'Drafts are observable generated text, not native thinking. Repeating a proposal does not prove that it is correct.',
+      ),
     }
-    : levelsFor(scenario).find(item => item.id === level) ?? LEVELS[level]
+    : levelDef
+      ? levelText(levelDef, scenario?.id)
+      : undefined
   const titleId = useId()
   const currentId = `${titleId}-current`
   const historyId = `${titleId}-history`
@@ -86,7 +103,7 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
   const currentRef = useRef<HTMLElement>(null)
   const heldId = useLab(s => s.heldEvent?.id ?? null)
 
-  const lines = useMemo(() => narrationLines(events, components), [events, components])
+  const lines = useMemo(() => narrationLines(events, components), [events, components, lang])
   const current = lines[lines.length - 1]
   const history = lines.slice(0, -1)
   const heldInHistory = history.some(line => line.id === heldId)
@@ -110,28 +127,46 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
 
   if (collapsed)
     return (
-      <aside className={`${styles.panel} ${styles.collapsed}`} aria-label="Racconto chiuso">
-        <button type="button" className={styles.toggle} onClick={onToggle} aria-label="Apri il racconto" title="Apri il racconto">
+      <aside className={`${styles.panel} ${styles.collapsed}`} aria-label={t('Racconto chiuso', 'Story closed')}>
+        <button
+          type="button"
+          className={styles.toggle}
+          onClick={onToggle}
+          aria-label={t('Apri il racconto', 'Open the story')}
+          title={t('Apri il racconto', 'Open the story')}
+        >
           <PanelRightOpen size={17} />
         </button>
-        {running && <span className={styles.liveDot} aria-label="in diretta" />}
-        <span className={styles.vertical}>Che cosa sta succedendo{lines.length > 0 ? ` · ${lines.length}` : ''}</span>
+        {running && <span className={styles.liveDot} aria-label={t('in diretta', 'live')} />}
+        <span className={styles.vertical}>
+          {t('Che cosa sta succedendo', 'What is happening')}
+          {lines.length > 0 ? ` · ${lines.length}` : ''}
+        </span>
       </aside>
     )
 
   return (
     <aside className={styles.panel} aria-labelledby={titleId}>
       <h2 id={titleId} className={styles.title}>
-        Che cosa sta succedendo
-        {running && <span className={styles.live} role="status" aria-label="in diretta" title="in diretta" />}
+        {t('Che cosa sta succedendo', 'What is happening')}
+        {running && <span className={styles.live} role="status" aria-label={t('in diretta', 'live')} title={t('in diretta', 'live')} />}
         {onToggle && (
-          <button type="button" className={styles.toggle} onClick={onToggle} aria-label="Chiudi il racconto" title="Chiudi il racconto">
+          <button
+            type="button"
+            className={styles.toggle}
+            onClick={onToggle}
+            aria-label={t('Chiudi il racconto', 'Close the story')}
+            title={t('Chiudi il racconto', 'Close the story')}
+          >
             <PanelRightClose size={17} />
           </button>
         )}
       </h2>
       <p className={styles.orientation}>
-        Eventi dell’harness, non pensieri del modello. Il testo delle bozze è in «Riflessioni del ciclo».
+        {t(
+          'Eventi dell’harness, non pensieri del modello. Il testo delle bozze è in «Riflessioni del ciclo».',
+          'Harness events, not the model’s thoughts. The text of the drafts is in “Loop reflections”.',
+        )}
       </p>
       {current ? (
         <section
@@ -142,11 +177,11 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
           data-held={current.id === heldId || undefined}
         >
           <h3 id={currentId} className={styles.currentLabel}>
-            Evento corrente
-            {current.step > 0 && <span className={styles.round}>giro {current.step}</span>}
+            {t('Evento corrente', 'Current event')}
+            {current.step > 0 && <span className={styles.round}>{t('giro', 'round')} {current.step}</span>}
             {current.id === heldId && (
               <span className={styles.heldTag} aria-hidden>
-                Fermo qui
+                {t('Fermo qui', 'Stopped here')}
               </span>
             )}
           </h3>
@@ -158,24 +193,28 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
       ) : (
         <div className={styles.empty}>
           <p>
-            {running ? 'La prova è in corso.' : 'Avvia una prova per seguire gli eventi osservabili dell’harness.'}{' '}
-            Il ragionamento interno del modello non viene mostrato.
+            {running
+              ? t('La prova è in corso.', 'The run is in progress.')
+              : t('Avvia una prova per seguire gli eventi osservabili dell’harness.', 'Start a run to follow the harness’s observable events.')}{' '}
+            {t('Il ragionamento interno del modello non viene mostrato.', 'The model’s internal reasoning is not shown.')}
           </p>
         </div>
       )}
       <details className={styles.levelFocus}>
-        <summary className={styles.levelSummary}>{reflection ? 'Focus dello scenario' : 'Focus del livello'} · {focus?.title}</summary>
+        <summary className={styles.levelSummary}>
+          {reflection ? t('Focus dello scenario', 'Scenario focus') : t('Focus del livello', 'Level focus')} · {focus?.title}
+        </summary>
         <div className={styles.levelBody}>
           <p>
-            <span className={styles.levelLabel}>Da osservare</span>{' '}
+            <span className={styles.levelLabel}>{t('Da osservare', 'To observe')}</span>{' '}
             {focus?.phenomenon}
           </p>
           <p>
-            <span className={styles.levelLabel}>Termine</span>{' '}
+            <span className={styles.levelLabel}>{t('Termine', 'Term')}</span>{' '}
             <span className={styles.levelTerm}>{focus?.term}</span>
           </p>
           <p>
-            <span className={styles.levelLabel}>Idea chiave</span>{' '}
+            <span className={styles.levelLabel}>{t('Idea chiave', 'Key idea')}</span>{' '}
             {focus?.message}
           </p>
         </div>
@@ -194,9 +233,9 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
               }}
             >
               <ChevronDown size={14} aria-hidden />
-              Storico{' '}
+              {t('Storico', 'History')}{' '}
               <span className={styles.historyCount}>
-                {history.length} {history.length === 1 ? 'evento precedente' : 'eventi precedenti'}
+                {history.length} {history.length === 1 ? t('evento precedente', 'previous event') : t('eventi precedenti', 'previous events')}
               </span>
             </button>
           </h3>
@@ -204,7 +243,7 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
             id={historyId}
             className={styles.list}
             ref={listRef}
-            aria-label="Eventi precedenti"
+            aria-label={t('Eventi precedenti', 'Previous events')}
             tabIndex={0}
             onScroll={(event) => {
               const list = event.currentTarget
@@ -219,13 +258,17 @@ export function Narration({ collapsed = false, onToggle }: { collapsed?: boolean
                 data-held={line.id === heldId || undefined}
               >
                 {/* Each new round of the agent loop starts with a small heading. */}
-                {line.step > 0 && line.step !== history[index - 1]?.step && <span className={styles.roundHead}>Giro {line.step}</span>}
+                {line.step > 0 && line.step !== history[index - 1]?.step && (
+                  <span className={styles.roundHead}>
+                    {t('Giro', 'Round')} {line.step}
+                  </span>
+                )}
                 <span className={styles.row}>
                   <span className={styles.n}>{index + 1}</span>
                   <span className={styles.text}>
                     {line.text}
                     {line.term && <span className={styles.term}> {line.term}</span>}
-                    {line.id === heldId && <span className={styles.heldTag}>Fermo qui</span>}
+                    {line.id === heldId && <span className={styles.heldTag}>{t('Fermo qui', 'Stopped here')}</span>}
                   </span>
                 </span>
               </li>

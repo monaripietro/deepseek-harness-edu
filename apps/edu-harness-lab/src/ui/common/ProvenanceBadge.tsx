@@ -1,5 +1,6 @@
 import { CircleCheck, CloudOff, Globe, HardDrive, Play, Sparkles } from 'lucide-react'
 import type { ProvenanceTag } from '../../domain/types'
+import { useT } from '../../i18n'
 import { LOCALITY_HELP, LOCALITY_LABEL, PROVENANCE_HELP, PROVENANCE_LABEL } from './labels'
 import styles from './ProvenanceBadge.module.css'
 
@@ -15,9 +16,10 @@ const ICON = {
  * Never colour-only: icon + text + border style differ per kind.
  */
 export function ProvenanceBadge({ tag, compact = false }: { tag: ProvenanceTag; compact?: boolean }) {
+  const t = useT()
   const Icon = ICON[tag.provenance]
   const LocIcon = tag.locality === 'local' ? HardDrive : Globe
-  const title = [PROVENANCE_HELP[tag.provenance], LOCALITY_HELP[tag.locality], tag.note, tag.recordedAt ? `Registrato il ${tag.recordedAt}` : '']
+  const title = [PROVENANCE_HELP[tag.provenance], LOCALITY_HELP[tag.locality], tag.note, tag.recordedAt ? t(`Registrato il ${tag.recordedAt}`, `Recorded on ${tag.recordedAt}`) : '']
     .filter(Boolean)
     .join(' ')
   return (

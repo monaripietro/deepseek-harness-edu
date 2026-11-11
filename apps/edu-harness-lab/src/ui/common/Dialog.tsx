@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { X } from 'lucide-react'
+import { useT } from '../../i18n'
 import { IconButton } from './Button'
 import styles from './Dialog.module.css'
 
@@ -26,6 +27,7 @@ export function Dialog({
   /** CSS colour used for the glow, e.g. var(--c-governance). */
   tone?: string
 }) {
+  const t = useT()
   const ref = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
@@ -92,7 +94,7 @@ export function Dialog({
         exit={{ opacity: 0, y: 12, scale: 0.98 }}
         transition={{ type: 'spring', stiffness: 380, damping: 32 }}
       >
-        {onClose && <IconButton className={styles.close} label="Chiudi" icon={<X size={20} />} onClick={onClose} />}
+        {onClose && <IconButton className={styles.close} label={t('Chiudi', 'Close')} icon={<X size={20} />} onClick={onClose} />}
         <div className={styles.body}>{children}</div>
       </motion.div>
     </motion.div>,

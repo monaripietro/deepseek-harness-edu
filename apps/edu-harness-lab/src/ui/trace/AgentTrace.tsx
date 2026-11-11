@@ -20,20 +20,22 @@ import {
 } from 'lucide-react'
 import type { ComponentFamily, ToolOutcome, TraceEvent } from '../../domain/types'
 import { useLab } from '../../state/store'
+import { biRecord, useT } from '../../i18n'
 import { EVENT_LABEL, STOP_LABEL, TOOL_ERROR_LABEL } from '../common/labels'
 import { ProvenanceBadge } from '../common/ProvenanceBadge'
 import { Chip } from '../common/Chip'
-import { COMPONENTS } from '../../harness/levels'
+import { componentText } from '../../i18nContent'
 import styles from './AgentTrace.module.css'
 
 type Filter = 'all' | 'model' | 'tools' | 'controls' | 'info'
-const FILTERS: { id: Filter; label: string }[] = [
-  { id: 'all', label: 'Tutto' },
-  { id: 'model', label: 'Modello' },
-  { id: 'tools', label: 'Strumenti' },
-  { id: 'controls', label: 'Controlli' },
-  { id: 'info', label: 'Memoria e documenti' },
-]
+const FILTERS: Filter[] = ['all', 'model', 'tools', 'controls', 'info']
+const FILTER_LABEL = biRecord<Filter>({
+  all: ['Tutto', 'All'],
+  model: ['Modello', 'Model'],
+  tools: ['Strumenti', 'Tools'],
+  controls: ['Controlli', 'Controls'],
+  info: ['Memoria e documenti', 'Memory and documents'],
+})
 
 function familyOf(e: TraceEvent): ComponentFamily {
   const t = e.type
@@ -94,46 +96,61 @@ function outcomeText(o: ToolOutcome) {
   return o.ok ? clip(o.summary) : `${TOOL_ERROR_LABEL[o.code]}: ${clip(o.message, 90)}`
 }
 
-function summarize(e: TraceEvent): ReactNode {
+function summarize(e: TraceEvent, t: (it: string, en: string) => string): ReactNode {
   switch (e.type) {
     case 'run/start':
       return `«${clip(e.input, 100)}» · ${e.configLabel}`
     case 'run/end':
-      return `${e.record.steps} ${e.record.steps === 1 ? 'passo' : 'passi'} · ${e.record.toolCalls.length} chiamate a strumenti${e.record.reflections?.length ? ` · ${e.record.reflections.length} riflessioni` : ''}`
+      return t(
+        `${e.record.steps} ${e.record.steps === 1 ? 'passo' : 'passi'} · ${e.record.toolCalls.length} chiamate a strumenti${e.record.reflections?.length ? ` · ${e.record.reflections.length} riflessioni` : ''}`,
+        `${e.record.steps} ${e.record.steps === 1 ? 'step' : 'steps'} · ${e.record.toolCalls.length} tool calls${e.record.reflections?.length ? ` · ${e.record.reflections.length} reflections` : ''}`,
+      )
     case 'harness/plugin-mounted':
     case 'harness/plugin-unmounted':
-      return COMPONENTS[e.component].label
+      return componentText(e.component).label
     case 'rag/query':
       return `«${clip(e.query, 90)}»`
     case 'rag/results': {
       const sel = e.hits.filter(h => h.status === 'selected').length
-      return `${sel} selezionati su ${e.hits.length}`
+      return t(`${sel} selezionati su ${e.hits.length}`, `${sel} selected of ${e.hits.length}`)
     }
     case 'memory/read':
-      return `${e.count} ricordi letti`
+      return t(`${e.count} ricordi letti`, `${e.count} memories read`)
     case 'memory/select':
     case 'memory/inject':
-      return `${e.ids.length} ricordi`
+      return t(`${e.ids.length} ricordi`, `${e.ids.length} memories`)
     case 'memory/ignore':
-      return `${e.ids.length} ricordi ignorati: ${clip(e.reason, 70)}`
+      return t(`${e.ids.length} ricordi ignorati: ${clip(e.reason, 70)}`, `${e.ids.length} memories ignored: ${clip(e.reason, 70)}`)
     case 'memory/write':
       return `${e.record.key}: ${clip(e.record.text, 80)}`
     case 'memory/delete':
       return e.id
     case 'context/assembled':
-      return `≈ ${e.snapshot.budget.usedTokens} token · ${e.snapshot.items.filter(i => i.status === 'included').length} elementi inclusi`
+      return t(
+        `≈ ${e.snapshot.budget.usedTokens} token · ${e.snapshot.items.filter(i => i.status === 'included').length} elementi inclusi`,
+        `≈ ${e.snapshot.budget.usedTokens} tokens · ${e.snapshot.items.filter(i => i.status === 'included').length} items included`,
+      )
     case 'model/request':
-      return `≈ ${e.tokensIn} token in ingresso · formato ${e.protocol === 'json' ? 'strutturato' : 'testo'}${e.mustAnswer ? ' · deve rispondere' : ''}`
+      return t(
+        `≈ ${e.tokensIn} token in ingresso · formato ${e.protocol === 'json' ? 'strutturato' : 'testo'}${e.mustAnswer ? ' · deve rispondere' : ''}`,
+        `≈ ${e.tokensIn} tokens in input · ${e.protocol === 'json' ? 'structured' : 'text'} format${e.mustAnswer ? ' · must answer' : ''}`,
+      )
     case 'model/response':
-      return `${(e.durationMs / 1000).toFixed(1)} s${e.tokensOut ? ` · ${e.tokensOut} token` : ''} · ${e.finishReason}`
+      return `${(e.durationMs / 1000).toFixed(1)} s${e.tokensOut ? ` · ${e.tokensOut} ${t('token', 'tokens')}` : ''} · ${e.finishReason}`
     case 'decision/parsed': {
       const d = e.decision
-      return d.type === 'tool' ? `Vuole usare ${d.tool}` : d.type === 'answer' ? 'Vuole rispondere' : d.type === 'reflect' ? `Riesamina la proposta: ${clip(d.text, 80)}` : `Chiede: ${clip(d.question, 80)}`
+      return d.type === 'tool'
+        ? t(`Vuole usare ${d.tool}`, `Wants to use ${d.tool}`)
+        : d.type === 'answer'
+          ? t('Vuole rispondere', 'Wants to answer')
+          : d.type === 'reflect'
+            ? t(`Riesamina la proposta: ${clip(d.text, 80)}`, `Reviews the proposal: ${clip(d.text, 80)}`)
+            : t(`Chiede: ${clip(d.question, 80)}`, `Asks: ${clip(d.question, 80)}`)
     }
     case 'decision/invalid':
-      return `Tentativo ${e.attempt}: ${clip(e.error, 90)}`
+      return t(`Tentativo ${e.attempt}: ${clip(e.error, 90)}`, `Attempt ${e.attempt}: ${clip(e.error, 90)}`)
     case 'decision/repair':
-      return `Tentativo ${e.attempt}`
+      return t(`Tentativo ${e.attempt}`, `Attempt ${e.attempt}`)
     case 'tool/call':
     case 'mcp/call':
       return (
@@ -142,7 +159,7 @@ function summarize(e: TraceEvent): ReactNode {
         </>
       )
     case 'tool/validation':
-      return e.ok ? `${e.tool}: argomenti validi` : `${e.tool}: ${clip((e.errors ?? []).join('; '), 90)}`
+      return e.ok ? t(`${e.tool}: argomenti validi`, `${e.tool}: valid arguments`) : `${e.tool}: ${clip((e.errors ?? []).join('; '), 90)}`
     case 'tool/execute':
       return e.viaMcp ? `${e.tool} via MCP (${e.viaMcp})` : e.tool
     case 'tool/result':
@@ -152,16 +169,20 @@ function summarize(e: TraceEvent): ReactNode {
     case 'approval/asked':
       return `${e.request.toolTitle} (${e.request.toolId})`
     case 'approval/decided':
-      return `${e.outcome === 'allowed-once' ? 'Approvata' : e.outcome === 'rejected' ? 'Rifiutata' : 'Annullata'} da ${e.by === 'human' ? 'una persona' : "l'insegnante"}`
+    {
+      const verb = e.outcome === 'allowed-once' ? t('Approvata', 'Approved') : e.outcome === 'rejected' ? t('Rifiutata', 'Rejected') : t('Annullata', 'Cancelled')
+      const who = e.by === 'human' ? t('una persona', 'a person') : t("l'insegnante", 'the teacher')
+      return t(`${verb} da ${who}`, `${verb} by ${who}`)
+    }
     case 'mcp/discover':
     case 'mcp/disconnect':
       return e.serverId
     case 'mcp/connect':
-      return `${e.serverId}${e.protocolVersion ? ` · protocollo ${e.protocolVersion}` : ''}`
+      return `${e.serverId}${e.protocolVersion ? ` · ${t('protocollo', 'protocol')} ${e.protocolVersion}` : ''}`
     case 'mcp/list-tools':
-      return `${e.serverId}: ${e.tools.length} strumenti`
+      return `${e.serverId}: ${e.tools.length} ${t('strumenti', 'tools')}`
     case 'mcp/result':
-      return `${e.isError ? 'Errore: ' : ''}${clip(e.text)}`
+      return `${e.isError ? t('Errore: ', 'Error: ') : ''}${clip(e.text)}`
     case 'mcp/error':
       return `${e.serverId}: ${clip(e.message)}`
     case 'guard/triggered':
@@ -178,6 +199,7 @@ function summarize(e: TraceEvent): ReactNode {
 const fmtOffset = (ms: number) => `+${(Math.max(ms, 0) / 1000).toFixed(2)} s`
 
 export function AgentTrace() {
+  const t = useT()
   const events = useLab(s => s.events)
   const runId = useLab(s => s.currentRunId)
   const reduce = useReducedMotion()
@@ -227,38 +249,38 @@ export function AgentTrace() {
   }
 
   return (
-    <section className={styles.root} aria-label="Registro degli eventi">
+    <section className={styles.root} aria-label={t('Registro degli eventi', 'Event log')}>
       <header className={styles.head}>
-        <h2 className={styles.title}>REGISTRO DEGLI EVENTI</h2>
-        <div className={styles.filters} role="group" aria-label="Filtra eventi">
+        <h2 className={styles.title}>{t('REGISTRO DEGLI EVENTI', 'EVENT LOG')}</h2>
+        <div className={styles.filters} role="group" aria-label={t('Filtra eventi', 'Filter events')}>
           {FILTERS.map(f => (
-            <Chip key={f.id} selected={filter === f.id} color="var(--c-model)" onClick={() =>{  setFilter(f.id) }}>
-              {f.label}
+            <Chip key={f} selected={filter === f} color="var(--c-model)" onClick={() =>{  setFilter(f) }}>
+              {FILTER_LABEL[f]}
             </Chip>
           ))}
         </div>
       </header>
       <p className={styles.banner}>
         <Info size={18} aria-hidden />
-        Solo eventi osservabili: nessun ragionamento interno del modello.
+        {t('Solo eventi osservabili: nessun ragionamento interno del modello.', 'Observable events only: no internal reasoning from the model.')}
       </p>
 
       <div className={styles.scroll} ref={scroller} onScroll={onScroll}>
         {count === 0 ? (
-          <div className={styles.empty}>Nessun evento ancora. Invia una richiesta per vedere cosa succede, passo dopo passo.</div>
+          <div className={styles.empty}>{t('Nessun evento ancora. Invia una richiesta per vedere cosa succede, passo dopo passo.', 'No events yet. Send a request to see what happens, step by step.')}</div>
         ) : (
           <ol className={styles.list}>
             {rows.map((r, i) => {
               if (r.kind === 'step')
                 return (
                   <li key={`s${r.n}-${i}`} className={styles.step}>
-                    PASSO {r.n}
+                    {t('PASSO', 'STEP')} {r.n}
                   </li>
                 )
               if (r.kind === 'sep')
                 return (
                   <li key={r.e.id} className={styles.sep}>
-                    {r.e.type === 'harness/plugin-mounted' ? '+' : '−'} {COMPONENTS[(r.e as Extract<TraceEvent, { type: 'harness/plugin-mounted' }>).component].label}
+                    {r.e.type === 'harness/plugin-mounted' ? '+' : '−'} {componentText((r.e as Extract<TraceEvent, { type: 'harness/plugin-mounted' }>).component).label}
                   </li>
                 )
               return <EventRow key={r.e.id} e={r.e} off={r.off} reduce={!!reduce} />
@@ -271,6 +293,7 @@ export function AgentTrace() {
 }
 
 function EventRow({ e, off, reduce }: { e: TraceEvent; off: number; reduce: boolean }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const fam = familyOf(e)
   const Icon = iconFor(e)
@@ -295,7 +318,7 @@ function EventRow({ e, off, reduce }: { e: TraceEvent; off: number; reduce: bool
             {showProv && <ProvenanceBadge tag={e.provenance} compact />}
             <ChevronDown size={16} className={open ? styles.rot : ''} aria-hidden />
           </span>
-          <span className={styles.summary}>{summarize(e)}</span>
+          <span className={styles.summary}>{summarize(e, t)}</span>
         </button>
         {open && <pre className={styles.json}>{JSON.stringify(e, null, 2)}</pre>}
       </div>

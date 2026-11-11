@@ -1,4 +1,6 @@
 import type { ComponentFamily, ComponentId, TraceEvent } from '../../domain/types'
+import { pick, tr } from '../../i18n'
+import type { Bi } from '../../i18n'
 import { STOP_LABEL } from '../common/labels'
 import type { Phase, StageState } from './deriveStage'
 import { currentRunEvents } from './deriveStage'
@@ -18,13 +20,35 @@ export interface FlowStepDef {
   family: ComponentFamily | 'user'
 }
 
+/** A step whose label and hint follow the interface language at read time. */
+const step = (id: FlowStepId, family: FlowStepDef['family'], label: Bi, hint: Bi): FlowStepDef => ({
+  id,
+  family,
+  get label() {
+    return pick(label)
+  },
+  get hint() {
+    return pick(hint)
+  },
+})
+
 export const FLOW_STEPS: Record<FlowStepId, FlowStepDef> = {
-  request: { id: 'request', label: 'Richiesta', hint: 'La tua domanda entra nel sistema.', family: 'user' },
-  context: { id: 'context', label: 'Contesto', hint: 'L’harness raccoglie ciò che il modello potrà leggere.', family: 'information' },
-  model: { id: 'model', label: 'Modello', hint: 'Il modello legge il contesto e scrive.', family: 'model' },
-  decision: { id: 'decision', label: 'Decisione', hint: 'L’orchestratore capisce se il modello risponde o chiede uno strumento.', family: 'orchestration' },
-  action: { id: 'action', label: 'Azione', hint: 'L’harness controlla ed esegue lo strumento, poi riporta il risultato.', family: 'action' },
-  answer: { id: 'answer', label: 'Risposta', hint: 'Il risultato arriva a te.', family: 'model' },
+  request: step('request', 'user', ['Richiesta', 'Request'], ['La tua domanda entra nel sistema.', 'Your question enters the system.']),
+  context: step('context', 'information', ['Contesto', 'Context'], ['L’harness raccoglie ciò che il modello potrà leggere.', 'The harness collects what the model will be able to read.']),
+  model: step('model', 'model', ['Modello', 'Model'], ['Il modello legge il contesto e scrive.', 'The model reads the context and writes.']),
+  decision: step(
+    'decision',
+    'orchestration',
+    ['Decisione', 'Decision'],
+    ['L’orchestratore capisce se il modello risponde o chiede uno strumento.', 'The orchestrator works out whether the model answers or asks for a tool.'],
+  ),
+  action: step(
+    'action',
+    'action',
+    ['Azione', 'Action'],
+    ['L’harness controlla ed esegue lo strumento, poi riporta il risultato.', 'The harness checks and runs the tool, then reports the result.'],
+  ),
+  answer: step('answer', 'model', ['Risposta', 'Answer'], ['Il risultato arriva a te.', 'The result reaches you.']),
 }
 
 /** The steps a request goes through with this harness composition, in order. */
@@ -106,27 +130,29 @@ export function flowProgress(events: readonly TraceEvent[], hasOrchestrator: boo
 export function nowText(phase: Phase, opts: { streaming: boolean; hasOrchestrator: boolean }): string {
   switch (phase) {
     case 'idle':
-      return 'Pronto a partire'
+      return tr('Pronto a partire', 'Ready to start')
     case 'collecting':
-      return opts.hasOrchestrator ? 'L’harness prepara il contesto' : 'La richiesta viene preparata per il modello'
+      return opts.hasOrchestrator
+        ? tr('L’harness prepara il contesto', 'The harness prepares the context')
+        : tr('La richiesta viene preparata per il modello', 'The request is being prepared for the model')
     case 'reading':
-      return opts.streaming ? 'Il modello sta scrivendo' : 'Il modello legge il contesto'
+      return opts.streaming ? tr('Il modello sta scrivendo', 'The model is writing') : tr('Il modello legge il contesto', 'The model reads the context')
     case 'deciding':
-      return 'L’orchestratore interpreta ciò che il modello ha scritto'
+      return tr('L’orchestratore interpreta ciò che il modello ha scritto', 'The orchestrator interprets what the model wrote')
     case 'validating':
-      return 'L’harness verifica la richiesta di strumento'
+      return tr('L’harness verifica la richiesta di strumento', 'The harness checks the tool request')
     case 'executing':
-      return 'L’harness esegue lo strumento'
+      return tr('L’harness esegue lo strumento', 'The harness runs the tool')
     case 'waitingHuman':
-      return 'Serve il tuo permesso'
+      return tr('Serve il tuo permesso', 'Your permission is needed')
     case 'observing':
-      return 'Il risultato torna nel contesto'
+      return tr('Il risultato torna nel contesto', 'The result goes back into the context')
     case 'reflecting':
-      return 'La bozza torna al modello per un riesame'
+      return tr('La bozza torna al modello per un riesame', 'The draft goes back to the model for a review')
     case 'answering':
-      return 'Arriva la risposta'
+      return tr('Arriva la risposta', 'The answer is arriving')
     case 'done':
-      return 'Concluso'
+      return tr('Concluso', 'Finished')
   }
 }
 

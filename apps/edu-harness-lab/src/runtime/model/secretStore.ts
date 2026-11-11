@@ -9,6 +9,8 @@
  * Limit (said in the UI): any script running on this page could still use it, as with any web app.
  */
 
+import { tr } from '../../i18n'
+
 const LS_KEY = 'harness-lab:openrouter-key'
 const DB_NAME = 'harness-lab-secrets'
 const STORE = 'keys'
@@ -21,7 +23,7 @@ function openDb(): Promise<IDBDatabase> {
     const req = indexedDB.open(DB_NAME, 1)
     req.onupgradeneeded = () => req.result.createObjectStore(STORE)
     req.onsuccess = () =>{  resolve(req.result) }
-    req.onerror = () => { reject(req.error ?? new Error('Impossibile aprire l’archivio delle credenziali.')) }
+    req.onerror = () => { reject(req.error ?? new Error(tr('Impossibile aprire l’archivio delle credenziali.', 'Could not open the credential store.'))) }
   })
 }
 
@@ -32,7 +34,7 @@ async function idb<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRe
       const tx = db.transaction(STORE, mode)
       const req = fn(tx.objectStore(STORE))
       req.onsuccess = () =>{  resolve(req.result) }
-      req.onerror = () => { reject(req.error ?? new Error('Operazione sull’archivio delle credenziali non riuscita.')) }
+      req.onerror = () => { reject(req.error ?? new Error(tr('Operazione sull’archivio delle credenziali non riuscita.', 'Operation on the credential store failed.'))) }
     })
   } finally {
     db.close()
@@ -58,7 +60,7 @@ export async function saveApiKey(key: string, remember: boolean): Promise<void> 
     return
   }
   const ck = await cryptoKey(true)
-  if (!ck) throw new Error('Cifratura non disponibile in questo browser.')
+  if (!ck) throw new Error(tr('Cifratura non disponibile in questo browser.', 'Encryption is not available in this browser.'))
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const data = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, ck, new TextEncoder().encode(memoryKey)))
   localStorage.setItem(LS_KEY, JSON.stringify({ v: 1, iv: toB64(iv), data: toB64(data) }))

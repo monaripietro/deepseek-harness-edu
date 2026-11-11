@@ -4,6 +4,7 @@ import { REAL_LOCAL } from '../../domain/types'
 import type { TraceEvent, TraceEventBase, TraceEventBody } from '../../domain/types'
 import { useLab } from '../../state/store'
 import type { LabState } from '../../state/store'
+import { useUiLang } from '../../i18n'
 import { StageTransport } from './StageTransport'
 
 let original: Pick<LabState, 'events' | 'status' | 'stepMode' | 'paused' | 'heldEvent'>
@@ -52,6 +53,20 @@ describe('StageTransport', () => {
 
     expect(screen.getByRole('status').textContent).toContain('Passo-passo attivo: premi Avvia, poi Avanti a ogni tappa')
     expect((screen.getByRole('button', { name: 'Avanti' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('speaks English when the interface language is English', () => {
+    useUiLang.setState({ lang: 'en' })
+    try {
+      useLab.setState({ events: [runStart, stop], status: 'running', stepMode: true, paused: false, heldEvent: stop })
+      render(<StageTransport />)
+
+      expect(screen.getByRole('status').textContent).toContain('Stop 2 · ')
+      expect(screen.getByRole('status').textContent).toContain('Next: the run ends.')
+      expect(screen.getByRole('button', { name: 'Next' })).toBeTruthy()
+    } finally {
+      useUiLang.setState({ lang: 'it' })
+    }
   })
 
   it('reports a pause on a held event outside step mode', () => {

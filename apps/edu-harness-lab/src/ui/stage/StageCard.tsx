@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 import { Maximize2, Plus } from 'lucide-react'
 import type { ComponentFamily, ComponentId } from '../../domain/types'
-import { COMPONENTS, levelsFor } from '../../harness/levels'
+import { levelsFor } from '../../harness/levels'
+import { useT } from '../../i18n'
+import { componentText } from '../../i18nContent'
 import { SCENARIOS } from '../../scenarios'
 import { useLab } from '../../state/store'
 import type { Rect, StageNodeId } from './geometry'
@@ -59,6 +61,7 @@ export function StageCard({
   tall?: boolean
   previewWidth?: number
 }) {
+  const t = useT()
   const view = useLab(s => s.view)
   const level = useLab(s => s.level)
   const scenario = useLab(s => SCENARIOS.find(item => item.id === s.scenarioId))
@@ -82,9 +85,9 @@ export function StageCard({
     '--pv-w': `${previewWidth}px`,
   } as React.CSSProperties
 
-  const label = component ? `${title}. ${COMPONENTS[component].short} ${active ? 'Attivo.' : 'Non ancora costruito.'}` : title
-  const ghostKicker = isNext ? 'Prossimo strato' : `Livello ${lvl + 1}`
-  const ghostChip = isNext ? 'prossimo' : `livello ${lvl + 1}`
+  const label = component ? `${title}. ${componentText(component).short} ${active ? t('Attivo.', 'Active.') : t('Non ancora costruito.', 'Not built yet.')}` : title
+  const ghostKicker = isNext ? t('Prossimo strato', 'Next layer') : `${t('Livello', 'Level')} ${lvl + 1}`
+  const ghostChip = isNext ? t('prossimo', 'next') : `${t('livello', 'level')} ${lvl + 1}`
   const open = (target: EventTarget | null) => {
     if (!isInteractive(target)) toggleDetails(node)
   }
@@ -94,7 +97,7 @@ export function StageCard({
       type="button"
       className={`${styles.cardToggle} ${active ? styles.on : ''}`}
       aria-pressed={active}
-      aria-label={active ? `Rimuovi ${title}` : `Aggiungi ${title}`}
+      aria-label={active ? `${t('Rimuovi', 'Remove')} ${title}` : `${t('Aggiungi', 'Add')} ${title}`}
       onClick={() =>{  toggleComponent(component) }}
     >
       <span className={styles.cardToggleKnob} />
@@ -171,11 +174,11 @@ export function StageCard({
         <div className={styles.previewBody}>
           {ghost ? (
             <>
-              {component && <p className={styles.previewLead}>{COMPONENTS[component].short}</p>}
-              <p className={styles.hint}>{isNext ? 'È il prossimo strato da aggiungere.' : `Si aggiunge al livello ${lvl + 1}.`}</p>
+              {component && <p className={styles.previewLead}>{componentText(component).short}</p>}
+              <p className={styles.hint}>{isNext ? t('È il prossimo strato da aggiungere.', 'It is the next layer to add.') : t(`Si aggiunge al livello ${lvl + 1}.`, `It is added at level ${lvl + 1}.`)}</p>
               {component && view === 'lab' && (
                 <button type="button" className={styles.addBtn} onClick={() =>{  toggleComponent(component) }}>
-                  <Plus size={15} aria-hidden /> Aggiungi
+                  <Plus size={15} aria-hidden /> {t('Aggiungi', 'Add')}
                 </button>
               )}
             </>
@@ -184,7 +187,7 @@ export function StageCard({
           )}
         </div>
         <footer className={styles.previewFoot} aria-hidden>
-          <Maximize2 size={13} /> Clic per tutti i dettagli
+          <Maximize2 size={13} /> {t('Clic per tutti i dettagli', 'Click for all details')}
         </footer>
       </div>
     </div>
@@ -192,7 +195,13 @@ export function StageCard({
 }
 
 export function Led({ state, label }: { state: 'idle' | 'ok' | 'warn' | 'fail'; label: string }) {
-  const text = { idle: 'in attesa', ok: 'ok', warn: 'attenzione', fail: 'intervenuto' }[state]
+  const t = useT()
+  const text = {
+    idle: t('in attesa', 'waiting'),
+    ok: 'ok',
+    warn: t('attenzione', 'attention'),
+    fail: t('intervenuto', 'intervened'),
+  }[state]
   return (
     <span className={`${styles.led} ${styles[`led_${state}`]}`} role="img" aria-label={`${label}: ${text}`}>
       <span className={styles.ledDot} />

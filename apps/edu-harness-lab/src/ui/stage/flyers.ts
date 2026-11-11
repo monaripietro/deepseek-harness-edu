@@ -1,4 +1,5 @@
 import type { ComponentId, TraceEvent } from '../../domain/types'
+import { tr, uiLang } from '../../i18n'
 import { argsInline } from './deriveStage'
 import type { EdgeId } from './geometry'
 
@@ -21,10 +22,10 @@ const trim = (s: string, n = 30) => (s.length > n ? `${s.slice(0, n - 1)}…` : 
 
 function decisionLabel(raw: string): string {
   const tool = /"(?:strumento|tool|name)"\s*:\s*"([^"]+)"/.exec(raw)?.[1]
-  if (tool) return `chiede: ${tool.replace(/^mcp__\w+?__/, 'MCP·')}`
-  if (/"azione"\s*:\s*"chiedi"/.test(raw)) return 'domanda per te'
-  if (/"azione"\s*:\s*"rispondi"/.test(raw)) return 'decide: rispondere'
-  return 'testo'
+  if (tool) return `${tr('chiede', 'asks')}: ${tool.replace(/^mcp__\w+?__/, 'MCP·')}`
+  if (/"azione"\s*:\s*"chiedi"/.test(raw)) return tr('domanda per te', 'question for you')
+  if (/"azione"\s*:\s*"rispondi"/.test(raw)) return tr('decide: rispondere', 'decides: to answer')
+  return tr('testo', 'text')
 }
 
 /**
@@ -35,16 +36,16 @@ export function flyersFor(e: TraceEvent, components: Record<ComponentId, boolean
   const orch = components.orchestrator
   switch (e.type) {
     case 'run/start':
-      return [{ edge: 'question-window', label: 'la tua richiesta', kind: 'message' }]
+      return [{ edge: 'question-window', label: tr('la tua richiesta', 'your request'), kind: 'message' }]
     case 'rag/query':
-      return [{ edge: 'question-rag', label: `cerca: “${trim(e.query, 22)}”`, kind: 'document' }]
+      return [{ edge: 'question-rag', label: `${tr('cerca', 'search')}: “${trim(e.query, 22)}”`, kind: 'document' }]
     case 'rag/results': {
       const sel = e.hits.filter(h => h.status === 'selected').slice(0, 3)
       if (!sel.length) return []
       return [{ edge: 'rag-window' as const, label: sel.map(h => `${h.docId} ${pct(h.normalized)}`).join(' · '), kind: 'document' as const }]
     }
     case 'memory/inject':
-      return e.ids.length ? [{ edge: 'memory-window', label: `${e.ids.length} ricordi`, kind: 'memory' }] : []
+      return e.ids.length ? [{ edge: 'memory-window', label: `${e.ids.length} ${tr('ricordi', 'memories')}`, kind: 'memory' }] : []
     case 'context/assembled': {
       const items = e.snapshot.items.filter(i => i.status === 'included')
       const out: FlyerSpec[] = []
@@ -52,17 +53,17 @@ export function flyersFor(e: TraceEvent, components: Record<ComponentId, boolean
       // once, with the first input; later rounds only add the new tool result (`ring-window`).
       // Step 2 — the model reads it — is a separate event (`model/request`, below).
       const first = e.snapshot.stepIndex <= 1
-      if (first && items.some(i => i.kind === 'instruction')) out.push({ edge: 'instructions-window', label: 'istruzioni', kind: 'context' })
-      if (first && items.some(i => i.kind === 'taskData')) out.push({ edge: 'context-window', label: 'dati del compito', kind: 'context', delay: 0.08 })
-      if (!first && items.some(i => i.kind === 'toolResult')) out.push({ edge: 'ring-window', label: 'osservazione', kind: 'result', delay: 0.04 })
+      if (first && items.some(i => i.kind === 'instruction')) out.push({ edge: 'instructions-window', label: tr('istruzioni', 'instructions'), kind: 'context' })
+      if (first && items.some(i => i.kind === 'taskData')) out.push({ edge: 'context-window', label: tr('dati del compito', 'task data'), kind: 'context', delay: 0.08 })
+      if (!first && items.some(i => i.kind === 'toolResult')) out.push({ edge: 'ring-window', label: tr('osservazione', 'observation'), kind: 'result', delay: 0.04 })
       return out
     }
     case 'model/request':
-      return [{ edge: 'window-model', label: `≈ ${e.tokensIn.toLocaleString('it-IT')} token`, kind: 'context' }]
+      return [{ edge: 'window-model', label: `≈ ${e.tokensIn.toLocaleString(uiLang() === 'en' ? 'en-US' : 'it-IT')} token`, kind: 'context' }]
     case 'model/response':
       return orch ? [{ edge: 'model-ring', label: decisionLabel(e.text), kind: 'call' }] : []
     case 'decision/invalid':
-      return [{ edge: 'model-ring', reverse: true, label: 'formato non valido', kind: 'error' }]
+      return [{ edge: 'model-ring', reverse: true, label: tr('formato non valido', 'invalid format'), kind: 'error' }]
     case 'tool/call':
       callArgs.set(e.callId, e.args)
       if (callArgs.size > 50) {
@@ -71,7 +72,7 @@ export function flyersFor(e: TraceEvent, components: Record<ComponentId, boolean
       }
       return []
     case 'tool/validation':
-      return [{ edge: 'ring-controls', label: e.ok ? 'argomenti ✓' : 'argomenti ✗', kind: e.ok ? 'ok' : 'error' }]
+      return [{ edge: 'ring-controls', label: `${tr('argomenti', 'arguments')} ${e.ok ? '✓' : '✗'}`, kind: e.ok ? 'ok' : 'error' }]
     case 'tool/execute': {
       const label = `${e.tool.replace(/^mcp__\w+?__/, '')}(${argsInline(callArgs.get(e.callId) ?? {})})`
       if (e.viaMcp) return [{ edge: 'ring-tools', label, kind: 'call' }, { edge: 'ring-mcp', label: 'JSON-RPC tools/call', kind: 'mcp', delay: 0.45 }]
@@ -80,19 +81,21 @@ export function flyersFor(e: TraceEvent, components: Record<ComponentId, boolean
     case 'tool/result': {
       const text = e.outcome.ok ? trim(e.outcome.summary, 30) : trim(e.outcome.message, 30)
       const kind: FlyerKind = e.outcome.ok ? 'result' : 'error'
-      if (e.tool.startsWith('mcp__')) return [{ edge: 'ring-mcp', reverse: true, label: 'risposta MCP', kind: 'mcp' }, { edge: 'ring-tools', reverse: true, label: text, kind, delay: 0.4 }]
+      if (e.tool.startsWith('mcp__')) return [{ edge: 'ring-mcp', reverse: true, label: tr('risposta MCP', 'MCP reply'), kind: 'mcp' },{ edge: 'ring-tools', reverse: true, label: text, kind, delay: 0.4 }]
       return [{ edge: 'ring-tools', reverse: true, label: text, kind }]
     }
     case 'approval/asked':
-      return [{ edge: 'ring-human', label: 'serve il tuo permesso', kind: 'approval' }]
-    case 'approval/decided':
-      return [{ edge: 'ring-human', reverse: true, label: e.outcome === 'allowed-once' ? 'approvato ✓' : 'rifiutato ✗', kind: e.outcome === 'allowed-once' ? 'ok' : 'error' }]
+      return [{ edge: 'ring-human', label: tr('serve il tuo permesso', 'your permission is needed'), kind: 'approval' }]
+    case 'approval/decided': {
+      const approved = e.outcome === 'allowed-once'
+      return [{ edge: 'ring-human', reverse: true, label: approved ? tr('approvato ✓', 'approved ✓') : tr('rifiutato ✗', 'rejected ✗'), kind: approved ? 'ok' : 'error' }]
+    }
     case 'guard/triggered':
       return [{ edge: 'ring-controls', reverse: true, label: trim(e.message, 30), kind: 'guard' }]
     case 'mcp/list-tools':
-      return components.mcp ? [{ edge: 'ring-mcp', reverse: true, label: `${e.tools.length} strumenti scoperti`, kind: 'mcp' }] : []
+      return components.mcp ? [{ edge: 'ring-mcp', reverse: true, label: `${e.tools.length} ${tr('strumenti scoperti', 'tools found')}`, kind: 'mcp' }] : []
     case 'answer':
-      return [{ edge: orch ? 'ring-answer' : 'model-answer', label: 'risposta', kind: 'answer' }]
+      return [{ edge: orch ? 'ring-answer' : 'model-answer', label: tr('risposta', 'answer'), kind: 'answer' }]
     default:
       return []
   }

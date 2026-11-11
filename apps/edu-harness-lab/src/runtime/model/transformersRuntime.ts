@@ -3,6 +3,11 @@ import { REAL_LOCAL } from '../../domain/types'
 import { detectCapabilities } from './capabilities'
 import { fingerprintFor, PROFILES, resolveVariant, type TransformersProfileId, THINKING_BUDGET } from './profiles'
 import type { WorkerEvent, WorkerRequest } from './workerProtocol'
+import { WORKER_MESSAGES_EN } from './textUtils'
+import { tr } from '../../i18n'
+
+/** A message from the worker (Italian), shown in the interface language. */
+const localizeWorkerMessage = (message: string): string => tr(message, WORKER_MESSAGES_EN[message] ?? message)
 
 export interface TransformersRuntimeOptions {
   /** Test seam: supply a fake worker. */
@@ -15,7 +20,7 @@ let idCounter = 0
 const nextId = () => `gen-${Date.now().toString(36)}-${++idCounter}`
 
 const abortError = () => {
-  const e = new Error('Operazione annullata.')
+  const e = new Error(tr('Operazione annullata.', 'Operation cancelled.'))
   e.name = 'AbortError'
   return e
 }
@@ -26,7 +31,7 @@ const abortError = () => {
  */
 export function createTransformersRuntime(profileId: TransformersProfileId, options: TransformersRuntimeOptions = {}): ModelRuntime {
   const profile = PROFILES[profileId]
-  if (profile.runtime === 'wllama') throw new Error(`${profile.label} richiede il runtime GGUF.`)
+  if (profile.runtime === 'wllama') throw new Error(tr(`${profile.label} richiede il runtime GGUF.`, `${profile.label} needs the GGUF runtime.`))
   const info: ModelInfo = {
     profile: profile.id,
     id: profile.repo,
@@ -62,7 +67,7 @@ export function createTransformersRuntime(profileId: TransformersProfileId, opti
       const evt: WorkerEvent = {
         type: 'error',
         code: 'unknown',
-        message: 'Il processo del modello si è interrotto in modo imprevisto.',
+        message: tr('Il processo del modello si è interrotto in modo imprevisto.', 'The model process stopped unexpectedly.'),
         detail: ev.message,
       }
       for (const l of [...listeners]) l(evt)
@@ -90,11 +95,16 @@ export function createTransformersRuntime(profileId: TransformersProfileId, opti
       if (loadPromise) return loadPromise
       loadPromise = (async () => {
         if (signal?.aborted) throw abortError()
-        onProgress({ phase: 'checking', loadedBytes: 0, totalBytes: info.sizeBytes ?? 0, message: 'Verifica del dispositivo…' })
+        onProgress({ phase: 'checking', loadedBytes: 0, totalBytes: info.sizeBytes ?? 0, message: tr('Verifica del dispositivo…', 'Checking the device…') })
         const caps = await detectCapabilities()
         const variant = resolveVariant(profile, caps.webgpu, caps.shaderF16)
         if (!variant) {
-          throw new Error(`${profile.label} richiede una scheda grafica compatibile (WebGPU), che qui non è disponibile. Scegli LFM2.5 350M o Qwen3 0.6B: girano sulla CPU.`)
+          throw new Error(
+            tr(
+              `${profile.label} richiede una scheda grafica compatibile (WebGPU), che qui non è disponibile. Scegli LFM2.5 350M o Qwen3 0.6B: girano sulla CPU.`,
+              `${profile.label} needs a compatible graphics card (WebGPU), which is not available here. Choose LFM2.5 350M or Qwen3 0.6B: they run on the CPU.`,
+            ),
+          )
         }
         info.dtype = variant.dtype
         info.sizeBytes = variant.sizeBytes
@@ -117,7 +127,9 @@ export function createTransformersRuntime(profileId: TransformersProfileId, opti
               const p: LoadProgress =
                 e.phase === 'downloading'
                   ? { phase: 'downloading', loadedBytes: e.loaded, totalBytes: total, file: e.file }
-                  : { phase: 'initializing', loadedBytes: total, totalBytes: total, message: variant.device === 'webgpu' ? 'Avvio sulla scheda grafica (WebGPU)…' : 'Avvio sul processore (CPU)…' }
+                  : { phase: 'initializing', loadedBytes: total, totalBytes: total, message: variant.device === 'webgpu'
+                    ? tr('Avvio sulla scheda grafica (WebGPU)…', 'Starting on the graphics card (WebGPU)…')
+                    : tr('Avvio sul processore (CPU)…', 'Starting on the processor (CPU)…') }
               onProgress(p)
             } else if (e.type === 'ready') {
               info.backend = e.backend
@@ -129,8 +141,8 @@ export function createTransformersRuntime(profileId: TransformersProfileId, opti
             } else if (e.type === 'error' && e.id === undefined) {
               cleanup()
               terminate()
-              onProgress({ phase: 'error', loadedBytes: 0, totalBytes: 0, message: e.message })
-              reject(new Error(e.message))
+              onProgress({ phase: 'error', loadedBytes: 0, totalBytes: 0, message: localizeWorkerMessage(e.message) })
+              reject(new Error(localizeWorkerMessage(e.message)))
             }
           }
           listeners.add(onEvent)
@@ -147,7 +159,7 @@ export function createTransformersRuntime(profileId: TransformersProfileId, opti
     generate(req: ModelRequest, onToken, signal, onThinking) {
       return new Promise<ModelResponse>((resolve, reject) => {
         if (!ready || !worker) {
-          reject(new Error('Il modello reale non è caricato.'))
+          reject(new Error(tr('Il modello reale non è caricato.', 'The real model is not loaded.')))
           return
         }
         const id = nextId()
@@ -174,7 +186,7 @@ export function createTransformersRuntime(profileId: TransformersProfileId, opti
             })
           } else if (e.type === 'error' && (e.id === id || e.id === undefined)) {
             finish()
-            reject(new Error(e.message))
+            reject(new Error(localizeWorkerMessage(e.message)))
           }
         }
         listeners.add(onEvent)

@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SCENARIOS } from '../../scenarios'
 import { useLab } from '../../state/store'
+import { useUiLang } from '../../i18n'
 import { TopBar } from './TopBar'
 
 const originalLabState = useLab.getState()
@@ -15,6 +16,7 @@ function at<T>(items: readonly T[], index: number): T {
 afterEach(() => {
   cleanup()
   useLab.setState(originalLabState, true)
+  useUiLang.getState().setLang('it')
 })
 
 beforeEach(() => {
@@ -71,6 +73,24 @@ describe('TopBar', () => {
     expect(scrim).not.toBeNull()
     fireEvent.pointerDown(scrim as Element)
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('switches the interface to English from the language toggle and sets the model language too', () => {
+    render(<TopBar onOpenModel={vi.fn()} onOpenSettings={vi.fn()} />)
+    expect(screen.getByText(/Creato da/)).toBeTruthy()
+
+    const en = screen.getByRole('button', { name: 'EN' })
+    expect(en.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(en)
+
+    expect(screen.getByRole('button', { name: 'EN' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText(/Created by/)).toBeTruthy()
+    expect(screen.queryByText(/Creato da/)).toBeNull()
+    expect(useUiLang.getState().lang).toBe('en')
+    expect(useLab.getState().promptLanguage).toBe('en')
+
+    fireEvent.click(screen.getByRole('button', { name: 'IT' }))
+    expect(screen.getByText(/Creato da/)).toBeTruthy()
   })
 
   it('preserves scenario, model and secondary actions (moved into the side menu)', () => {

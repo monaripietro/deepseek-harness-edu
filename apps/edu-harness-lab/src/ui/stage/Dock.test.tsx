@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useUiLang } from '../../i18n'
 import { Dock } from './Dock'
 
 const dockRequestListeners = vi.hoisted(() => new Set<(tab: 'context' | 'trace' | 'conversation') => void>())
@@ -67,6 +68,22 @@ describe('Dock', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Chiudi' }))
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('shows the English tabs when the interface language is English', () => {
+    vi.stubGlobal('requestAnimationFrame', () => 0)
+    useUiLang.setState({ lang: 'en' })
+    try {
+      render(<Dock />)
+      act(() => {
+        for (const request of dockRequestListeners) request('context')
+      })
+
+      expect(screen.getByRole('dialog', { name: 'Deep dive' })).toBeTruthy()
+      expect(screen.getByRole('tab', { name: 'Event log' })).toBeTruthy()
+    } finally {
+      useUiLang.setState({ lang: 'it' })
+    }
   })
 
   it('apre la scheda richiesta dalla fase', () => {

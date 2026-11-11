@@ -1,4 +1,6 @@
 import type { ComponentFamily, ComponentId, HarnessConfig, LevelId, LoopLimits, RagSettings, Scenario } from '../domain/types'
+import { pick, tr, type Bi } from '../i18n'
+import { componentText } from '../i18nContent'
 
 export interface ComponentMeta {
   id: ComponentId
@@ -326,18 +328,28 @@ function withComponents(on: ComponentId[], tools: string[], mcp: string[] = []):
 
 const LOOP: ComponentId[] = ['model', 'instructions', 'context', 'memory', 'rag', 'tools', 'orchestrator', 'agentLoop']
 
+/** An experiment row whose labels follow the interface language (read at access time). */
+function experimentRow(key: string, short: Bi, label: Bi, config: HarnessConfig): ExperimentConfig {
+  return {
+    key,
+    config,
+    get short() { return pick(short) },
+    get label() { return pick(label) },
+  }
+}
+
 /** The ten configurations of the fundamental experiment: same model, same request. */
 export const EXPERIMENT: ExperimentConfig[] = [
-  { key: 'c01', short: 'Modello', label: '1 · Modello isolato', config: withComponents(['model'], []) },
-  { key: 'c02', short: '+ Istruzioni', label: '2 · + Istruzioni', config: withComponents(['model', 'instructions'], []) },
-  { key: 'c03', short: '+ Contesto', label: '3 · + Contesto', config: withComponents(['model', 'instructions', 'context'], []) },
-  { key: 'c04', short: '+ Memoria', label: '4 · + Memoria', config: withComponents(['model', 'instructions', 'context', 'memory'], []) },
-  { key: 'c05', short: '+ RAG', label: '5 · + RAG', config: withComponents(['model', 'instructions', 'context', 'memory', 'rag'], []) },
-  { key: 'c06', short: '+ 1 strumento', label: '6 · + Un tool e ciclo', config: withComponents(LOOP, LEVEL5_TOOLS) },
-  { key: 'c07', short: '+ Più strumenti', label: '7 · + Più tool', config: withComponents(LOOP, LEVEL6_TOOLS) },
-  { key: 'c08', short: '+ Controlli', label: '8 · + Controlli', config: withComponents([...LOOP, 'controls'], LEVEL6_TOOLS) },
-  { key: 'c09', short: '+ Supervisione', label: '9 · + Supervisione umana', config: withComponents([...LOOP, 'controls', 'approval'], LEVEL6_TOOLS) },
-  { key: 'c10', short: 'Completo', label: '10 · Sistema completo', config: withComponents(['model', 'instructions', 'context', 'memory', 'rag', 'tools', 'orchestrator', 'agentLoop', 'controls', 'approval', 'mcp'], LEVEL6_TOOLS, [SIMULATED_MCP_SERVER]) },
+  experimentRow('c01', ['Modello', 'Model'], ['1 · Modello isolato', '1 · Isolated model'], withComponents(['model'], [])),
+  experimentRow('c02', ['+ Istruzioni', '+ Instructions'], ['2 · + Istruzioni', '2 · + Instructions'], withComponents(['model', 'instructions'], [])),
+  experimentRow('c03', ['+ Contesto', '+ Context'], ['3 · + Contesto', '3 · + Context'], withComponents(['model', 'instructions', 'context'], [])),
+  experimentRow('c04', ['+ Memoria', '+ Memory'], ['4 · + Memoria', '4 · + Memory'], withComponents(['model', 'instructions', 'context', 'memory'], [])),
+  experimentRow('c05', ['+ RAG', '+ RAG'], ['5 · + RAG', '5 · + RAG'], withComponents(['model', 'instructions', 'context', 'memory', 'rag'], [])),
+  experimentRow('c06', ['+ 1 strumento', '+ 1 tool'], ['6 · + Un tool e ciclo', '6 · + One tool and loop'], withComponents(LOOP, LEVEL5_TOOLS)),
+  experimentRow('c07', ['+ Più strumenti', '+ More tools'], ['7 · + Più tool', '7 · + More tools'], withComponents(LOOP, LEVEL6_TOOLS)),
+  experimentRow('c08', ['+ Controlli', '+ Controls'], ['8 · + Controlli', '8 · + Controls'], withComponents([...LOOP, 'controls'], LEVEL6_TOOLS)),
+  experimentRow('c09', ['+ Supervisione', '+ Oversight'], ['9 · + Supervisione umana', '9 · + Human oversight'], withComponents([...LOOP, 'controls', 'approval'], LEVEL6_TOOLS)),
+  experimentRow('c10', ['Completo', 'Complete'], ['10 · Sistema completo', '10 · Complete system'], withComponents(['model', 'instructions', 'context', 'memory', 'rag', 'tools', 'orchestrator', 'agentLoop', 'controls', 'approval', 'mcp'], LEVEL6_TOOLS, [SIMULATED_MCP_SERVER])),
 ]
 
 /** Stable key describing a configuration (used for recordings and comparisons). */
@@ -349,6 +361,8 @@ export function configKeyOf(cfg: HarnessConfig): string {
 export function describeConfig(cfg: HarnessConfig): string {
   const exp = EXPERIMENT.find(e => configKeyOf(e.config) === configKeyOf(cfg))
   if (exp) return exp.label
-  const on = COMPONENT_ORDER.filter(c => cfg.components[c] && c !== 'model').map(c => COMPONENTS[c].label)
-  return on.length ? `Modello + ${on.join(', ')}` : 'Modello isolato'
+  const on = COMPONENT_ORDER.filter(c => cfg.components[c] && c !== 'model').map(c => componentText(c).label)
+  return on.length
+    ? tr(`Modello + ${on.join(', ')}`, `Model + ${on.join(', ')}`)
+    : tr('Modello isolato', 'Isolated model')
 }

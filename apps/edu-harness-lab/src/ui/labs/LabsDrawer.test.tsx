@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { useLab } from '../../state/store'
 import type { LabId } from '../../state/store'
+import { useUiLang } from '../../i18n'
 import { LabsDrawer } from './LabsDrawer'
 
 let previousLab: LabId | null
@@ -99,5 +100,17 @@ describe('LabsDrawer', () => {
     render(<LabsDrawer />)
     fireEvent.keyDown(screen.getByRole('button', { name: 'Chiudi Harness Lab' }), { key: 'Escape' })
     expect(useLab.getState().lab).toBeNull()
+  })
+
+  it('shows English texts when the interface language is English', () => {
+    useUiLang.setState({ lang: 'en' })
+    try {
+      render(<LabsDrawer />)
+      expect(screen.getByRole('tab', { name: 'Tools' }).getAttribute('aria-selected')).toBe('true')
+      expect(screen.getByRole('button', { name: 'Close Harness Lab' })).toBeTruthy()
+    } finally {
+      cleanup()
+      useUiLang.setState({ lang: 'it' })
+    }
   })
 })

@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { TraceEvent } from '../../domain/types'
+import { useUiLang } from '../../i18n'
 import { deriveStage } from './deriveStage'
 import { PlanWindow, usePlanWindowUi } from './PlanWindow'
 
@@ -93,5 +94,26 @@ describe('PlanWindow', () => {
     const stage = deriveStage([start(), ...plan('p1', PLAN1), ...plan('p2', PLAN2, 'serve un controllo')], true)
     render(<PlanWindow stage={stage} />)
     expect(screen.getByText('Motivo: serve un controllo')).toBeTruthy()
+  })
+})
+
+describe('PlanWindow in English', () => {
+  beforeEach(() => {
+    useUiLang.setState({ lang: 'en' })
+    usePlanWindowUi.setState({ pos: null, w: 360, h: null, collapsed: false, closed: false })
+  })
+  afterEach(() => {
+    cleanup()
+    useUiLang.setState({ lang: 'it' })
+  })
+
+  it('translates the window texts and keeps the plan itself', () => {
+    const stage = deriveStage([start(), ...plan('p1', PLAN1), ...plan('p2', PLAN2, 'serve un controllo'), ...call('c1', 'cerca_catalogo')], true)
+    render(<PlanWindow stage={stage} />)
+    expect(screen.getByText('Model plan')).toBeTruthy()
+    expect(screen.getByText('v2 · updated')).toBeTruthy()
+    expect(screen.getByText('Reason: serve un controllo')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Collapse the plan' })).toBeTruthy()
+    expect(screen.getAllByRole('listitem')).toHaveLength(4)
   })
 })

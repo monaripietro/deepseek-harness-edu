@@ -1,5 +1,6 @@
 import type { CacheManager } from '@wllama/wllama/esm/index.js'
 import { EMMA_PROFILE } from './profiles'
+import { tr } from '../../i18n'
 
 export type WllamaCacheManager = Pick<CacheManager, 'delete' | 'download' | 'getNameFromURL' | 'getSize' | 'list' | 'open'>
 
@@ -39,7 +40,7 @@ export async function openCachedEmmaModel(cache?: WllamaCacheManager): Promise<B
   const manager = cache ?? await getWllamaCacheManager()
   const model = await manager.open(EMMA_MODEL_URL)
   if (!model || model.size !== EMMA_PROFILE.modelSizeBytes) {
-    throw new Error('Il file di Emma-6 non è completo nella cache del browser. Scaricalo di nuovo.')
+    throw new Error(tr('Il file di Emma-6 non è completo nella cache del browser. Scaricalo di nuovo.', 'The Emma-6 file is incomplete in the browser cache. Download it again.'))
   }
   return model
 }

@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest'
+import { useUiLang } from '../../i18n'
 import { recommendProfile } from './capabilities'
 import { PROFILE_LIST, PROFILES, resolveVariant } from './profiles'
+
+describe('profile texts follow the interface language', () => {
+  it('translates the descriptions and keeps the model names', () => {
+    expect(PROFILES['qwen3-0.6b'].params).toBe('600 milioni di parametri')
+    useUiLang.setState({ lang: 'en' })
+    try {
+      expect(PROFILES['qwen3-0.6b'].params).toBe('600 million parameters')
+      expect(PROFILES['qwen3-0.6b'].label).toBe('Qwen3 0.6B')
+    } finally {
+      useUiLang.setState({ lang: 'it' })
+    }
+  })
+})
 
 describe('Emma-6 profile', () => {
   it('pins the direct GGUF source and does not recommend Emma automatically', () => {

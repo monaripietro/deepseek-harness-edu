@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { configForLevel } from '../../harness/levels'
+import { useUiLang } from '../../i18n'
 import { bus, useLab } from '../../state/store'
 import { FlowOverview } from './FlowOverview'
 import { useStageUi } from './stageUi'
@@ -156,5 +157,22 @@ describe('readable request flow', () => {
     const switches = screen.getAllByRole('switch')
     expect(switches).toHaveLength(10)
     expect(switches.every(control => control.hasAttribute('disabled'))).toBe(true)
+  })
+})
+
+describe('readable request flow in English', () => {
+  afterEach(() => {
+    useUiLang.setState({ lang: 'it' })
+  })
+
+  it('translates the flow texts, node names and component names', () => {
+    useUiLang.setState({ lang: 'en' })
+    useLab.setState({ config: configForLevel(3), view: 'lab' })
+    render(<FlowOverview onApprovalDetails={vi.fn()} />)
+    expect(screen.getByRole('heading', { name: 'Follow the path of the request' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'The request. Open details' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Instructions. Open details' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Task data. Open details' })).toBeTruthy()
+    expect(screen.getByText('Customize the harness layers')).toBeTruthy()
   })
 })

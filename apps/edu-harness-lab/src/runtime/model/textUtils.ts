@@ -94,6 +94,26 @@ const NETWORK_ERROR = new RegExp(
   ].map(r => r.source).join('|'),
 )
 
+/**
+ * English text of the fixed messages the worker sends (the worker has no access to the interface
+ * language, so the main thread translates them with `localizeWorkerMessage`).
+ */
+export const WORKER_MESSAGES_EN: Readonly<Record<string, string>> = {
+  'Spazio di archiviazione del browser insufficiente per salvare il modello in cache. Libera spazio o scegli il modello più piccolo (LFM2.5 350M).':
+    'Not enough browser storage to save the model in the cache. Free up space or choose the smallest model (LFM2.5 350M).',
+  'La GPU si è disconnessa durante l’esecuzione (device lost). Ricarica la pagina oppure scegli un modello che gira sulla CPU.':
+    'The GPU disconnected while running (device lost). Reload the page or choose a model that runs on the CPU.',
+  'Memoria insufficiente per questo modello (GPU o RAM). Prova il modello più piccolo (LFM2.5 350M).':
+    'Not enough memory for this model (GPU or RAM). Try the smallest model (LFM2.5 350M).',
+  'Download del modello non riuscito: controlla la connessione di rete (Hugging Face deve essere raggiungibile) e riprova.':
+    'Model download failed: check your network connection (Hugging Face must be reachable) and try again.',
+  'Questo browser o questa GPU non supportano l’esecuzione del modello. Scegli un modello che gira sulla CPU (LFM2.5 350M o Qwen3 0.6B).':
+    'This browser or this GPU cannot run the model. Choose a model that runs on the CPU (LFM2.5 350M or Qwen3 0.6B).',
+  'Errore imprevisto del modello locale. Dettagli tecnici disponibili nella console.':
+    'Unexpected error in the local model. Technical details are available in the console.',
+  'Il modello non è caricato.': 'The model is not loaded.',
+}
+
 /** Classifies a thrown value and returns a plain-Italian message. */
 export function classifyError(err: unknown): { code: WorkerErrorKind; message: string; detail: string } {
   const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err)

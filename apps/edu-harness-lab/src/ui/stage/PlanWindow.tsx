@@ -2,6 +2,7 @@ import { Check, ChevronDown, ChevronUp, CornerDownRight, ListChecks, X } from 'l
 import { useRef } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import { create } from 'zustand'
+import { biRecord, tr, useT } from '../../i18n'
 import type { PlanState, PlanStep, StageState } from './deriveStage'
 import { planChange } from './deriveStage'
 import styles from './PlanWindow.module.css'
@@ -34,11 +35,16 @@ export const usePlanWindowUi = create<PlanWindowUi>()(set => ({
   },
 }))
 
-const STATUS_LABEL: Record<PlanStep['status'], string> = { pending: 'da fare', active: 'in corso', done: 'fatto', failed: 'non riuscito' }
+const STATUS_LABEL = biRecord<PlanStep['status']>({
+  pending: ['da fare', 'to do'],
+  active: ['in corso', 'in progress'],
+  done: ['fatto', 'done'],
+  failed: ['non riuscito', 'failed'],
+})
 
 /** Step text without its leading tool name (shown apart as a tag). */
 const describe = (st: PlanStep) => (st.tool && st.tool !== 'answer' ? st.text.replace(st.tool, '').replace(/^[\s:—–-]+/, '') : st.text) || st.text
-const toolName = (st: PlanStep) => (st.tool === 'answer' ? 'risposta' : st.tool)
+const toolName = (st: PlanStep) => (st.tool === 'answer' ? tr('risposta', 'answer') : st.tool)
 
 /** The step being carried out (or next up); null when none is left. */
 export function currentStep(plan: PlanState): PlanStep | null {
@@ -48,9 +54,11 @@ export function currentStep(plan: PlanState): PlanStep | null {
 /** The collapsed one-liner: "Passo 2/4 · calcolatrice: calcola il margine" or "Piano completato". */
 export function summaryLine(plan: PlanState): string {
   const cur = currentStep(plan)
-  if (!cur) return plan.steps.every(st => st.status === 'done') ? 'Piano completato' : 'Piano concluso'
+  if (!cur) return plan.steps.every(st => st.status === 'done')
+    ? tr('Piano completato', 'Plan complete')
+    : tr('Piano concluso', 'Plan ended')
   const tool = toolName(cur)
-  return `Passo ${cur.n}/${plan.steps.length} · ${tool ? `${tool}: ` : ''}${describe(cur)}`
+  return `${tr('Passo', 'Step')} ${cur.n}/${plan.steps.length} · ${tool ? `${tool}: ` : ''}${describe(cur)}`
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
@@ -58,14 +66,15 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 /** One line on what an update changed: the model's own reason, else steps added/removed. */
 export function changeNote(plan: PlanState): string | null {
   if (plan.version < 2) return null
-  if (plan.reason) return `Motivo: ${plan.reason}`
+  if (plan.reason) return `${tr('Motivo', 'Reason')}: ${plan.reason}`
   const ch = planChange(plan)
   if (!ch) return null
   const parts = [
-    ch.added.length > 0 ? plural(ch.added.length, 'passo aggiunto', 'passi aggiunti') : '',
-    ch.removed.length > 0 ? plural(ch.removed.length, 'passo tolto', 'passi tolti') : '',
+    ch.added.length > 0 ? plural(ch.added.length, tr('passo aggiunto', 'step added'), tr('passi aggiunti', 'steps added')) : '',
+    ch.removed.length > 0 ? plural(ch.removed.length, tr('passo tolto', 'step removed'), tr('passi tolti', 'steps removed')) : '',
   ].filter(Boolean)
-  return parts.length > 0 ? `Cosa è cambiato: ${parts.join(', ')}` : 'Cosa è cambiato: stessi passi, riscritti'
+  const same = tr('stessi passi, riscritti', 'same steps, reworded')
+  return `${tr('Cosa è cambiato', 'What changed')}: ${parts.length > 0 ? parts.join(', ') : same}`
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, Math.max(lo, hi)))
@@ -87,6 +96,7 @@ function track(move: (ev: PointerEvent) => void) {
  * its corner, collapsible to a single line (the current step). Mount inside the map viewport.
  */
 export function PlanWindow({ stage }: { stage: StageState }) {
+  const t = useT()
   const ui = usePlanWindowUi()
   const ref = useRef<HTMLElement>(null)
   const plan = stage.plan
@@ -99,9 +109,9 @@ export function PlanWindow({ stage }: { stage: StageState }) {
         className={styles.chip}
         data-panel
         onClick={() => { ui.set({ closed: false }) }}
-        aria-label="Riapri il piano del modello"
+        aria-label={t('Riapri il piano del modello', 'Reopen the model plan')}
       >
-        <ListChecks size={16} aria-hidden /> Piano
+        <ListChecks size={16} aria-hidden /> {t('Piano', 'Plan')}
       </button>
     )
   }
@@ -156,10 +166,10 @@ export function PlanWindow({ stage }: { stage: StageState }) {
 
   return (
     // data-panel: the map ignores gestures that start here (no pan on drag, no zoom on wheel).
-    <section ref={ref} className={styles.window} style={style} aria-label="Piano del modello" data-panel>
+    <section ref={ref} className={styles.window} style={style} aria-label={t('Piano del modello', 'Model plan')} data-panel>
       <header className={styles.head} onPointerDown={startDrag}>
-        <span className={styles.title}>Piano del modello</span>
-        {plan.version > 1 && <span className={styles.version}>v{plan.version} · aggiornato</span>}
+        <span className={styles.title}>{t('Piano del modello', 'Model plan')}</span>
+        {plan.version > 1 && <span className={styles.version}>v{plan.version} · {t('aggiornato', 'updated')}</span>}
         <span className={styles.count}>
           {done}/{plan.steps.length}
         </span>
@@ -167,12 +177,12 @@ export function PlanWindow({ stage }: { stage: StageState }) {
           type="button"
           className={styles.iconBtn}
           aria-expanded={!ui.collapsed}
-          aria-label={ui.collapsed ? 'Espandi il piano' : 'Comprimi il piano'}
+          aria-label={ui.collapsed ? t('Espandi il piano', 'Expand the plan') : t('Comprimi il piano', 'Collapse the plan')}
           onClick={() => { ui.set({ collapsed: !ui.collapsed }) }}
         >
           {ui.collapsed ? <ChevronDown size={16} aria-hidden /> : <ChevronUp size={16} aria-hidden />}
         </button>
-        <button type="button" className={styles.iconBtn} aria-label="Chiudi il piano" onClick={() => { ui.set({ closed: true }) }}>
+        <button type="button" className={styles.iconBtn} aria-label={t('Chiudi il piano', 'Close the plan')} onClick={() => { ui.set({ closed: true }) }}>
           <X size={16} aria-hidden />
         </button>
       </header>
@@ -201,7 +211,7 @@ export function PlanWindow({ stage }: { stage: StageState }) {
           </ol>
           {plan.offPlan.length > 0 && (
             <p className={styles.off}>
-              <CornerDownRight size={14} aria-hidden /> Fuori dal piano: {plan.offPlan.join(', ')}
+              <CornerDownRight size={14} aria-hidden /> {t('Fuori dal piano', 'Off the plan')}: {plan.offPlan.join(', ')}
             </p>
           )}
         </div>

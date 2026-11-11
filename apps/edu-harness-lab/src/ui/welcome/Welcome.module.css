@@ -23,6 +23,11 @@
   gap: var(--sp-3);
 }
 
+.langBar {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .kicker {
   margin: 0;
   color: var(--text-muted);

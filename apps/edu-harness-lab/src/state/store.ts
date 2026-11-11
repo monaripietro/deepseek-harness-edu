@@ -48,7 +48,7 @@ import { toolFromSpec } from '../harness/tools/custom'
 import { createMemoryStore } from '../harness/memory/memoryStore'
 import { createRetriever } from '../harness/rag/retriever'
 import { createMcpHub } from '../harness/mcp/hub'
-import { DEFAULT_SCENARIO_ID, SCENARIO_DATA, getScenario, scenarioDataFor } from '../scenarios'
+import { DEFAULT_SCENARIO_ID, getScenario, scenarioDataFor } from '../scenarios'
 import { createTransformersRuntime } from '../runtime/model/transformersRuntime'
 import { NOT_LOADED_INFO, PROFILE_LIST, PROFILES, resolveVariant } from '../runtime/model/profiles'
 import type { RealProfileId } from '../runtime/model/profiles'
@@ -85,8 +85,9 @@ import { businessLog } from '../harness/tools/businessLog'
 export const bus = createEventBus()
 export const registry = createToolRegistry()
 for (const t of BUILTIN_TOOLS) registry.register(t)
-export const retriever = createRetriever(SCENARIO_DATA.documents)
-export const memory = createMemoryStore(SCENARIO_DATA.memorySeeds)
+// Built-in documents and memory seeds start in the saved prompt language (see setPromptLanguage).
+export const retriever = createRetriever(scenarioDataFor(savedPromptLanguage()).documents)
+export const memory = createMemoryStore(scenarioDataFor(savedPromptLanguage()).memorySeeds)
 
 let faultsRef: FaultInjection = NO_FAULTS
 export const mcpHub = createMcpHub({ bus, data: () => scenarioDataFor(useLab.getState().promptLanguage), faults: () => faultsRef })
@@ -649,6 +650,11 @@ export const useLab = create<LabState>()((set, get) => ({
     if (promptLanguage !== get().promptLanguage) {
       get().resetConversation()
       set({ comparison: [] })
+      // What the model reads follows the language: built-in documents (same ids, replaced in place;
+      // documents added in the RAG lab stay) and the memory seeds.
+      const data = scenarioDataFor(promptLanguage)
+      for (const doc of data.documents) retriever.addDocument(doc)
+      memory.localizeSeeds?.(data.memorySeeds)
     }
     set({ promptLanguage })
     try {

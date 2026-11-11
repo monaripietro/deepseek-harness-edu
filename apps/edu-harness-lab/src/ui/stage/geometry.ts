@@ -6,6 +6,8 @@
  * and each column re-flows around them (see layoutFor). Paths and flyers use these exact coordinates.
  */
 
+import { tr } from '../../i18n'
+
 export type StageNodeId =
   | 'question'
   | 'answer'
@@ -67,12 +69,28 @@ export const ringAt = (deg: number, r = RING.r): Point => ({
   y: RING.cy + r * Math.sin((deg * Math.PI) / 180),
 })
 
-/** The four stations of the agent loop, clockwise from bottom-left. */
+/** The four stations of the agent loop, clockwise from bottom-left. Texts follow the interface language at read time. */
 export const STATIONS = [
-  { id: 'read', deg: 135, label: 'Legge il contesto', short: 'Legge' },
-  { id: 'decide', deg: 225, label: 'Decide cosa fare', short: 'Decide' },
-  { id: 'act', deg: 315, label: 'Agisce con uno strumento', short: 'Agisce' },
-  { id: 'observe', deg: 45, label: 'Osserva il risultato', short: 'Osserva' },
+  {
+    id: 'read', deg: 135,
+    get label() { return tr('Legge il contesto', 'Reads the context') },
+    get short() { return tr('Legge', 'Reads') },
+  },
+  {
+    id: 'decide', deg: 225,
+    get label() { return tr('Decide cosa fare', 'Decides what to do') },
+    get short() { return tr('Decide', 'Decides') },
+  },
+  {
+    id: 'act', deg: 315,
+    get label() { return tr('Agisce con uno strumento', 'Acts with a tool') },
+    get short() { return tr('Agisce', 'Acts') },
+  },
+  {
+    id: 'observe', deg: 45,
+    get label() { return tr('Osserva il risultato', 'Observes the result') },
+    get short() { return tr('Osserva', 'Observes') },
+  },
 ] as const
 
 export type StationId = (typeof STATIONS)[number]['id']
@@ -167,11 +185,12 @@ function buildLayout(c: Flags): Layout {
   const bbox: Rect = { x: 50, y: 30, w: MCP_X + MCP_W + 10 - 50, h: boundaryBottom - 30 }
 
   const rects: Record<CardNode, Rect> = { question, instructions, context, memory, rag, window: win, answer, tools, controls, human, mcp }
+  // Texts are getters: the layout is cached, so they must follow the interface language at read time.
   const labels = [
-    { x: LEFT_X + 4, y: TOP - LABEL_DY, text: 'COSA ENTRA NEL CONTESTO' },
-    { x: WINDOW_X + 4, y: win.y - LABEL_DY, text: 'COSA VEDE IL MODELLO' },
-    { x: RIGHT_X + 4, y: TOP - LABEL_DY, text: 'LA RISPOSTA' },
-    { x: RIGHT_X + 4, y: toolsY - LABEL_DY, text: 'COSA PUÒ FARE · CHI GOVERNA' },
+    { x: LEFT_X + 4, y: TOP - LABEL_DY, get text() { return tr('COSA ENTRA NEL CONTESTO', 'WHAT GOES INTO THE CONTEXT') } },
+    { x: WINDOW_X + 4, y: win.y - LABEL_DY, get text() { return tr('COSA VEDE IL MODELLO', 'WHAT THE MODEL SEES') } },
+    { x: RIGHT_X + 4, y: TOP - LABEL_DY, get text() { return tr('LA RISPOSTA', 'THE ANSWER') } },
+    { x: RIGHT_X + 4, y: toolsY - LABEL_DY, get text() { return tr('COSA PUÒ FARE · CHI GOVERNA', 'WHAT IT CAN DO · WHO GOVERNS') } },
   ]
 
   const R = rects
@@ -214,10 +233,10 @@ function buildLayout(c: Flags): Layout {
     'ring-mcp': { id: 'ring-mcp', from: right(R.tools, 0.5), to: left(R.mcp, 0.5), orient: 'h' },
   }
   const edgeLabels: Layout['edgeLabels'] = {
-    'ring-window': { x: (bottom(R.window, 0.8).x + st('observe').x) / 2 + 40, y: RESULT_Y, text: 'il risultato torna nel contesto' },
-    'ring-tools': { x: (st('act').x + R.tools.x) / 2 + 10, y: (st('act').y + left(R.tools, 0.5).y) / 2, text: 'chiamata ⇄ risultato' },
-    'ring-answer': { x: (st('decide').x + answerIn.x) / 2 + 80, y: answerIn.y, text: 'risposta finale' },
-    'model-answer': { x: (BYPASS_X + answerIn.x) / 2 + 20, y: answerIn.y, text: 'risposta finale' },
+    'ring-window': { x: (bottom(R.window, 0.8).x + st('observe').x) / 2 + 40, y: RESULT_Y, get text() { return tr('il risultato torna nel contesto', 'the result returns to the context') } },
+    'ring-tools': { x: (st('act').x + R.tools.x) / 2 + 10, y: (st('act').y + left(R.tools, 0.5).y) / 2, get text() { return tr('chiamata ⇄ risultato', 'call ⇄ result') } },
+    'ring-answer': { x: (st('decide').x + answerIn.x) / 2 + 80, y: answerIn.y, get text() { return tr('risposta finale', 'final answer') } },
+    'model-answer': { x: (BYPASS_X + answerIn.x) / 2 + 20, y: answerIn.y, get text() { return tr('risposta finale', 'final answer') } },
   }
   return { rects, boundary, bbox, labels, edgeLabels, edges }
 }

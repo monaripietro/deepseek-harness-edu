@@ -7,6 +7,7 @@ import type {
   StopReason,
   TraceEvent,
 } from '../../domain/types'
+import { biRecord } from '../../i18n'
 import type { StageNodeId } from './geometry'
 
 type GateState = 'idle' | 'ok' | 'fail' | 'warn'
@@ -23,19 +24,19 @@ export type Phase =
   | 'answering'
   | 'done'
 
-export const PHASE_LABEL: Record<Phase, string> = {
-  idle: 'In attesa',
-  collecting: 'Prepara il contesto',
-  reading: 'Il modello legge e scrive',
-  deciding: 'Interpreta la decisione',
-  validating: 'Controlla gli argomenti',
-  executing: 'Esegue lo strumento',
-  waitingHuman: 'Attende una persona',
-  observing: 'Riporta l’osservazione',
-  reflecting: 'Riesamina la proposta',
-  answering: 'Consegna la risposta',
-  done: 'Concluso',
-}
+export const PHASE_LABEL = biRecord<Phase>({
+  idle: ['In attesa', 'Waiting'],
+  collecting: ['Prepara il contesto', 'Prepares the context'],
+  reading: ['Il modello legge e scrive', 'The model reads and writes'],
+  deciding: ['Interpreta la decisione', 'Interprets the decision'],
+  validating: ['Controlla gli argomenti', 'Checks the arguments'],
+  executing: ['Esegue lo strumento', 'Runs the tool'],
+  waitingHuman: ['Attende una persona', 'Waits for a person'],
+  observing: ['Riporta l’osservazione', 'Reports the observation'],
+  reflecting: ['Riesamina la proposta', 'Reviews the proposal'],
+  answering: ['Consegna la risposta', 'Delivers the answer'],
+  done: ['Concluso', 'Finished'],
+})
 
 export interface ToolActivity {
   callId: string

@@ -5,20 +5,25 @@ import type { Theme, View } from '../../state/store'
 import type { PromptLanguage } from '../../domain/types'
 import { useLab } from '../../state/store'
 import { SCENARIOS } from '../../scenarios'
+import { useT } from '../../i18n'
+import { scenarioText } from '../../i18nContent'
 import { ModelStatusChip } from '../model/ModelStatusChip'
 import { Button } from '../common/Button'
 import { Segmented } from '../common/Segmented'
 import { useDockTab } from '../stage/cards'
+import { LangToggle } from './LangToggle'
 import styles from './SideMenu.module.css'
 
 const FOCUSABLE = 'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])'
 
 /** "Creato da … in collaborazione con [E38]": shown in the top bar on wide screens and in the menu footer. */
 export function Credits({ className }: { className?: string }) {
+  const t = useT()
   return (
     <div className={className}>
       <span>
-        Creato da <a href="https://www.monaripietro.it/" target="_blank" rel="noreferrer">Pietro Monari</a> in collaborazione con
+        {t('Creato da', 'Created by')} <a href="https://www.monaripietro.it/" target="_blank" rel="noreferrer">Pietro Monari</a>{' '}
+        {t('in collaborazione con', 'in collaboration with')}
       </span>
       <a className={styles.creditLogoLink} href="https://e38.it/" target="_blank" rel="noreferrer" aria-label="E38 S.r.l.">
         <img className={styles.creditLogo} src="/Logo%20e38_Tavola%20disegno%201%20copia.png" alt="" />
@@ -38,6 +43,7 @@ export function SideMenu({
   onOpenModel: () => void
   onOpenSettings: () => void
 }) {
+  const t = useT()
   const view = useLab(s => s.view)
   const setView = useLab(s => s.setView)
   const scenarioId = useLab(s => s.scenarioId)
@@ -102,44 +108,55 @@ export function SideMenu({
   return createPortal(
     <div className={styles.root}>
       <div className={styles.scrim} onPointerDown={onClose} aria-hidden />
-      <aside id={id} ref={ref} className={styles.drawer} role="dialog" aria-modal="true" aria-label="Menu" tabIndex={-1}>
+      <aside id={id} ref={ref} className={styles.drawer} role="dialog" aria-modal="true" aria-label={t('Menu', 'Menu')} tabIndex={-1}>
         <div className={styles.head}>
-          <strong>Menu</strong>
-          <button type="button" className={styles.close} onClick={onClose} aria-label="Chiudi il menu" title="Chiudi il menu (Esc)">
+          <strong>{t('Menu', 'Menu')}</strong>
+          <button
+            type="button"
+            className={styles.close}
+            onClick={onClose}
+            aria-label={t('Chiudi il menu', 'Close menu')}
+            title={t('Chiudi il menu (Esc)', 'Close menu (Esc)')}
+          >
             <X size={18} aria-hidden />
           </button>
         </div>
 
         <div className={styles.body}>
+          <section className={styles.section} aria-labelledby={`${id}-lang`}>
+            <h2 id={`${id}-lang`}>Lingua / Language</h2>
+            <LangToggle className={styles.lang} />
+          </section>
+
           <section className={styles.section} aria-labelledby={`${id}-view`}>
-            <h2 id={`${id}-view`}>Vista</h2>
+            <h2 id={`${id}-view`}>{t('Vista', 'View')}</h2>
             <Segmented<View>
-              ariaLabel="Vista"
+              ariaLabel={t('Vista', 'View')}
               value={view}
               onChange={setView}
               options={[
-                { value: 'guided', label: 'Percorso', icon: <Route size={16} /> },
-                { value: 'lab', label: 'Laboratorio', icon: <FlaskConical size={16} /> },
-                { value: 'compare', label: 'Confronto', icon: <Columns3 size={16} /> },
+                { value: 'guided', label: t('Percorso', 'Guided path'), icon: <Route size={16} /> },
+                { value: 'lab', label: t('Laboratorio', 'Lab'), icon: <FlaskConical size={16} /> },
+                { value: 'compare', label: t('Confronto', 'Compare'), icon: <Columns3 size={16} /> },
               ]}
             />
           </section>
 
           <section className={styles.section} aria-labelledby={`${id}-scenario`}>
-            <h2 id={`${id}-scenario`}>Scenario e lingua</h2>
+            <h2 id={`${id}-scenario`}>{t('Scenario e lingua del modello', 'Scenario and model language')}</h2>
             <select
               className={styles.select}
               value={scenarioId}
               onChange={(e) => { setScenario(e.target.value) }}
-              aria-label="Scenario"
+              aria-label={t('Scenario', 'Scenario')}
               disabled={running}
             >
               {SCENARIOS.map(s => (
-                <option key={s.id} value={s.id}>{s.shortTitle}</option>
+                <option key={s.id} value={s.id}>{scenarioText(s).shortTitle}</option>
               ))}
             </select>
             <Segmented<PromptLanguage>
-              ariaLabel="Lingua di ciò che legge il modello"
+              ariaLabel={t('Lingua del modello', 'Model language')}
               value={promptLanguage}
               onChange={setPromptLanguage}
               options={[
@@ -148,35 +165,37 @@ export function SideMenu({
               ]}
             />
             <p className={styles.note}>
-              Richiesta, dati, documenti e risultati degli strumenti nella lingua scelta; anche la risposta.
-              L’interfaccia resta in italiano.
+              {t(
+                'Richiesta, dati, documenti e risultati degli strumenti nella lingua scelta; anche la risposta. Può essere diversa dalla lingua dell’interfaccia.',
+                'Request, data, documents and tool results in the chosen language; the answer too. It can differ from the interface language.',
+              )}
             </p>
           </section>
 
           <section className={styles.section} aria-labelledby={`${id}-model`}>
-            <h2 id={`${id}-model`}>Modello</h2>
+            <h2 id={`${id}-model`}>{t('Modello', 'Model')}</h2>
             <div className={styles.model}>
               <ModelStatusChip onOpen={act(onOpenModel)} />
             </div>
           </section>
 
           <section className={styles.section} aria-labelledby={`${id}-labs`}>
-            <h2 id={`${id}-labs`}>Laboratori</h2>
+            <h2 id={`${id}-labs`}>{t('Laboratori', 'Labs')}</h2>
             <Button
               size="sm"
               variant="ghost"
               className={styles.action}
               icon={<Microscope size={17} />}
-              aria-label="Laboratori: strumenti, documenti, MCP, memoria"
-              title="Laboratori: strumenti, documenti, MCP, memoria"
+              aria-label={t('Laboratori: strumenti, documenti, MCP, memoria', 'Labs: tools, documents, MCP, memory')}
+              title={t('Laboratori: strumenti, documenti, MCP, memoria', 'Labs: tools, documents, MCP, memory')}
               onClick={act(() => { openLab('tools') })}
             >
-              Strumenti, documenti, MCP, memoria
+              {t('Strumenti, documenti, MCP, memoria', 'Tools, documents, MCP, memory')}
             </Button>
           </section>
 
           <section className={styles.section} aria-labelledby={`${id}-teacher`}>
-            <h2 id={`${id}-teacher`}>Docente</h2>
+            <h2 id={`${id}-teacher`}>{t('Docente', 'Teacher')}</h2>
             <Button
               size="sm"
               variant="ghost"
@@ -186,21 +205,25 @@ export function SideMenu({
               aria-pressed={teacherOpen}
               onClick={act(() => { setTeacherOpen(!teacherOpen) })}
             >
-              Regia docente
+              {t('Regia docente', 'Teacher panel')}
             </Button>
           </section>
 
           <section className={styles.section} aria-labelledby={`${id}-look`}>
-            <h2 id={`${id}-look`}>Aspetto</h2>
+            <h2 id={`${id}-look`}>{t('Aspetto', 'Appearance')}</h2>
             <div className={styles.iconOnly}>
               <Segmented<Theme>
-                ariaLabel="Tema"
+                ariaLabel={t('Tema', 'Theme')}
                 value={theme}
                 onChange={setTheme}
                 options={[
-                  { value: 'light', label: 'Tema chiaro', icon: <Sun size={16} /> },
-                  { value: 'dark', label: 'Tema scuro', icon: <Moon size={16} /> },
-                  { value: 'aula', label: 'Tema aula (alto contrasto per proiettori)', icon: <GraduationCap size={16} /> },
+                  { value: 'light', label: t('Tema chiaro', 'Light theme'), icon: <Sun size={16} /> },
+                  { value: 'dark', label: t('Tema scuro', 'Dark theme'), icon: <Moon size={16} /> },
+                  {
+                    value: 'aula',
+                    label: t('Tema aula (alto contrasto per proiettori)', 'Classroom theme (high contrast for projectors)'),
+                    icon: <GraduationCap size={16} />,
+                  },
                 ]}
               />
             </div>
@@ -211,39 +234,42 @@ export function SideMenu({
               icon={<Presentation size={17} />}
               active={presentation}
               aria-pressed={presentation}
-              title="Modalità presentazione"
+              title={t('Modalità presentazione', 'Presentation mode')}
               onClick={act(() => { setPresentation(!presentation) })}
             >
-              Modalità presentazione
+              {t('Modalità presentazione', 'Presentation mode')}
             </Button>
           </section>
 
           <section className={styles.section} aria-labelledby={`${id}-deep`}>
-            <h2 id={`${id}-deep`}>Approfondisci</h2>
+            <h2 id={`${id}-deep`}>{t('Approfondisci', 'Go deeper')}</h2>
             <Button
               size="sm"
               variant="ghost"
               className={styles.action}
               icon={<Layers size={17} />}
-              title="Cosa riceve il modello, registro degli eventi, conversazione e verifiche"
+              title={t(
+                'Cosa riceve il modello, registro degli eventi, conversazione e verifiche',
+                'What the model receives, event log, conversation and checks',
+              )}
               onClick={act(() => { openDeepDive('context') })}
             >
-              Contesto, eventi e verifiche
+              {t('Contesto, eventi e verifiche', 'Context, events and checks')}
             </Button>
           </section>
 
           <section className={styles.section} aria-labelledby={`${id}-data`}>
-            <h2 id={`${id}-data`}>Dati e impostazioni</h2>
+            <h2 id={`${id}-data`}>{t('Dati e impostazioni', 'Data and settings')}</h2>
             <Button
               size="sm"
               variant="ghost"
               className={styles.action}
               icon={<Settings size={17} />}
-              aria-label="Impostazioni e dati locali"
-              title="Impostazioni e dati locali"
+              aria-label={t('Impostazioni e dati locali', 'Settings and local data')}
+              title={t('Impostazioni e dati locali', 'Settings and local data')}
               onClick={act(onOpenSettings)}
             >
-              Impostazioni e dati locali
+              {t('Impostazioni e dati locali', 'Settings and local data')}
             </Button>
           </section>
         </div>

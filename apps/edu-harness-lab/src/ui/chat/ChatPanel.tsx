@@ -9,11 +9,17 @@ import { Chip } from '../common/Chip'
 import { Markdown } from '../common/Markdown'
 import { ModelActivityNote, ReasoningDisclosure, useLiveReasoning, useStreamedProse } from '../model/ModelActivity'
 import { ReflectionTrace } from './ReflectionTrace'
+import { useT, useUiLang } from '../../i18n'
 import styles from './ChatPanel.module.css'
 
-const fmtDur = (ms: number) => (ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1).replace('.', ',')} s`)
+const fmtDur = (ms: number, en: boolean) => {
+  if (ms < 1000) return `${Math.round(ms)} ms`
+  const sec = (ms / 1000).toFixed(1)
+  return `${en ? sec : sec.replace('.', ',')} s`
+}
 
 export function ChatPanel() {
+  const t = useT()
   const chat = useLab(s => s.chat)
   const runs = useLab(s => s.runs)
   const streamingText = useLab(s => s.streamingText)
@@ -28,12 +34,12 @@ export function ChatPanel() {
   }, [chat.length, streamingText.length, reduce])
 
   return (
-    <section className={styles.root} aria-label="Conversazione">
-      <h2 className={styles.title}>CONVERSAZIONE</h2>
+    <section className={styles.root} aria-label={t('Conversazione', 'Conversation')}>
+      <h2 className={styles.title}>{t('CONVERSAZIONE', 'CONVERSATION')}</h2>
       {chat.length === 0 ? (
         <div className={styles.empty}>
           <MessageSquareText size={36} aria-hidden />
-          <p>Nessuna richiesta ancora. Scrivi una domanda qui sotto: la risposta comparirà in questo spazio.</p>
+          <p>{t('Nessuna richiesta ancora. Scrivi una domanda qui sotto: la risposta comparirà in questo spazio.', 'No request yet. Write a question below: the answer will appear in this space.')}</p>
         </div>
       ) : (
         <div className={styles.list} aria-live="polite">
@@ -54,6 +60,8 @@ export function ChatPanel() {
 }
 
 function Entry({ m, streamedProse, duration, reduce }: { m: ChatEntry; streamedProse: string; duration?: number; reduce: boolean }) {
+  const t = useT()
+  const en = useUiLang(s => s.lang) === 'en'
   const liveReasoning = useLiveReasoning()
   const anim = {
     initial: reduce ? false : { opacity: 0, y: 12 },
@@ -64,7 +72,7 @@ function Entry({ m, streamedProse, duration, reduce }: { m: ChatEntry; streamedP
   if (m.role === 'user') {
     return (
       <motion.div className={styles.request} {...anim}>
-        <span className={styles.kicker}>LA TUA RICHIESTA</span>
+        <span className={styles.kicker}>{t('LA TUA RICHIESTA', 'YOUR REQUEST')}</span>
         <p>{m.text}</p>
       </motion.div>
     )
@@ -80,7 +88,7 @@ function Entry({ m, streamedProse, duration, reduce }: { m: ChatEntry; streamedP
   return (
     <motion.article className={styles.answer} {...anim} aria-busy={m.streaming}>
       <header className={styles.meta}>
-        <span className={styles.kicker}>{m.streaming ? 'ESECUZIONE DEL MODELLO' : 'ESITO DELLA PROVA'}</span>
+        <span className={styles.kicker}>{m.streaming ? t('ESECUZIONE DEL MODELLO', 'MODEL RUN') : t('ESITO DELLA PROVA', 'TRIAL RESULT')}</span>
         {m.configLabel && <Chip color="var(--c-orchestration)">{m.configLabel}</Chip>}
         {m.provenance && <ProvenanceBadge tag={m.provenance} />}
         {m.stopReason && m.stopReason !== 'final_answer' && (
@@ -88,7 +96,7 @@ function Entry({ m, streamedProse, duration, reduce }: { m: ChatEntry; streamedP
         )}
         {duration !== undefined && (
           <span className={styles.dur}>
-            <Timer size={15} aria-hidden /> {fmtDur(duration)}
+            <Timer size={15} aria-hidden /> {fmtDur(duration, en)}
           </span>
         )}
       </header>
@@ -101,11 +109,11 @@ function Entry({ m, streamedProse, duration, reduce }: { m: ChatEntry; streamedP
             <i />
             <i />
           </span>
-          <ModelActivityNote fallback="L’agente sta lavorando…" />
+          <ModelActivityNote fallback={t('L’agente sta lavorando…', 'The agent is working…')} />
         </p>
       ) : (
         <div className={styles.text}>
-          {!m.streaming && <h4 className={styles.resultTitle}>{m.stopReason === 'final_answer' ? 'Risposta finale' : 'Esito dell’esecuzione'}</h4>}
+          {!m.streaming && <h4 className={styles.resultTitle}>{m.stopReason === 'final_answer' ? t('Risposta finale', 'Final answer') : t('Esito dell’esecuzione', 'Run outcome')}</h4>}
           <Markdown>{text}</Markdown>
           {m.streaming && <span className={styles.caret} aria-hidden />}
         </div>

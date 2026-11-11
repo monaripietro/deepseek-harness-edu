@@ -3,7 +3,8 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronDown, Eye, Info, ScrollText } from 'lucide-react'
 import type { ContextItem, ContextKind, ContextSnapshot } from '../../domain/types'
 import { useLab } from '../../state/store'
-import { CONTEXT_KIND_LABEL, EXCLUSION_LABEL } from '../common/labels'
+import { useT, biRecord } from '../../i18n'
+import { CONTEXT_KIND_LABEL, EXCLUSION_LABEL, numLocale } from '../common/labels'
 import { ProvenanceBadge } from '../common/ProvenanceBadge'
 import { Chip } from '../common/Chip'
 import styles from './ContextInspector.module.css'
@@ -22,9 +23,15 @@ const KIND_COLOR: Record<ContextKind, string> = {
   state: 'var(--c-orchestration)',
 }
 
-const ROLE_LABEL: Record<string, string> = { system: 'SYSTEM', user: 'UTENTE', assistant: 'ASSISTENTE', tool: 'STRUMENTO' }
+const ROLE_LABEL = biRecord<string>({
+  system: ['SYSTEM', 'SYSTEM'],
+  user: ['UTENTE', 'USER'],
+  assistant: ['ASSISTENTE', 'ASSISTANT'],
+  tool: ['STRUMENTO', 'TOOL'],
+})
 
 export function ContextInspector() {
+  const t = useT()
   const events = useLab(s => s.events)
   const runId = useLab(s => s.currentRunId)
   const reduce = useReducedMotion()
@@ -44,11 +51,11 @@ export function ContextInspector() {
 
   if (!snap) {
     return (
-      <section className={styles.root} aria-label="Cosa riceve il modello">
-        <h2 className={styles.title}>COSA RICEVE IL MODELLO</h2>
+      <section className={styles.root} aria-label={t('Cosa riceve il modello', 'What the model receives')}>
+        <h2 className={styles.title}>{t('COSA RICEVE IL MODELLO', 'WHAT THE MODEL RECEIVES')}</h2>
         <div className={styles.empty}>
           <Eye size={36} aria-hidden />
-          <p>Invia una richiesta: qui vedrai, pezzo per pezzo, tutto ciò che l&apos;harness consegna al modello prima di ogni risposta.</p>
+          <p>{t("Invia una richiesta: qui vedrai, pezzo per pezzo, tutto ciò che l'harness consegna al modello prima di ogni risposta.", 'Send a request: here you will see, piece by piece, everything the harness gives the model before each answer.')}</p>
         </div>
       </section>
     )
@@ -59,6 +66,8 @@ export function ContextInspector() {
   const onlyUser = included.length > 0 && included.every(i => i.kind === 'message')
   const used = snap.budget.usedTokens
   const totalForBar = Math.max(snap.budget.maxTokens, used, 1)
+  const locale = numLocale()
+  const tokenWord = t('token', 'tokens')
 
   const tokensOf = (items: ContextItem[]) => items.reduce((a, i) => a + i.tokens, 0)
   const byKind = KIND_ORDER.map(k => ({
@@ -68,14 +77,14 @@ export function ContextInspector() {
   })).filter(g => g.inc.length + g.exc.length > 0)
 
   return (
-    <section className={styles.root} aria-label="Cosa riceve il modello">
+    <section className={styles.root} aria-label={t('Cosa riceve il modello', 'What the model receives')}>
       <header className={styles.head}>
-        <h2 className={styles.title}>COSA RICEVE IL MODELLO</h2>
+        <h2 className={styles.title}>{t('COSA RICEVE IL MODELLO', 'WHAT THE MODEL RECEIVES')}</h2>
         {snaps.length > 1 && (
-          <div className={styles.steps} role="group" aria-label="Passi">
+          <div className={styles.steps} role="group" aria-label={t('Passi', 'Steps')}>
             {snaps.map((s, i) => (
               <Chip key={s.id} selected={i === idx} color="var(--c-model)" onClick={() =>{  setPick({ runId, i }) }}>
-                Passo {i + 1}
+                {t('Passo', 'Step')} {i + 1}
               </Chip>
             ))}
           </div>
@@ -85,16 +94,16 @@ export function ContextInspector() {
       {onlyUser && (
         <div className={styles.callout} role="note">
           <Info size={22} aria-hidden />
-          <p>Al livello 0 il modello riceve solo la tua domanda: nient&apos;altro.</p>
+          <p>{t("Al livello 0 il modello riceve solo la tua domanda: nient'altro.", 'At level 0 the model receives only your question: nothing else.')}</p>
         </div>
       )}
 
       <div className={styles.barBlock}>
         <div className={styles.barTop}>
-          <span className={styles.big}>≈ {used.toLocaleString('it-IT')} token</span>
-          <span className={styles.muted}>su {snap.budget.maxTokens.toLocaleString('it-IT')} disponibili</span>
+          <span className={styles.big}>≈ {used.toLocaleString(locale)} {tokenWord}</span>
+          <span className={styles.muted}>{t('su', 'of')} {snap.budget.maxTokens.toLocaleString(locale)} {t('disponibili', 'available')}</span>
         </div>
-        <div className={styles.bar} role="img" aria-label={`Circa ${used} token su ${snap.budget.maxTokens}`}>
+        <div className={styles.bar} role="img" aria-label={t(`Circa ${used} token su ${snap.budget.maxTokens}`, `About ${used} tokens of ${snap.budget.maxTokens}`)}>
           {byKind.map((g) => {
             const t = tokensOf(g.inc)
             if (!t) return null
@@ -106,7 +115,7 @@ export function ContextInspector() {
                 initial={reduce ? false : { width: 0 }}
                 animate={{ width: `${(t / totalForBar) * 100}%` }}
                 transition={{ duration: reduce ? 0 : 0.5, ease: [0.22, 1, 0.36, 1] }}
-                title={`${CONTEXT_KIND_LABEL[g.kind]}: ${t} token`}
+                title={`${CONTEXT_KIND_LABEL[g.kind]}: ${t} ${tokenWord}`}
               />
             )
           })}
@@ -138,7 +147,7 @@ export function ContextInspector() {
 
       <button type="button" className={styles.toggle} aria-expanded={showPrompt} onClick={() =>{  setShowPrompt(v => !v) }}>
         <ScrollText size={20} aria-hidden />
-        <span>Il prompt esatto inviato al modello</span>
+        <span>{t('Il prompt esatto inviato al modello', 'The exact prompt sent to the model')}</span>
         <ChevronDown size={20} className={showPrompt ? styles.rot : ''} aria-hidden />
       </button>
       <AnimatePresence initial={false}>
@@ -167,6 +176,7 @@ export function ContextInspector() {
 }
 
 function ItemCard({ item, color }: { item: ContextItem; color: string }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const out = item.status === 'excluded'
   return (
@@ -175,7 +185,7 @@ function ItemCard({ item, color }: { item: ContextItem; color: string }) {
         <span className={styles.cardMain}>
           <span className={styles.cardTitle}>{item.title}</span>
           <span className={styles.cardMeta}>
-            {item.source} · {item.tokens} token
+            {item.source} · {item.tokens} {t('token', 'tokens')}
             {out && item.exclusionReason ? <b className={styles.reason}> · {EXCLUSION_LABEL[item.exclusionReason]}</b> : null}
           </span>
         </span>

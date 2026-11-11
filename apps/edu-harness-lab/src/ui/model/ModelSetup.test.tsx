@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CapabilityReport, LoadProgress, ModelInfo, ModelProfileId } from '../../domain/types'
 import { NOT_LOADED_INFO } from '../../runtime/model/profiles'
 import type { RealProfileId } from '../../runtime/model/profiles'
+import { useUiLang } from '../../i18n'
 import { ModelSetup } from './ModelSetup'
 import { ModelStatusChip } from './ModelStatusChip'
 
@@ -227,6 +228,22 @@ describe('ModelSetup', () => {
     expect(screen.getByText('errore di rete')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Riprova l’avvio' }))
     expect(mocks.loadModel).toHaveBeenCalledWith('qwen3-0.6b')
+  })
+})
+
+describe('English interface', () => {
+  beforeEach(() => {
+    useUiLang.setState({ lang: 'en' })
+  })
+  afterEach(() => {
+    useUiLang.setState({ lang: 'it' })
+  })
+
+  it('shows the model choice and the start action in English', () => {
+    render(<ModelSetup onClose={vi.fn()} />)
+    expect(screen.getByRole('heading', { name: 'Choose the model' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Download and start' })).toBeTruthy()
+    expect(screen.getByText('Download from Hugging Face:').textContent).toBe('Download from Hugging Face:')
   })
 })
 

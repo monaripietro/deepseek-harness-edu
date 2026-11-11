@@ -1,0 +1,33 @@
+.group {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+}
+
+.opt {
+  min-width: 34px;
+  height: 26px;
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.opt:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.opt[aria-pressed='true'] {
+  background: var(--text);
+  color: var(--bg);
+}

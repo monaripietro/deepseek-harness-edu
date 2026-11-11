@@ -3,22 +3,25 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { BookOpen, Brain, Plug, Wrench, X } from 'lucide-react'
 import { useLab } from '../../state/store'
 import type { LabId } from '../../state/store'
+import { pick, useT } from '../../i18n'
+import type { Bi } from '../../i18n'
 import { ToolLab } from './ToolLab'
 import { RagLab } from './RagLab'
 import { McpLab } from './McpLab'
 import { MemoryLab } from './MemoryLab'
 import styles from './LabsDrawer.module.css'
 
-const TABS: { id: LabId; label: string; icon: typeof Wrench }[] = [
-  { id: 'tools', label: 'Strumenti', icon: Wrench },
-  { id: 'rag', label: 'Documenti RAG', icon: BookOpen },
-  { id: 'mcp', label: 'Server MCP', icon: Plug },
-  { id: 'memory', label: 'Memoria', icon: Brain },
+const TABS: { id: LabId; label: Bi; icon: typeof Wrench }[] = [
+  { id: 'tools', label: ['Strumenti', 'Tools'], icon: Wrench },
+  { id: 'rag', label: ['Documenti RAG', 'RAG documents'], icon: BookOpen },
+  { id: 'mcp', label: ['Server MCP', 'MCP servers'], icon: Plug },
+  { id: 'memory', label: ['Memoria', 'Memory'], icon: Brain },
 ]
 
 const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([type="hidden"]):not([disabled]), select:not([disabled]), summary, [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex^="-"])'
 
 export function LabsDrawer() {
+  const t = useT()
   const lab = useLab(s => s.lab)
   const openLab = useLab(s => s.openLab)
   const reduce = useReducedMotion()
@@ -106,30 +109,30 @@ export function LabsDrawer() {
               <div className={styles.headTop}>
                 <div className={styles.heading}>
                   <h2 id="labs-title" className={styles.title}>Harness Lab</h2>
-                  <p className={styles.subtitle}>Esplora e configura i componenti dell’agente.</p>
+                  <p className={styles.subtitle}>{t('Esplora e configura i componenti dell’agente.', 'Explore and configure the agent’s components.')}</p>
                 </div>
-                <button ref={closeRef} type="button" className={styles.close} onClick={() =>{  openLab(null) }} aria-label="Chiudi Harness Lab">
+                <button ref={closeRef} type="button" className={styles.close} onClick={() =>{  openLab(null) }} aria-label={t('Chiudi Harness Lab', 'Close Harness Lab')}>
                   <X size={22} aria-hidden />
                 </button>
               </div>
-              <div role="tablist" aria-label="Sezioni del laboratorio" aria-orientation="horizontal" className={styles.tabs}>
-                {TABS.map((t, i) => {
-                  const Icon = t.icon
-                  const active = lab === t.id
+              <div role="tablist" aria-label={t('Sezioni del laboratorio', 'Lab sections')} aria-orientation="horizontal" className={styles.tabs}>
+                {TABS.map((tab, i) => {
+                  const Icon = tab.icon
+                  const active = lab === tab.id
                   return (
                     <button
-                      key={t.id}
-                      id={`labtab-${t.id}`}
+                      key={tab.id}
+                      id={`labtab-${tab.id}`}
                       role="tab"
                       aria-selected={active}
                       aria-controls="labpanel"
                       tabIndex={active ? 0 : -1}
                       className={`${styles.tab} ${active ? styles.tabActive : ''}`}
-                      onClick={() =>{  openLab(t.id) }}
+                      onClick={() =>{  openLab(tab.id) }}
                       onKeyDown={(e) =>{  onTabKey(e, i) }}
                     >
                       <Icon size={18} aria-hidden />
-                      {t.label}
+                      {pick(tab.label)}
                       {active && <motion.span layoutId="labtab-ink" className={styles.ink} />}
                     </button>
                   )

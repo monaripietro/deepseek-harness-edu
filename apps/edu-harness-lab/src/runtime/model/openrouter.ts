@@ -1,5 +1,6 @@
 import type { ChatMessage, ModelInfo, ModelRequest, ModelResponse, ModelRuntime, ThinkingEffort } from '../../domain/types'
 import { REAL_EXTERNAL } from '../../domain/types'
+import { tr } from '../../i18n'
 
 /**
  * Bigger models through OpenRouter (https://openrouter.ai), called from the browser with the user's key.
@@ -29,7 +30,7 @@ let modelsCache: RemoteModel[] | null = null
 export async function fetchOpenRouterModels(signal?: AbortSignal): Promise<RemoteModel[]> {
   if (modelsCache) return modelsCache
   const res = await fetch(`${API}/models`, { signal, credentials: 'omit' })
-  if (!res.ok) throw new Error(`OpenRouter non risponde (errore ${res.status}).`)
+  if (!res.ok) throw new Error(tr(`OpenRouter non risponde (errore ${res.status}).`, `OpenRouter is not responding (error ${res.status}).`))
   const json = (await res.json()) as { data?: Record<string, unknown>[] }
   modelsCache = (json.data ?? []).map((m) => {
     const params = (m.supported_parameters as string[] | undefined) ?? []
@@ -77,16 +78,24 @@ function toOpenAI(messages: ChatMessage[]): Record<string, unknown>[] {
 }
 
 function describeError(status: number, body: string): string {
-  if (status === 401) return 'Chiave OpenRouter non valida o revocata.'
-  if (status === 402) return 'Credito OpenRouter esaurito: ricarica il conto o scegli un modello gratuito.'
-  if (status === 429) return 'Troppe richieste a OpenRouter: attendi qualche secondo e riprova.'
+  if (status === 401) return tr('Chiave OpenRouter non valida o revocata.', 'The OpenRouter key is not valid or has been revoked.')
+  if (status === 402)
+    return tr(
+      'Credito OpenRouter esaurito: ricarica il conto o scegli un modello gratuito.',
+      'OpenRouter credit is used up: top up your account or choose a free model.',
+    )
+  if (status === 429)
+    return tr('Troppe richieste a OpenRouter: attendi qualche secondo e riprova.', 'Too many requests to OpenRouter: wait a few seconds and try again.')
   let detail = ''
   try {
     detail = (JSON.parse(body) as { error?: { message?: string } }).error?.message ?? ''
   } catch {
     /* not JSON */
   }
-  return `OpenRouter ha risposto con un errore (${status})${detail ? `: ${detail.slice(0, 160)}` : ''}.`
+  return tr(
+    `OpenRouter ha risposto con un errore (${status})${detail ? `: ${detail.slice(0, 160)}` : ''}.`,
+    `OpenRouter returned an error (${status})${detail ? `: ${detail.slice(0, 160)}` : ''}.`,
+  )
 }
 
 /** One streamed tool-call fragment: name and arguments arrive in pieces, grouped by `index`. */
@@ -148,14 +157,15 @@ export function createOpenRouterRuntime({ model, apiKey, thinking }: OpenRouterR
     async load(onProgress) {
       onProgress({ phase: 'checking', loadedBytes: 0, totalBytes: 0, source: 'network' })
       const key = await apiKey()
-      if (!key) throw new Error('Manca la chiave OpenRouter: inseriscila nella scheda OpenRouter.')
+      if (!key)
+        throw new Error(tr('Manca la chiave OpenRouter: inseriscila nella scheda OpenRouter.', 'The OpenRouter key is missing: enter it in the OpenRouter tab.'))
       ready = true
       onProgress({ phase: 'ready', loadedBytes: 1, totalBytes: 1, source: 'network' })
     },
 
     async generate(req: ModelRequest, onToken, signal, onThinking): Promise<ModelResponse> {
       const key = await apiKey()
-      if (!key) throw new Error('Manca la chiave OpenRouter.')
+      if (!key) throw new Error(tr('Manca la chiave OpenRouter.', 'The OpenRouter key is missing.'))
       const started = performance.now()
       const effort = thinking()
       const body: Record<string, unknown> = {
@@ -215,7 +225,7 @@ export function createOpenRouterRuntime({ model, apiKey, thinking }: OpenRouterR
               continue
             }
             if (chunk.error) {
-              const message = chunk.error.message ?? 'errore'
+              const message = chunk.error.message ?? tr('errore', 'error')
               const text = typeof message === 'string' ? message : JSON.stringify(message)
               throw new Error(`OpenRouter: ${text.slice(0, 160)}`)
             }

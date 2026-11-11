@@ -4,6 +4,7 @@ import { NodeDetails } from './NodeDetails'
 import { EMPTY_STAGE } from './deriveStage'
 import type { StageNodeId } from './geometry'
 import { useStageUi } from './stageUi'
+import { useUiLang } from '../../i18n'
 
 function SelectedNodeDetails() {
   const selected = useStageUi(state => state.selected)
@@ -78,6 +79,23 @@ describe('NodeDetails', () => {
 
     expect(useStageUi.getState().selected).toBe('question')
     expect(screen.getByRole('dialog', { name: 'La tua richiesta' })).toBeTruthy()
+  })
+
+  it('shows English texts when the interface language is English', () => {
+    trigger = document.createElement('button')
+    trigger.dataset.node = 'question'
+    document.body.append(trigger)
+    trigger.focus()
+    useStageUi.getState().select('question')
+    useUiLang.setState({ lang: 'en' })
+    try {
+      render(<SelectedNodeDetails />)
+
+      expect(screen.getByRole('heading', { name: 'Your request' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Close details' })).toBeTruthy()
+    } finally {
+      useUiLang.setState({ lang: 'it' })
+    }
   })
 
   it('closes from the labeled button and returns focus to the stage node', () => {

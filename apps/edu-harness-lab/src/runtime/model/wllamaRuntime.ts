@@ -11,6 +11,7 @@ import type {
 } from '@wllama/wllama/esm/index.js'
 import type { LoadProgress, ModelInfo, ModelRequest, ModelResponse, ModelRuntime } from '../../domain/types'
 import { REAL_LOCAL } from '../../domain/types'
+import { tr } from '../../i18n'
 import { detectCapabilities } from './capabilities'
 import { EMMA_PROFILE, fingerprintFor } from './profiles'
 import { getWllamaCacheManager, openCachedEmmaModel } from './wllamaCache'
@@ -42,7 +43,7 @@ export interface WllamaRuntimeOptions {
 }
 
 const abortError = () => {
-  const error = new Error('Operazione annullata.')
+  const error = new Error(tr('Operazione annullata.', 'Operation cancelled.'))
   error.name = 'AbortError'
   return error
 }
@@ -59,11 +60,11 @@ const abortedResponse = (text: string, started: number): ModelResponse => ({
 
 function chatMessages(req: ModelRequest) {
   if (req.tools?.length || req.forceTool) {
-    throw new Error('Emma-6 non supporta chiamate native agli strumenti; usa il protocollo testuale dell’harness.')
+    throw new Error(tr('Emma-6 non supporta chiamate native agli strumenti; usa il protocollo testuale dell’harness.', 'Emma-6 does not support native tool calls; use the harness text protocol.'))
   }
   const messages = req.messages.map((message) => {
     if (message.role === 'tool' || message.tool_calls?.length) {
-      throw new Error('Emma-6 accetta solo messaggi system, user e assistant.')
+      throw new Error(tr('Emma-6 accetta solo messaggi system, user e assistant.', 'Emma-6 only accepts system, user and assistant messages.'))
     }
     return { role: message.role, content: message.content }
   })
@@ -78,7 +79,7 @@ function chatMessages(req: ModelRequest) {
 function responseFinishReason(reason: ChatCompletionChunk['choices'][number]['finish_reason']): ModelResponse['finishReason'] {
   if (reason === 'length') return 'length'
   if (reason === 'tool_calls') {
-    throw new Error('Emma-6 ha restituito una chiamata nativa non supportata.')
+    throw new Error(tr('Emma-6 ha restituito una chiamata nativa non supportata.', 'Emma-6 returned an unsupported native tool call.'))
   }
   return 'stop'
 }
@@ -157,14 +158,14 @@ export function createWllamaRuntime(options: WllamaRuntimeOptions = {}): ModelRu
           if (controller.signal.aborted || !current(id)) throw abortError()
           const cachedModel = opts?.cacheOnly ? await openCachedEmmaModel(cache) : null
           if (controller.signal.aborted || !current(id)) throw abortError()
-          report({ phase: 'initializing', loadedBytes: 0, totalBytes: 0, message: 'Preparazione del runtime locale.' })
+          report({ phase: 'initializing', loadedBytes: 0, totalBytes: 0, message: tr('Preparazione del runtime locale.', 'Preparing the local runtime.') })
           let wasm = await cache.open(assetUrl)
           if (!wasm) {
-            if (opts?.cacheOnly) throw new Error('Il runtime Wllama non è disponibile nella cache del browser.')
+            if (opts?.cacheOnly) throw new Error(tr('Il runtime Wllama non è disponibile nella cache del browser.', 'The Wllama runtime is not available in the browser cache.'))
             await cache.download(assetUrl, { signal: controller.signal })
             wasm = await cache.open(assetUrl)
           }
-          if (!wasm) throw new Error('Impossibile aprire il runtime WASM di Wllama.')
+          if (!wasm) throw new Error(tr('Impossibile aprire il runtime WASM di Wllama.', 'Could not open the Wllama WASM runtime.'))
           if (controller.signal.aborted || !current(id)) throw abortError()
 
           wasmObjectUrl = createObjectURL(new Blob([wasm], { type: 'application/wasm' }))
@@ -174,7 +175,7 @@ export function createWllamaRuntime(options: WllamaRuntimeOptions = {}): ModelRu
             operationClient = options.wllamaFactory(paths, cache)
           } else {
             defaultCache = await getWllamaCacheManager()
-            if (cache !== defaultCache) throw new Error('Un cache Wllama personalizzata richiede una factory del runtime.')
+            if (cache !== defaultCache) throw new Error(tr('Una cache Wllama personalizzata richiede una factory del runtime.', 'A custom Wllama cache requires a runtime factory.'))
             operationClient = new Wllama(paths, { cacheManager: defaultCache, suppressNativeLog: true })
           }
           operationClient.setCompat(null)
@@ -258,7 +259,7 @@ export function createWllamaRuntime(options: WllamaRuntimeOptions = {}): ModelRu
     },
 
     generate(req, onToken, signal, _onThinking) {
-      if (!runtime.isReady() || !client) return Promise.reject(new Error('Il modello Emma-6 non è caricato.'))
+      if (!runtime.isReady() || !client) return Promise.reject(new Error(tr('Il modello Emma-6 non è caricato.', 'The Emma-6 model is not loaded.')))
       if (signal.aborted) return Promise.resolve(abortedResponse('', performance.now()))
 
       const id = lifecycle
@@ -290,7 +291,7 @@ export function createWllamaRuntime(options: WllamaRuntimeOptions = {}): ModelRu
             if (controller.signal.aborted || !current(id)) break
             const choice = chunk.choices[0]
             if (choice?.delta.tool_calls?.length) {
-              throw new Error('Emma-6 ha restituito una chiamata nativa non supportata.')
+              throw new Error(tr('Emma-6 ha restituito una chiamata nativa non supportata.', 'Emma-6 returned an unsupported native tool call.'))
             }
             const delta = choice?.delta.content
             if (typeof delta === 'string' && delta) {

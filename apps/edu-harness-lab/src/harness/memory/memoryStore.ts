@@ -14,6 +14,8 @@ export function createMemoryStore(seeds: Seed[]): MemoryStore {
   const subs = new Set<() => void>()
   let snapshot: MemoryRecord[] = []
   const deleted = new Set<string>()
+  /** Seeds in the current prompt language (same keys in every language). */
+  let currentSeeds = seeds
 
   const refresh = () => {
     snapshot = [...records.values()]
@@ -24,7 +26,7 @@ export function createMemoryStore(seeds: Seed[]): MemoryStore {
   }
 
   const addSeeds = () => {
-    for (const s of seeds) {
+    for (const s of currentSeeds) {
       const id = `seed-${s.key}`
       records.set(id, { ...s, scope: 'persistent', id, createdAt })
     }
@@ -82,7 +84,18 @@ export function createMemoryStore(seeds: Seed[]): MemoryStore {
       records.clear()
       void clearMemory()
       addSeeds()
-      for (const s of seeds) deleted.delete(`seed-${s.key}`)
+      for (const s of currentSeeds) deleted.delete(`seed-${s.key}`)
+      notify()
+    },
+    localizeSeeds(next) {
+      // Same facts in another language: rewrite the seed records in place (ids, deletions and
+      // the user's own records are untouched).
+      currentSeeds = next
+      for (const s of next) {
+        const id = `seed-${s.key}`
+        const rec = records.get(id)
+        if (rec) records.set(id, { ...rec, ...s, scope: 'persistent', id, createdAt: rec.createdAt })
+      }
       notify()
     },
     subscribe(cb): Disposer {

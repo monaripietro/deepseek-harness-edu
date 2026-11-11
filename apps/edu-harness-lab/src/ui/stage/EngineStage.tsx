@@ -4,6 +4,7 @@ import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, use
 import { Cpu, GitBranch, ListOrdered, Maximize2, Repeat, ZoomIn, ZoomOut } from 'lucide-react'
 import type { ComponentId, TraceEvent } from '../../domain/types'
 import { EVENT_PACE_MS } from '../../harness/events'
+import { useT } from '../../i18n'
 import { useLab } from '../../state/store'
 import { EVENT_LABEL } from '../common/labels'
 import { Tabs, tabId } from '../common/Tabs'
@@ -170,6 +171,7 @@ interface MinimapProps {
 }
 
 function Minimap({ view, bbox, layout }: MinimapProps) {
+  const t = useT()
   const W = 200
   const H = (W * bbox.h) / bbox.w
   const k = W / bbox.w
@@ -189,7 +191,7 @@ function Minimap({ view, bbox, layout }: MinimapProps) {
     <div
       className={styles.minimap}
       data-zoom
-      title="Panoramica: clicca o trascina per spostarti"
+      title={t('Panoramica: clicca o trascina per spostarti', 'Overview: click or drag to move around')}
       onPointerDown={(e) => {
         drag.current = true
         e.currentTarget.setPointerCapture(e.pointerId)
@@ -224,10 +226,11 @@ function Minimap({ view, bbox, layout }: MinimapProps) {
  * playback incl. step-by-step, and the page-level actions passed by the app).
  */
 export function EngineStage({ onApprovalDetails, actions }: { onApprovalDetails: () => void; actions?: ReactNode }) {
+  const t = useT()
   const [mode, setMode] = useState<'flow' | 'map'>('map')
   const stage = useStage()
   return (
-    <section className={layout.stage} aria-label="Come funziona il sistema">
+    <section className={layout.stage} aria-label={t('Come funziona il sistema', 'How the system works')}>
       <StageHud stage={stage} onApprovalDetails={onApprovalDetails} />
       <div id="engine-view-panel" role="tabpanel" aria-labelledby={tabId('engine-view', mode)} className={layout.content}>
         {mode === 'flow' ? <FlowOverview onApprovalDetails={onApprovalDetails} /> : <DetailedEngineStage onApprovalDetails={onApprovalDetails} />}
@@ -236,12 +239,12 @@ export function EngineStage({ onApprovalDetails, actions }: { onApprovalDetails:
         <div className={chrome.barStart}>
           <Tabs
             tabs={[
-              { id: 'map', label: 'Mappa', icon: <GitBranch size={15} aria-hidden /> },
-              { id: 'flow', label: 'Flusso', icon: <ListOrdered size={15} aria-hidden /> },
+              { id: 'map', label: t('Mappa', 'Map'), icon: <GitBranch size={15} aria-hidden /> },
+              { id: 'flow', label: t('Flusso', 'Flow'), icon: <ListOrdered size={15} aria-hidden /> },
             ]}
             value={mode}
             onChange={setMode}
-            ariaLabel="Visualizzazione del sistema"
+            ariaLabel={t('Visualizzazione del sistema', 'System view')}
             idBase="engine-view"
           />
         </div>
@@ -253,6 +256,7 @@ export function EngineStage({ onApprovalDetails, actions }: { onApprovalDetails:
 }
 
 function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => void }) {
+  const t = useT()
   const events = useLab(s => s.events)
   const config = useLab(s => s.config)
   const speed = useLab(s => s.speed)
@@ -458,7 +462,7 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
       className={styles.viewport}
       ref={viewportRef}
       tabIndex={0}
-      aria-label="Mappa del sistema: trascina per spostarti, rotella o + e − per lo zoom, frecce per muoverti, 0 o 1 per vederla tutta"
+      aria-label={t('Mappa del sistema: trascina per spostarti, rotella o + e − per lo zoom, frecce per muoverti, 0 o 1 per vederla tutta', 'System map: drag to move, mouse wheel or + and − to zoom, arrow keys to move, 0 or 1 to see it all')}
       onKeyDown={(e) => {
         setHint(false)
         onKeyDown(e)
@@ -498,10 +502,10 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
           <rect x="-4000" y="-4000" width={worldW + 8000} height={worldH + 8000} fill="url(#dots)" />
           <rect className={styles.boundary} x={layout.boundary.x} y={layout.boundary.y} width={layout.boundary.w} height={layout.boundary.h} rx="28" />
           <text className={styles.boundaryLabel} x={layout.boundary.x + 26} y={layout.boundary.y - 14}>
-            IL TUO BROWSER · tutto ciò che sta qui dentro gira sul tuo computer
+            {t('IL TUO BROWSER · tutto ciò che sta qui dentro gira sul tuo computer', 'YOUR BROWSER · everything inside here runs on your computer')}
           </text>
           <text className={styles.colLabel} style={{ fontSize: 15 }} x={layout.rects.mcp.x + 4} y={layout.rects.mcp.y - 16}>
-            SERVIZI ESTERNI
+            {t('SERVIZI ESTERNI', 'EXTERNAL SERVICES')}
           </text>
           {layout.labels.map(l => (
             <text key={l.text} className={styles.colLabel} x={l.x} y={l.y}>
@@ -604,20 +608,20 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
         {/* What is happening is told once, by the "Adesso" strip above: here only the first-use hint. */}
         <p className={styles.liveCaption} aria-hidden>
           {hint && !running && !stage.runId && (
-            <span className={styles.hintText}>Passa sopra un elemento per ingrandirlo · clic per i dettagli</span>
+            <span className={styles.hintText}>{t('Passa sopra un elemento per ingrandirlo · clic per i dettagli', 'Hover over an element to enlarge it · click for details')}</span>
           )}
         </p>
-        <div className={styles.zoomBar} data-zoom role="toolbar" aria-label="Zoom della vista">
-          <button type="button" onClick={() =>{  view.zoomAt(view.zoom / 1.25) }} aria-label="Allontana" title="Allontana (−)">
+        <div className={styles.zoomBar} data-zoom role="toolbar" aria-label={t('Zoom della vista', 'Zoom the view')}>
+          <button type="button" onClick={() =>{  view.zoomAt(view.zoom / 1.25) }} aria-label={t('Allontana', 'Zoom out')} title={t('Allontana (−)', 'Zoom out (−)')}>
             <ZoomOut size={15} />
           </button>
-          <button type="button" className={styles.zoomPct} onClick={view.home} title="Inquadra tutta la mappa (1)">
+          <button type="button" className={styles.zoomPct} onClick={view.home} title={t('Inquadra tutta la mappa (1)', 'Fit the whole map (1)')}>
             {view.pct}%
           </button>
-          <button type="button" onClick={() =>{  view.zoomAt(view.zoom * 1.25) }} aria-label="Avvicina" title="Avvicina (+)">
+          <button type="button" onClick={() =>{  view.zoomAt(view.zoom * 1.25) }} aria-label={t('Avvicina', 'Zoom in')} title={t('Avvicina (+)', 'Zoom in (+)')}>
             <ZoomIn size={15} />
           </button>
-          <button type="button" onClick={view.showAll} aria-label="Mostra tutta la mappa" title="Mostra tutta la mappa (0)">
+          <button type="button" onClick={view.showAll} aria-label={t('Mostra tutta la mappa', 'Show the whole map')} title={t('Mostra tutta la mappa (0)', 'Show the whole map (0)')}>
             <Maximize2 size={14} />
           </button>
         </div>
@@ -634,13 +638,16 @@ function DetailedEngineStage({ onApprovalDetails }: { onApprovalDetails: () => v
 }
 
 function ModelCore({ stage, lit, selected }: { stage: StageState; lit: boolean; selected: boolean }) {
+  const t = useT()
   const info = useLab(s => s.modelInfo)
   const streaming = useLab(s => s.streamingText)
   const toggle = useStageUi(s => s.toggle)
   const busy = stage.modelBusy
   const activity = useLab(s => s.modelActivity)
   const tail = streaming.slice(-54)
-  const coreNote = activity?.kind === 'thinking' ? `ragiona…${activity.tokens ? ` ${activity.tokens} token` : ''}` : tail || 'sta leggendo…'
+  const coreNote = activity?.kind === 'thinking'
+    ? `${t('ragiona…', 'thinking…')}${activity.tokens ? ` ${activity.tokens} token` : ''}`
+    : tail || t('sta leggendo…', 'reading…')
   return (
     <>
       <motion.button
@@ -650,12 +657,12 @@ function ModelCore({ stage, lit, selected }: { stage: StageState; lit: boolean; 
         style={{ left: CORE.cx - CORE.r, top: CORE.cy - CORE.r, width: CORE.r * 2, height: CORE.r * 2 }}
         animate={busy ? { scale: [1, 1.035, 1] } : { scale: 1 }}
         transition={busy ? { duration: 1.6, repeat: Infinity, ease: 'easeInOut' } : { duration: 0.3 }}
-        aria-label={`Modello linguistico: ${info.label}. ${busy ? 'Sta lavorando.' : 'In attesa.'} Apri i dettagli.`}
+        aria-label={`${t('Modello linguistico', 'Language model')}: ${info.label}. ${busy ? t('Sta lavorando.', 'Working.') : t('In attesa.', 'Waiting.')} ${t('Apri i dettagli.', 'Open details.')}`}
         aria-pressed={selected}
         onClick={() =>{  toggle('model') }}
       >
         <Cpu size={34} aria-hidden className={styles.coreIcon} />
-        <span className={styles.coreTitle}>MODELLO</span>
+        <span className={styles.coreTitle}>{t('MODELLO', 'MODEL')}</span>
         <span className={styles.coreName}>{info.label.replace(/\s*\(.*\)$/, '')}</span>
         <AnimatePresence>
           {busy && (
@@ -666,7 +673,7 @@ function ModelCore({ stage, lit, selected }: { stage: StageState; lit: boolean; 
         </AnimatePresence>
       </motion.button>
       <div className={styles.fingerprint} style={{ left: CORE.cx, top: CORE.cy + CORE.r + 34 }}>
-        pesi <span>{info.fingerprint}</span> invariati · {stage.modelCalls} {stage.modelCalls === 1 ? 'chiamata' : 'chiamate'}
+        {t('pesi', 'weights')} <span>{info.fingerprint}</span> {t('invariati', 'unchanged')} · {stage.modelCalls} {stage.modelCalls === 1 ? t('chiamata', 'call') : t('chiamate', 'calls')}
       </div>
     </>
   )
@@ -697,6 +704,7 @@ const localArc = (from: number, to: number, gap = 11) => {
  * The arc from "observe" back to "read" is the agent loop itself: dashed when there is only one round.
  */
 function AgentLoop({ stage, selected }: { stage: StageState; selected: boolean }) {
+  const t = useT()
   const c = useLab(s => s.config.components)
   const maxSteps = useLab(s => s.config.limits.maxSteps)
   const streaming = useLab(s => s.streamingText.length > 0)
@@ -798,10 +806,10 @@ function AgentLoop({ stage, selected }: { stage: StageState; selected: boolean }
         <div className={`${styles.loopBack} ${loop ? styles.loopBackOn : ''}`} style={{ left: RING.cx, top: RING.cy + RING.r }}>
           {loop ? (
             <>
-              <Repeat size={13} aria-hidden /> ripete finché serve
+              <Repeat size={13} aria-hidden /> {t('ripete finché serve', 'repeats while needed')}
             </>
           ) : (
-            'un solo giro, poi risponde'
+            t('un solo giro, poi risponde', 'one round, then it answers')
           )}
         </div>
       )}
@@ -817,24 +825,24 @@ function AgentLoop({ stage, selected }: { stage: StageState; selected: boolean }
           initial={{ scale: 0.9 }}
           animate={{ scale: 1 }}
           aria-pressed={selected}
-          aria-label="Orchestratore e ciclo agentico: apri i dettagli"
+          aria-label={t('Orchestratore e ciclo agentico: apri i dettagli', 'Orchestrator and agent loop: open details')}
           onClick={() =>{  toggle('orchestrator') }}
         >
           <span className={styles.ringPillHead}>
             <Repeat size={14} aria-hidden />
-            <strong>{loop ? 'CICLO AGENTICO' : 'ORCHESTRATORE'}</strong>
+            <strong>{loop ? t('CICLO AGENTICO', 'AGENT LOOP') : t('ORCHESTRATORE', 'ORCHESTRATOR')}</strong>
             {stage.step > 0 && (
               <em>
-                giro {stage.step}
+                {t('giro', 'round')} {stage.step}
                 {loop ? `/${c.controls ? maxSteps : '∞'}` : ''}
               </em>
             )}
           </span>
-          <span className={styles.ringPhase}>{stage.running ? PHASE_LABEL[stage.phase] : loop ? 'pronto a ripetere' : 'esegue un solo giro'}</span>
+          <span className={styles.ringPhase}>{stage.running ? PHASE_LABEL[stage.phase] : loop ? t('pronto a ripetere', 'ready to repeat') : t('esegue un solo giro', 'runs one round')}</span>
         </motion.button>
       ) : (
         <div className={styles.ringGhostLabel} style={{ left: RING.cx, top: RING.cy - RING.r }}>
-          Ciclo agentico · {orchLevel ? `arriva al livello ${orchLevel}` : 'da costruire'}
+          {t('Ciclo agentico', 'Agent loop')} · {orchLevel ? `${t('arriva al livello', 'arrives at level')} ${orchLevel}` : t('da costruire', 'to be built')}
         </div>
       )}
     </>

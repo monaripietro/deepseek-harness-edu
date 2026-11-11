@@ -5,6 +5,7 @@ import { REAL_LOCAL } from '../../domain/types'
 import { createEventBus } from '../../harness/events'
 import { NOT_LOADED_INFO } from '../../runtime/model/profiles'
 import { useLab } from '../../state/store'
+import { useUiLang } from '../../i18n'
 import { ReflectionTrace } from './ReflectionTrace'
 
 const originalState = useLab.getState()
@@ -72,6 +73,18 @@ describe('ReflectionTrace', () => {
     act(() =>{  useLab.setState({ runs: [] }) })
     view.rerender(<ReflectionTrace record={saved} />)
     expect(screen.getByText('2 passaggi')).not.toBeNull()
+  })
+
+  it('switches to English with the interface language', () => {
+    useUiLang.setState({ lang: 'en' })
+    try {
+      useLab.setState({ runs: [record()], currentRunId: 'recorded-reflections' })
+      render(<ReflectionTrace runId="recorded-reflections" />)
+      expect(screen.getByText('Loop reflections')).not.toBeNull()
+      expect(screen.getByText('2 passes')).not.toBeNull()
+    } finally {
+      useUiLang.setState({ lang: 'it' })
+    }
   })
 
   it('renders nothing before the first reflection and never borrows another run', () => {

@@ -128,6 +128,10 @@
   white-space: nowrap;
 }
 
+.lang {
+  margin-left: var(--sp-1);
+}
+
 .credits {
   display: flex;
   flex: none;

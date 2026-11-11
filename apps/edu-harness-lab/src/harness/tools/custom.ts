@@ -1,6 +1,7 @@
 import type { CustomToolSpec, JSONSchema, ToolDefinition, ToolOutcome } from '../../domain/types'
 import { SIMULATED_LOCAL } from '../../domain/types'
 import { argumentText, t } from './lang'
+import { tr } from '../../i18n'
 
 function fillTemplate(tpl: string, args: Record<string, unknown>): string {
   return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g, (_m, name: string) => {
@@ -24,7 +25,9 @@ export function toolFromSpec(spec: CustomToolSpec): ToolDefinition {
     description: spec.description,
     purpose: spec.purpose,
     inputSchema,
-    output: 'Testo generato dal modello di risposta definito per questo strumento.',
+    get output() {
+      return tr('Testo generato dal modello di risposta definito per questo strumento.', 'Text generated from the answer template defined for this tool.')
+    },
     permissions: spec.permissions,
     risk: spec.risk,
     approval: spec.approval,

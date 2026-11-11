@@ -6,22 +6,27 @@ import { retriever, useLab } from '../../state/store'
 import { DEFAULT_RAG } from '../../harness/levels'
 import { requestFor } from '../../scenarios'
 import { EXCLUSION_LABEL } from '../common/labels'
+import { useT } from '../../i18n'
 import styles from './RagLab.module.css'
 import lab from './lab.module.css'
 
-function docStatus(d: PolicyDoc): { label: string; cls: string } {
-  if (d.userAdded) return { label: 'Aggiunto da te', cls: styles.stUser ?? '' }
-  if (d.status === 'valid') return { label: 'Valido', cls: styles.stValid ?? '' }
-  if (d.status === 'outdated') return { label: 'Superato', cls: styles.stOld ?? '' }
-  return { label: 'Irrilevante', cls: styles.stOff ?? '' }
+type T = (it: string, en: string) => string
+
+function docStatus(d: PolicyDoc, t: T): { label: string; cls: string } {
+  if (d.userAdded) return { label: t('Aggiunto da te', 'Added by you'), cls: styles.stUser ?? '' }
+  if (d.status === 'valid') return { label: t('Valido', 'Valid'), cls: styles.stValid ?? '' }
+  if (d.status === 'outdated') return { label: t('Superato', 'Outdated'), cls: styles.stOld ?? '' }
+  return { label: t('Irrilevante', 'Irrelevant'), cls: styles.stOff ?? '' }
 }
 
 function Status({ doc }: { doc: PolicyDoc }) {
-  const s = docStatus(doc)
+  const t = useT()
+  const s = docStatus(doc, t)
   return <span className={`${styles.status} ${s.cls}`}>{s.label}</span>
 }
 
 export function RagLab() {
+  const t = useT()
   const rag = useLab(s => s.config.rag)
   const ragOn = useLab(s => s.config.components.rag)
   const updateConfig = useLab(s => s.updateConfig)
@@ -75,47 +80,49 @@ export function RagLab() {
   return (
     <div>
       <div className={lab.spread}>
-        <h2 className={lab.h2}>Documenti aziendali (RAG)</h2>
-        <span className={lab.chip}>Deterministica (BM25) · LOCALE</span>
+        <h2 className={lab.h2}>{t('Documenti aziendali (RAG)', 'Company documents (RAG)')}</h2>
+        <span className={lab.chip}>{t('Deterministica (BM25) · LOCALE', 'Deterministic (BM25) · LOCAL')}</span>
       </div>
       <p className={lab.intro}>
-        Il sistema cerca nei documenti i frammenti più pertinenti alla richiesta e li mette davanti al modello.
-        Prova tu: cambia la domanda e le impostazioni e guarda cosa entra e cosa resta fuori.
+        {t(
+          'Il sistema cerca nei documenti i frammenti più pertinenti alla richiesta e li mette davanti al modello. Prova tu: cambia la domanda e le impostazioni e guarda cosa entra e cosa resta fuori.',
+          'The system searches the documents for the fragments most relevant to the request and puts them in front of the model. Try it yourself: change the question and the settings and see what gets in and what stays out.',
+        )}
       </p>
       <div className={lab.callout} style={{ marginBottom: 'var(--sp-6)' }}>
         <Search size={20} aria-hidden />
-        <strong>La RAG recupera informazioni. Non compie automaticamente un’azione nel mondo esterno.</strong>
+        <strong>{t('La RAG recupera informazioni. Non compie automaticamente un’azione nel mondo esterno.', 'RAG retrieves information. It does not automatically take any action in the outside world.')}</strong>
       </div>
-      {!ragOn && <div className={`${lab.callout} ${lab.warn}`} style={{ marginBottom: 'var(--sp-5)' }}>Il componente Conoscenza (RAG) è spento: il modello non riceve questi frammenti. Questa ricerca è solo un’anteprima.</div>}
+      {!ragOn && <div className={`${lab.callout} ${lab.warn}`} style={{ marginBottom: 'var(--sp-5)' }}>{t('Il componente Conoscenza (RAG) è spento: il modello non riceve questi frammenti. Questa ricerca è solo un’anteprima.', 'The Knowledge (RAG) component is off: the model does not receive these fragments. This search is only a preview.')}</div>}
 
       <section className={lab.section} aria-labelledby="rag-docs">
-        <h3 id="rag-docs" className={lab.h3}>Documenti ({docs.length})</h3>
+        <h3 id="rag-docs" className={lab.h3}>{t('Documenti', 'Documents')} ({docs.length})</h3>
         <div className={lab.cards}>
           {docs.map(d => (
-            <button key={d.id} className={`${lab.card} ${lab.cardBtn}`} onClick={(e) => { openReader(d, e.currentTarget) }} aria-label={`Leggi ${d.title}`}>
+            <button key={d.id} className={`${lab.card} ${lab.cardBtn}`} onClick={(e) => { openReader(d, e.currentTarget) }} aria-label={`${t('Leggi', 'Read')} ${d.title}`}>
               <div className={lab.spread}><code className={lab.mono}>{d.id}</code><Status doc={d} /></div>
               <strong>{d.title}</strong>
-              <span className={lab.muted}>{d.category} · versione {d.version}{d.validFrom ? ` · dal ${d.validFrom}` : ''}</span>
+              <span className={lab.muted}>{d.category} · {t('versione', 'version')} {d.version}{d.validFrom ? ` · ${t('dal', 'from')} ${d.validFrom}` : ''}</span>
             </button>
           ))}
         </div>
       </section>
 
       <section className={lab.section} aria-labelledby="rag-search">
-        <h3 id="rag-search" className={lab.h3}>Ricerca dal vivo</h3>
-        <label className={lab.label}>Domanda
+        <h3 id="rag-search" className={lab.h3}>{t('Ricerca dal vivo', 'Live search')}</h3>
+        <label className={lab.label}>{t('Domanda', 'Question')}
           <input className={lab.input} value={query} onChange={(e) =>{  setQuery(e.target.value) }} />
         </label>
         <div className={styles.controls}>
-          <label className={lab.label}>Frammenti massimi (topK): {rag.topK}
+          <label className={lab.label}>{t('Frammenti massimi (topK):', 'Maximum fragments (topK):')} {rag.topK}
             <input type="range" min={1} max={8} step={1} value={rag.topK} onChange={(e) =>{  patch({ topK: Number(e.target.value) }) }} />
           </label>
-          <label className={lab.label}>Punteggio minimo: {rag.minScore.toFixed(2)}
+          <label className={lab.label}>{t('Punteggio minimo:', 'Minimum score:')} {rag.minScore.toFixed(2)}
             <input type="range" min={0} max={1} step={0.05} value={rag.minScore} onChange={(e) =>{  patch({ minScore: Number(e.target.value) }) }} />
           </label>
-          <label className={lab.check}><input type="checkbox" checked={rag.includeOutdated} onChange={(e) =>{  patch({ includeOutdated: e.target.checked }) }} />Includi versioni superate</label>
-          <label className={lab.check}><input type="checkbox" checked={rag.includeDistractors} onChange={(e) =>{  patch({ includeDistractors: e.target.checked }) }} />Includi documenti irrilevanti</label>
-          <button className={`${lab.btn} ${lab.sm}`} onClick={() =>{  patch({ ...DEFAULT_RAG }) }}><RotateCcw size={14} aria-hidden /> Ripristina</button>
+          <label className={lab.check}><input type="checkbox" checked={rag.includeOutdated} onChange={(e) =>{  patch({ includeOutdated: e.target.checked }) }} />{t('Includi versioni superate', 'Include outdated versions')}</label>
+          <label className={lab.check}><input type="checkbox" checked={rag.includeDistractors} onChange={(e) =>{  patch({ includeDistractors: e.target.checked }) }} />{t('Includi documenti irrilevanti', 'Include irrelevant documents')}</label>
+          <button className={`${lab.btn} ${lab.sm}`} onClick={() =>{  patch({ ...DEFAULT_RAG }) }}><RotateCcw size={14} aria-hidden /> {t('Ripristina', 'Reset')}</button>
         </div>
 
         <ol className={styles.hits} aria-live="polite">
@@ -126,7 +133,7 @@ export function RagLab() {
               return (
                 <motion.li key={h.chunk.id} layout={!reduce} className={`${styles.hit} ${h.status === 'excluded' ? styles.hitOut : ''}`}
                   initial={reduce ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                  <div className={styles.bar} role="img" aria-label={`Punteggio normalizzato ${(h.normalized * 100).toFixed(0)} su 100`}>
+                  <div className={styles.bar} role="img" aria-label={`${t('Punteggio normalizzato', 'Normalized score')} ${(h.normalized * 100).toFixed(0)} ${t('su 100', 'out of 100')}`}>
                     <motion.span className={styles.fill} initial={{ width: 0 }} animate={{ width: `${Math.max(2, h.normalized * 100)}%` }} transition={{ duration: reduce ? 0 : 0.5, ease: [0.22, 1, 0.36, 1] }} />
                   </div>
                   <div className={styles.hitBody}>
@@ -134,7 +141,7 @@ export function RagLab() {
                       <strong>{h.chunk.heading || h.doc.title}</strong>
                       <code className={lab.mono}>{h.doc.id}</code>
                       <Status doc={h.doc} />
-                      <span className={`${lab.chip} ${h.status === 'selected' ? lab.chipOk : ''}`}>{h.status === 'selected' ? 'Selezionato' : 'Escluso'}</span>
+                      <span className={`${lab.chip} ${h.status === 'selected' ? lab.chipOk : ''}`}>{h.status === 'selected' ? t('Selezionato', 'Selected') : t('Escluso', 'Excluded')}</span>
                       <span className={`${lab.mono} ${lab.muted}`}>{h.normalized.toFixed(2)}</span>
                     </div>
                     {h.reason && <div className={lab.muted}>{EXCLUSION_LABEL[h.reason]}</div>}
@@ -142,34 +149,34 @@ export function RagLab() {
                   </div>
                   <div className={styles.hitActions}>
                     <button className={`${lab.btn} ${lab.sm} ${pinned ? lab.primary : ''}`} aria-pressed={pinned} onClick={() =>{  toggleList('pinnedChunkIds', 'excludedChunkIds', h.chunk.id) }}>
-                      {pinned ? <PinOff size={14} aria-hidden /> : <Pin size={14} aria-hidden />}{pinned ? 'Sblocca' : 'Fissa'}
+                      {pinned ? <PinOff size={14} aria-hidden /> : <Pin size={14} aria-hidden />}{pinned ? t('Sblocca', 'Unpin') : t('Fissa', 'Pin')}
                     </button>
                     <button className={`${lab.btn} ${lab.sm} ${excluded ? lab.danger : ''}`} aria-pressed={excluded} onClick={() =>{  toggleList('excludedChunkIds', 'pinnedChunkIds', h.chunk.id) }}>
-                      <Ban size={14} aria-hidden />{excluded ? 'Riammetti' : 'Escludi'}
+                      <Ban size={14} aria-hidden />{excluded ? t('Riammetti', 'Re-include') : t('Escludi', 'Exclude')}
                     </button>
                   </div>
                 </motion.li>
               )
             })}
           </AnimatePresence>
-          {hits.length === 0 && <li className={lab.muted}>Nessun frammento trovato per questa domanda.</li>}
+          {hits.length === 0 && <li className={lab.muted}>{t('Nessun frammento trovato per questa domanda.', 'No fragment found for this question.')}</li>}
         </ol>
       </section>
 
       <section className={lab.section} aria-labelledby="rag-add">
         <form className={lab.card} onSubmit={addDoc}>
-          <h3 id="rag-add" className={lab.h3}><FilePlus2 size={20} aria-hidden /> Aggiungi un documento</h3>
+          <h3 id="rag-add" className={lab.h3}><FilePlus2 size={20} aria-hidden /> {t('Aggiungi un documento', 'Add a document')}</h3>
           <label className={lab.label}>
-            Titolo<input className={lab.input} value={title} onChange={(e) => { setTitle(e.target.value) }} />
+            {t('Titolo', 'Title')}<input className={lab.input} value={title} onChange={(e) => { setTitle(e.target.value) }} />
           </label>
-          <label className={lab.label}>Testo
+          <label className={lab.label}>{t('Testo', 'Text')}
             <textarea className={lab.textarea} value={text} onChange={(e) =>{  setText(e.target.value) }} />
           </label>
           <div className={lab.row}>
-            <button className={`${lab.btn} ${lab.primary}`} type="submit" disabled={!title.trim() || !text.trim()}>Aggiungi</button>
+            <button className={`${lab.btn} ${lab.primary}`} type="submit" disabled={!title.trim() || !text.trim()}>{t('Aggiungi', 'Add')}</button>
             {docs.filter(d => d.userAdded).map(d => (
               <button key={d.id} type="button" className={`${lab.btn} ${lab.danger} ${lab.sm}`} onClick={() => { retriever.removeDocument(d.id); setVersion(v => v + 1) }}>
-                <Trash2 size={14} aria-hidden /> Rimuovi {d.id}
+                <Trash2 size={14} aria-hidden /> {t('Rimuovi', 'Remove')} {d.id}
               </button>
             ))}
           </div>
@@ -183,10 +190,10 @@ export function RagLab() {
             <div className={styles.readerCard}>
               <div className={lab.spread}>
                 <div className={lab.row}><code className={lab.mono}>{reading.id}</code><Status doc={reading} /></div>
-                <button className={lab.btn} autoFocus onClick={closeReader} aria-label="Chiudi il documento"><X size={16} aria-hidden /></button>
+                <button className={lab.btn} autoFocus onClick={closeReader} aria-label={t('Chiudi il documento', 'Close the document')}><X size={16} aria-hidden /></button>
               </div>
               <h3 className={lab.h2}>{reading.title}</h3>
-              <p className={lab.muted}>{reading.category} · versione {reading.version}</p>
+              <p className={lab.muted}>{reading.category} · {t('versione', 'version')} {reading.version}</p>
               <div className={styles.fullText}>{reading.text}</div>
             </div>
           </motion.div>

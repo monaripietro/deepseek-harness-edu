@@ -14,6 +14,7 @@ import type {
 } from '../../domain/types'
 import { LocalizedError, errorText, t as inLang } from '../tools/lang'
 import { MCP_SERVERS } from './allowlist'
+import { tr } from '../../i18n'
 import { createHttpTransport } from './httpClient'
 import type { McpTransport } from './simulatedServer'
 import { createSimulatedMcpTransport } from './simulatedServer'
@@ -234,9 +235,14 @@ export function createMcpHub(deps: McpHubDeps): McpHub {
           id: `mcp__${sanitizeId(s.desc.id)}__${sanitizeId(t.name)}`,
           title: t.title || t.name,
           description: `[MCP ${s.desc.label}] ${t.description}`,
-          purpose: `Strumento esposto dal server MCP "${s.desc.label}", scoperto con tools/list.`,
+          // People-facing texts follow the interface language when they are read.
+          get purpose() {
+            return tr(`Strumento esposto dal server MCP "${s.desc.label}", scoperto con tools/list.`, `Tool exposed by the MCP server "${s.desc.label}", discovered with tools/list.`)
+          },
           inputSchema: t.inputSchema,
-          output: 'Testo restituito dal server MCP.',
+          get output() {
+            return tr('Testo restituito dal server MCP.', 'Text returned by the MCP server.')
+          },
           permissions: ['network:mcp'],
           risk: 'read',
           approval: simulated ? 'never' : 'always',

@@ -175,3 +175,27 @@ describe('guided path length per scenario', () => {
     expect(useLab.getState().config).toBe(config)
   })
 })
+
+describe('prompt language and model-facing data', () => {
+  it('swaps the built-in documents and memory seeds when the model language changes', async () => {
+    const { retriever } = await import('./store')
+    const { scenarioDataFor } = await import('../scenarios')
+    function first<T>(items: readonly T[]): T {
+      const item = items[0]
+      if (item === undefined) throw new Error('no built-in item')
+      return item
+    }
+    const docTitle = (lang: 'it' | 'en') => first(scenarioDataFor(lang).documents)
+    const seed = (lang: 'it' | 'en') => first(scenarioDataFor(lang).memorySeeds)
+    try {
+      useLab.getState().setPromptLanguage('en')
+      expect(retriever.documents().find(d => d.id === docTitle('en').id)?.title).toBe(docTitle('en').title)
+      expect(memory.list().find(m => m.key === seed('en').key)?.text).toBe(seed('en').text)
+      useLab.getState().setPromptLanguage('it')
+      expect(retriever.documents().find(d => d.id === docTitle('it').id)?.title).toBe(docTitle('it').title)
+      expect(memory.list().find(m => m.key === seed('it').key)?.text).toBe(seed('it').text)
+    } finally {
+      useLab.getState().setPromptLanguage('it')
+    }
+  })
+})

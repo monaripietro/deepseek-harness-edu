@@ -19,6 +19,7 @@ import { SCENARIOS } from './scenarios'
 import { lastLevelOf } from './harness/levels'
 import { Tabs, tabId } from './ui/common/Tabs'
 import { RunPanel } from './ui/stage/RunPanel'
+import { useT } from './i18n'
 import styles from './App.module.css'
 
 const DRAWER_KEY = 'harness-lab:drawer-width'
@@ -40,6 +41,7 @@ function isShortcutControl(target: EventTarget | null) {
 }
 
 export function App() {
+  const t = useT()
   const theme = useLab(s => s.theme)
   const presentation = useLab(s => s.presentation)
   const welcomeDone = useLab(s => s.welcomeDone)
@@ -216,10 +218,12 @@ export function App() {
                             className={`${styles.stageAction} ${focus ? styles.stageActionOn : ''}`}
                             aria-pressed={focus}
                             onClick={toggleFocus}
-                            title={focus ? 'Esci dallo schermo intero (Esc)' : 'Mappa a schermo intero'}
+                            title={focus
+                              ? t('Esci dallo schermo intero (Esc)', 'Exit full screen (Esc)')
+                              : t('Mappa a schermo intero', 'Map in full screen')}
                           >
                             {focus ? <Minimize size={16} aria-hidden /> : <Maximize size={16} aria-hidden />}
-                            <span>{focus ? 'Esci' : 'Schermo intero'}</span>
+                            <span>{focus ? t('Esci', 'Exit') : t('Schermo intero', 'Full screen')}</span>
                           </button>
                           <button
                             type="button"
@@ -229,23 +233,31 @@ export function App() {
                             onClick={() =>{  setDrawerOpen(open => !open) }}
                           >
                             {drawerOpen ? <PanelRightClose size={16} aria-hidden /> : <PanelRightOpen size={16} aria-hidden />}
-                            <span>{drawerOpen ? 'Chiudi pannello' : 'Prova e racconto'}</span>
+                            <span>{drawerOpen ? t('Chiudi pannello', 'Close panel') : t('Prova e racconto', 'Try and explain')}</span>
                           </button>
                         </>
                       }
                     />
                   </div>
-                  <aside id="workspace-drawer" className={styles.narrationWrap} aria-label="Prova e spiegazione" hidden={!drawerOpen}>
+                  <aside
+                    id="workspace-drawer"
+                    className={styles.narrationWrap}
+                    aria-label={t('Prova e spiegazione', 'Try and explain')}
+                    hidden={!drawerOpen}
+                  >
                     <div
                       className={styles.resizer}
                       role="separator"
                       aria-orientation="vertical"
-                      aria-label="Larghezza del pannello: trascina o usa le frecce"
+                      aria-label={t('Larghezza del pannello: trascina o usa le frecce', 'Panel width: drag or use the arrow keys')}
                       aria-valuemin={DRAWER_MIN}
                       aria-valuemax={drawerMax()}
                       aria-valuenow={drawerW}
                       tabIndex={0}
-                      title="Trascina per allargare o restringere · doppio clic: larghezza iniziale"
+                      title={t(
+                        'Trascina per allargare o restringere · doppio clic: larghezza iniziale',
+                        'Drag to widen or narrow · double-click: default width',
+                      )}
                       onPointerDown={(e) => {
                         if (e.button !== 0) return
                         e.preventDefault()
@@ -285,15 +297,15 @@ export function App() {
                     <div className={styles.sideTabs}>
                       <Tabs
                         tabs={[
-                          { id: 'run', label: 'Prova', icon: <MessageSquare size={16} aria-hidden /> },
-                          { id: 'narration', label: 'Cosa succede', icon: <Radio size={16} aria-hidden /> },
+                          { id: 'run', label: t('Prova', 'Try'), icon: <MessageSquare size={16} aria-hidden /> },
+                          { id: 'narration', label: t('Cosa succede', 'What happens'), icon: <Radio size={16} aria-hidden /> },
                         ]}
                         value={asideTab}
                         onChange={setAsideTab}
-                        ariaLabel="Pannello del laboratorio"
+                        ariaLabel={t('Pannello del laboratorio', 'Lab panel')}
                         idBase="workspace"
                       />
-                      <button type="button" className={styles.drawerClose} onClick={() =>{  setDrawerOpen(false) }} aria-label="Chiudi il pannello" title="Chiudi il pannello">
+                      <button type="button" className={styles.drawerClose} onClick={() =>{  setDrawerOpen(false) }} aria-label={t('Chiudi il pannello', 'Close panel')} title={t('Chiudi il pannello', 'Close panel')}>
                         <X size={18} aria-hidden />
                       </button>
                     </div>

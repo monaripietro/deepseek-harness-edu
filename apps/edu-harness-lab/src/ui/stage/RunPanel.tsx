@@ -10,12 +10,14 @@ import { STOP_LABEL } from '../common/labels'
 import { Button } from '../common/Button'
 import { Markdown } from '../common/Markdown'
 import { ProvenanceBadge } from '../common/ProvenanceBadge'
+import { useT } from '../../i18n'
 import { sameRequest, sendModeFor } from './flowSteps'
 import { useRequestDraft } from './stageUi'
 import styles from './RunPanel.module.css'
 
 /** Sends requests through the selected scenario and renders the store-backed conversation. */
 export function RunPanel() {
+  const t = useT()
   const titleId = useId()
   const hintId = useId()
   const conversationId = useId()
@@ -47,25 +49,25 @@ export function RunPanel() {
   const reflectionReady = config.components.orchestrator && config.components.agentLoop && config.components.controls
   const modelReady = modelInfo.provenance.provenance === 'real'
   const modelLoading = ['checking', 'downloading', 'initializing'].includes(loadProgress.phase)
-  const modelError = loadProgress.phase === 'error' ? loadProgress.message || 'Non è stato possibile caricare il modello.' : null
+  const modelError = loadProgress.phase === 'error' ? loadProgress.message || t('Non è stato possibile caricare il modello.', 'The model could not be loaded.') : null
   const statusLabel =
     status === 'running'
-      ? 'In esecuzione'
+      ? t('In esecuzione', 'Running')
       : status === 'awaitingApproval'
-        ? 'In attesa di approvazione'
+        ? t('In attesa di approvazione', 'Waiting for approval')
         : status === 'error'
-          ? 'Errore'
+          ? t('Errore', 'Error')
           : status === 'done'
-            ? 'Completato'
+            ? t('Completato', 'Completed')
             : status === 'stopped'
-              ? 'Interrotto'
+              ? t('Interrotto', 'Stopped')
               : modelLoading
-                ? 'Modello in caricamento'
+                ? t('Modello in caricamento', 'Model loading')
                 : modelError
-                  ? 'Errore modello'
+                  ? t('Errore modello', 'Model error')
                   : modelReady
-                    ? 'Pronto'
-                    : 'Modello richiesto'
+                    ? t('Pronto', 'Ready')
+                    : t('Modello richiesto', 'Model needed')
   const statusTone = running || modelLoading ? styles.statusActive : status === 'error' || modelError ? styles.statusError : modelReady ? styles.statusReady : styles.statusMissing
 
   function submit() {
@@ -78,16 +80,20 @@ export function RunPanel() {
       <header className={styles.header}>
         <div className={styles.headText}>
           <h2 id={titleId} className={styles.title}>
-            Prova il sistema
+            {t('Prova il sistema', 'Try the system')}
           </h2>
           <p className={styles.meta}>
             <span className={styles.metaItem}>
               <Cpu size={14} aria-hidden />
-              {modelReady ? `Modello: ${modelInfo.label}` : modelLoading ? 'Il modello si sta caricando…' : 'Nessun modello avviato'}
+              {modelReady
+                ? t(`Modello: ${modelInfo.label}`, `Model: ${modelInfo.label}`)
+                : modelLoading
+                  ? t('Il modello si sta caricando…', 'The model is loading…')
+                  : t('Nessun modello avviato', 'No model started')}
             </span>
             <span className={styles.metaItem}>
               <FileText size={14} aria-hidden />
-              <span className={styles.scenarioLabel}>Scenario</span> <span className={styles.scenarioName}>{scenario.title}</span>
+              <span className={styles.scenarioLabel}>{t('Scenario', 'Scenario')}</span> <span className={styles.scenarioName}>{scenario.title}</span>
             </span>
           </p>
         </div>
@@ -97,15 +103,18 @@ export function RunPanel() {
       </header>
 
       {scenario.reflectionPrompt && (
-        <div className={styles.modelNote} aria-label="Come provare il ragionamento iterativo">
+        <div className={styles.modelNote} aria-label={t('Come provare il ragionamento iterativo', 'How to try iterative reasoning')}>
           <p className={styles.scenarioLesson}>{scenario.lesson}</p>
           {reflectionReady ? (
             <p className={styles.scenarioLesson}>
-              Bozza → riesame → correzione → risposta, senza strumenti. Limite configurato: {config.limits.maxSteps} passi.
+              {t(
+                `Bozza → riesame → correzione → risposta, senza strumenti. Limite configurato: ${config.limits.maxSteps} passi.`,
+                `Draft → review → correction → answer, without tools. Configured limit: ${config.limits.maxSteps} steps.`,
+              )}
             </p>
           ) : (
             <Button size="sm" variant="secondary" disabled={running} onClick={() =>{  setLevel(scenario.showcaseLevel) }}>
-              Attiva ciclo di riflessione e controlli
+              {t('Attiva ciclo di riflessione e controlli', 'Turn on the reflection loop and controls')}
             </Button>
           )}
         </div>
@@ -113,22 +122,25 @@ export function RunPanel() {
 
       {modelError ? (
         <p className={`${styles.modelNote} ${styles.modelError}`} role="alert">
-          Il modello non si è caricato: {modelError}
+          {t('Il modello non si è caricato: ', 'The model did not load: ')}
+          {modelError}
         </p>
       ) : (
         !modelReady &&
         !modelLoading && (
-          <p className={styles.modelNote}>Per eseguire una richiesta serve un modello reale. Premi Avvia per sceglierne uno.</p>
+          <p className={styles.modelNote}>
+            {t('Per eseguire una richiesta serve un modello reale. Premi Avvia per sceglierne uno.', 'To run a request you need a real model. Press Start to choose one.')}
+          </p>
         )
       )}
 
       <div className={styles.conversation} ref={conversationRef} aria-labelledby={conversationId}>
         <div className={styles.conversationHead}>
           <h3 id={conversationId} className={styles.conversationTitle}>
-            Conversazione
+            {t('Conversazione', 'Conversation')}
             {asked.length > 0 && (
               <span className={styles.turns}>
-                {asked.length} {asked.length === 1 ? 'domanda' : 'domande'}
+                {asked.length} {asked.length === 1 ? t('domanda', 'question') : t('domande', 'questions')}
               </span>
             )}
           </h3>
@@ -138,15 +150,21 @@ export function RunPanel() {
               variant="ghost"
               icon={<RotateCcw size={14} aria-hidden />}
               onClick={resetConversation}
-              title="Svuota conversazione, eventi e memoria di sessione: la prossima richiesta parte da zero"
+              title={t(
+                'Svuota conversazione, eventi e memoria di sessione: la prossima richiesta parte da zero',
+                'Empties the conversation, the events and the session memory: the next request starts from zero',
+              )}
             >
-              Nuova conversazione
+              {t('Nuova conversazione', 'New conversation')}
             </Button>
           )}
         </div>
         {chat.length === 0 ? (
           <p className={styles.empty}>
-            Nessuna prova ancora. Scrivi o modifica la richiesta qui sotto e premi Avvia: la risposta comparirà qui.
+            {t(
+              'Nessuna prova ancora. Scrivi o modifica la richiesta qui sotto e premi Avvia: la risposta comparirà qui.',
+              'No run yet. Write or edit the request below and press Start: the answer will appear here.',
+            )}
           </p>
         ) : (
           <ol className={styles.messages} aria-live="polite" aria-relevant="additions text">
@@ -165,7 +183,7 @@ export function RunPanel() {
         }}
       >
         <label className={styles.inputLabel} htmlFor={`${hintId}-input`}>
-          La tua richiesta
+          {t('La tua richiesta', 'Your request')}
         </label>
         <textarea
           id={`${hintId}-input`}
@@ -173,7 +191,7 @@ export function RunPanel() {
           value={draft}
           disabled={running}
           aria-describedby={hintId}
-          placeholder="Scrivi una richiesta…"
+          placeholder={t('Scrivi una richiesta…', 'Write a request…')}
           onChange={(event) =>{  setDraft(event.target.value) }}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -187,31 +205,40 @@ export function RunPanel() {
             {mode === 'restart' ? (
               <span className={styles.modeLine}>
                 <RotateCcw size={13} aria-hidden />
-                {sameRequest(draft, request) ? 'Domanda dello scenario' : 'Domanda già fatta'}: si riparte da zero, senza la conversazione precedente.
+                {sameRequest(draft, request)
+                  ? t('Domanda dello scenario', 'Scenario question')
+                  : t('Domanda già fatta', 'Question already asked')}
+                {t(': si riparte da zero, senza la conversazione precedente.', ': starts again from zero, without the previous conversation.')}
               </span>
             ) : mode === 'followup' ? (
               <span className={styles.modeLine}>
                 <CornerDownRight size={13} aria-hidden />
                 {config.components.memory
-                  ? 'Domanda nuova: continua la conversazione e il modello rivede gli scambi precedenti.'
-                  : 'Domanda nuova nella stessa conversazione. Senza memoria il modello non vede gli scambi precedenti.'}
+                  ? t(
+                    'Domanda nuova: continua la conversazione e il modello rivede gli scambi precedenti.',
+                    'New question: it continues the conversation and the model reviews the previous exchanges.',
+                  )
+                  : t(
+                    'Domanda nuova nella stessa conversazione. Senza memoria il modello non vede gli scambi precedenti.',
+                    'New question in the same conversation. Without memory the model does not see the previous exchanges.',
+                  )}
               </span>
             ) : null}
-            <span>Invio avvia la richiesta · Maiusc+Invio aggiunge una riga.</span>
+            <span>{t('Invio avvia la richiesta · Maiusc+Invio aggiunge una riga.', 'Enter starts the request · Shift+Enter adds a line.')}</span>
           </p>
           <div className={styles.actions}>
             {edited && !running && (
               <Button variant="ghost" size="sm" onClick={resetDraft}>
-                Domanda dello scenario
+                {t('Domanda dello scenario', 'Scenario question')}
               </Button>
             )}
             {running ? (
               <Button variant="danger" onClick={stop} icon={<Square size={15} fill="currentColor" aria-hidden />}>
-                Ferma
+                {t('Ferma', 'Stop')}
               </Button>
             ) : (
               <Button type="submit" variant="primary" disabled={!draft.trim()} icon={<Play size={15} fill="currentColor" aria-hidden />}>
-                Avvia
+                {t('Avvia', 'Start')}
               </Button>
             )}
           </div>
@@ -222,11 +249,12 @@ export function RunPanel() {
 }
 
 function ConversationEntry({ message, streamedProse, status }: { message: ChatEntry; streamedProse: string; status: RunStatus }) {
+  const t = useT()
   const live = useLiveReasoning()
   if (message.role === 'user') {
     return (
       <li className={styles.request}>
-        <span className={styles.kicker}>Richiesta</span>
+        <span className={styles.kicker}>{t('Richiesta', 'Request')}</span>
         <p className={styles.requestText}>{message.text}</p>
       </li>
     )
@@ -243,7 +271,7 @@ function ConversationEntry({ message, streamedProse, status }: { message: ChatEn
   return (
     <li className={styles.answer} aria-busy={message.streaming}>
       <div className={styles.answerMeta}>
-        <span className={styles.kicker}>{message.streaming ? 'Esecuzione del modello' : 'Esito della prova'}</span>
+        <span className={styles.kicker}>{message.streaming ? t('Esecuzione del modello', 'Model at work') : t('Esito della prova', 'Run result')}</span>
         {message.configLabel && <span className={styles.configLabel}>{message.configLabel}</span>}
         {message.provenance && <ProvenanceBadge tag={message.provenance} />}
         {message.stopReason && message.stopReason !== 'final_answer' && <span className={styles.stopReason}>{STOP_LABEL[message.stopReason]}</span>}
@@ -252,12 +280,20 @@ function ConversationEntry({ message, streamedProse, status }: { message: ChatEn
       <ReflectionTrace runId={message.runId} live={message.streaming} />
       {message.streaming && !text ? (
         <p className={styles.pending}>
-          {status === 'awaitingApproval' ? 'In attesa della tua approvazione…' : <ModelActivityNote fallback="Il sistema sta preparando la risposta…" />}
+          {status === 'awaitingApproval' ? (
+            t('In attesa della tua approvazione…', 'Waiting for your approval…')
+          ) : (
+            <ModelActivityNote fallback={t('Il sistema sta preparando la risposta…', 'The system is preparing the answer…')} />
+          )}
         </p>
       ) : (
         <div className={styles.answerText}>
           {!message.streaming && <h4 className={styles.resultTitle}>
-            {message.stopReason === 'final_answer' ? 'Risposta finale' : message.stopReason === 'needs_user_input' ? 'Chiarimento richiesto' : 'Esito senza risposta finale'}
+            {message.stopReason === 'final_answer'
+              ? t('Risposta finale', 'Final answer')
+              : message.stopReason === 'needs_user_input'
+                ? t('Chiarimento richiesto', 'Clarification requested')
+                : t('Esito senza risposta finale', 'Outcome without a final answer')}
           </h4>}
           <Markdown>{text}</Markdown>
           {message.streaming && <span className={styles.caret} aria-hidden />}

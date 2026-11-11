@@ -6,6 +6,7 @@ import { DEFAULT_SCENARIO_ID } from '../../scenarios'
 import { useLab } from '../../state/store'
 import type { ComparisonRow } from '../../state/store'
 import { NOT_LOADED_INFO } from '../../runtime/model/profiles'
+import { useUiLang } from '../../i18n'
 import { ComparisonMatrix } from './ComparisonMatrix'
 import { ComparisonView } from './ComparisonView'
 
@@ -137,6 +138,18 @@ describe('ComparisonView', () => {
 })
 
 describe('ComparisonMatrix', () => {
+  it('switches to English with the interface language', () => {
+    useUiLang.setState({ lang: 'en' })
+    try {
+      render(<ComparisonMatrix rows={[{ ...at(EXPERIMENT, 0), status: 'pending' }]} />)
+      expect(screen.getByRole('heading', { name: 'Results by configuration' })).toBeTruthy()
+      expect(screen.getByText(/Comparison results will appear here after the first run/)).toBeTruthy()
+    } finally {
+      cleanup()
+      useUiLang.setState({ lang: 'it' })
+    }
+  })
+
   it('distinguishes waiting, running, errors, and recorded check results', () => {
     const configs = EXPERIMENT.slice(0, 5)
     const rows: ComparisonRow[] = [
